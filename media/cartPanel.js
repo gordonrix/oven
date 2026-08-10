@@ -202,6 +202,39 @@
     });
   }
 
+  /**
+   * The select-all control. It acts on what is currently *visible*, matching
+   * the filter, so filtering to "GR-" and ticking this selects exactly those.
+   */
+  function renderSelectAll() {
+    const bar = $('selectAllBar');
+    const box = $('selectAll');
+    const vis = visible();
+
+    bar.hidden = vis.length === 0;
+    if (bar.hidden) return;
+
+    const chosen = vis.filter((it) => selected.has(it.id)).length;
+    box.checked = chosen === vis.length;
+    box.indeterminate = chosen > 0 && chosen < vis.length;
+
+    const filtered = vis.length !== items.length;
+    $('selectAllLabel').textContent = chosen === vis.length
+      ? `Deselect all${filtered ? ' shown' : ''} (${vis.length})`
+      : `Select all${filtered ? ' shown' : ''} (${vis.length})`;
+  }
+
+  function toggleSelectAll() {
+    const vis = visible();
+    const allSelected = vis.length > 0 && vis.every((it) => selected.has(it.id));
+    for (const it of vis) {
+      if (allSelected) selected.delete(it.id);
+      else selected.add(it.id);
+    }
+    lastClicked = -1; // a bulk toggle is not a shift-click anchor
+    render();
+  }
+
   function renderSessionBar() {
     const active = sessions.find((s) => s.id === activeId);
     const others = sessions.length - 1;
@@ -226,6 +259,7 @@
     } else {
       vis.forEach((item, i) => listEl.appendChild(renderRow(item, i)));
     }
+    renderSelectAll();
     renderSummary();
   }
 
@@ -237,6 +271,9 @@
     if (ids.length) vscode.postMessage({ type: 'cart/remove', ids });
   });
   filterEl.addEventListener('input', render);
+  // The <input> lives inside a <label>, so listen on the input only -- a click
+  // handler on the label as well would fire twice and cancel itself out.
+  $('selectAll').addEventListener('change', toggleSelectAll);
   $('sessionName').addEventListener('click', () => vscode.postMessage({ type: 'cart/manageSessions' }));
   $('newSession').addEventListener('click', () => vscode.postMessage({ type: 'cart/newSession' }));
 

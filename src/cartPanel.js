@@ -293,6 +293,10 @@ class CartPanel {
       </div>
     </div>
     <div id="summary" class="summary"></div>
+    <label id="selectAllBar" class="selectall" hidden>
+      <input id="selectAll" type="checkbox" />
+      <span id="selectAllLabel">Select all</span>
+    </label>
     <div id="list" class="list"></div>
     <script nonce="${nonce}" src="${uri('cartPanel.js')}"></script>
   </body>
