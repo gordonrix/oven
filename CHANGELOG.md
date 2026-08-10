@@ -59,3 +59,19 @@ if (feat.notes.ApEinfo_fwdcolor && feat.notes.ApEinfo_fwdcolor[0]) {
 
 - add '.fa', '.gbk' extension
 - Issue#3
+
+## 1.2.0
+
+- 260620
+- **SnapGene .dna file writing support**
+    - Replaced `bioparser.umd.js` with upgraded `bioparser2.umd.js`
+    - Added `jsonToSnapgene()` to `bioparser2.umd.js`
+        - Writes SnapGene binary format (.dna) from sequence JSON
+        - Preserves all original TLV blocks (Primers, Features, Notes, History, etc.) via `_snapgeneRawBlocks`
+        - Always reconstructs block 0 (sequence) and block 10 (features) to reflect edits
+    - `snapgeneToJson()` now parses block 5 primers and stores raw blocks for lossless roundtrip
+- **Save button enabled for .dna files**
+    - Removed `disabled = true` restriction on Save button for `.dna` format
+    - Extension stores `_snapgeneRawBlocks` in closure on open; merges back on save
+- **Known Limitation**
+    - `.dna` format: Primers from block 5 are displayed in OVE and preserved on save, but **adding new primers via OVE UI is not supported** — new primers will not be written to the file

@@ -4,13 +4,13 @@ Generate [openvectoreditor](https://github.com/TeselaGen/tg-oss/tree/master/pack
 
 refer to ove (https://github.com/TeselaGen/tg-oss/tree/master/packages/ove)
 
-![ove-vscode](media/ove-vscode.png)
+![ove-vscode](https://github.com/sanekun/ove-vscode/raw/HEAD/media/ove-vscode.png)
 
 ## Installation
 
 vscode-marketplace: https://marketplace.visualstudio.com/items?itemName=sanekun.openvectoreditor
 
-vscode - tab menu - Extensions: Install from VSIX - select openvectoreditor-1.1.5.vsix
+vscode - tab menu - Extensions: Install from VSIX - select openvectoreditor-1.2.0.vsix
 
 
 ## Features
@@ -18,7 +18,7 @@ vscode - tab menu - Extensions: Install from VSIX - select openvectoreditor-1.1.
 - tab menu: openvectoreditor.show: open general ove (Can remain contents)
 - Support .dna, .fa, .fasta, .gb, .gbk format
 - Select DNA File - Open With - select OVE (Can set as default)
-- Save file with custom button (not support .dna)
+- Save file with custom button (support all formats including .dna)
 
 ## Known Issues
 
@@ -28,7 +28,7 @@ data remaining
 
 ## Release Notes
 
-- refer to [Changelog](CHANGELOG.md)
+- refer to [Changelog](https://github.com/sanekun/ove-vscode/blob/HEAD/CHANGELOG.md)
 
 ### 1.1.0
 
