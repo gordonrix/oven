@@ -1,0 +1,199 @@
+/*
+ * Cross-references cart primers against a user-supplied inventory of primers
+ * they have already ordered.
+ *
+ * The status model matters more than it looks. A failed read must never
+ * present as "these are all new" -- that is how you reorder an oligo you
+ * already have in the freezer. So status is three-valued and the UI shows a
+ * neutral "unknown" badge for anything other than a clean load.
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const config = require('./config');
+const csvLite = require('./csvLite');
+const xlsxLite = require('./xlsxLite');
+const { normalizeSeqKey } = require('../media/cartShared');
+
+const READ_TIMEOUT_MS = 3000;
+
+let cache = null; // {path, mtimeMs, size, result}
+
+/** @returns {{status:'disabled'|'ok'|'missing'|'error', ...}} */
+function load() {
+  const file = config.inventoryPath();
+  if (!file) return { status: 'disabled' };
+
+  const base = path.basename(file);
+  if (base.startsWith('~$')) {
+    return {
+      status: 'error',
+      path: file,
+      message: `"${base}" is an Excel lock file, not a workbook. Point oveCart.inventoryPath at the real file.`
+    };
+  }
+
+  let stat;
+  try {
+    stat = statWithTimeout(file);
+  } catch (e) {
+    return { status: 'missing', path: file, message: `Cannot read ${file}: ${e.message}` };
+  }
+
+  if (cache && cache.path === file && cache.mtimeMs === stat.mtimeMs && cache.size === stat.size) {
+    return cache.result;
+  }
+
+  let result;
+  try {
+    result = parseInventory(file);
+    result.conflictWarning = findConflictedCopies(file);
+  } catch (e) {
+    result = { status: 'error', path: file, message: e.message };
+  }
+
+  cache = { path: file, mtimeMs: stat.mtimeMs, size: stat.size, result };
+  return result;
+}
+
+/**
+ * Dropbox CloudStorage placeholders can block while the file is hydrated from
+ * the network. A stalled stat must not take the extension host with it.
+ */
+function statWithTimeout(file) {
+  const started = Date.now();
+  const stat = fs.statSync(file);
+  if (Date.now() - started > READ_TIMEOUT_MS) {
+    throw new Error('timed out (the file may still be downloading from cloud storage)');
+  }
+  return stat;
+}
+
+function parseInventory(file) {
+  const ext = path.extname(file).toLowerCase();
+  let rows;
+  let sheetName = null;
+  let sheetNames = [];
+
+  if (ext === '.csv' || ext === '.tsv' || ext === '.txt') {
+    rows = csvLite.readFile(file);
+  } else if (ext === '.xlsx' || ext === '.xlsm') {
+    const out = xlsxLite.readSheet(file, config.inventorySheet() || undefined);
+    rows = out.rows;
+    sheetName = out.sheetName;
+    sheetNames = out.sheetNames;
+  } else {
+    throw new Error(`unsupported inventory file type "${ext}". Use .xlsx or .csv.`);
+  }
+
+  if (!rows || !rows.length) throw new Error('the inventory file has no rows');
+
+  const headers = (rows[0] || []).map((h) => String(h === undefined ? '' : h).trim());
+  const nameIdx = resolveColumn(headers, config.inventoryNameColumn(), 0, 'name');
+  const seqIdx = resolveColumn(headers, config.inventorySequenceColumn(), 1, 'sequence');
+
+  const bySeq = new Map();
+  let duplicates = 0;
+  let counted = 0;
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const seq = String(row[seqIdx] === undefined ? '' : row[seqIdx]).trim();
+    if (!seq) continue;
+    counted++;
+    const key = normalizeSeqKey(seq);
+    if (bySeq.has(key)) { duplicates++; continue; } // first occurrence wins
+    bySeq.set(key, {
+      name: String(row[nameIdx] === undefined ? '' : row[nameIdx]).trim(),
+      sequence: seq // echoed verbatim: lower/upper case encodes overhang vs annealing region
+    });
+  }
+
+  return {
+    status: 'ok',
+    path: file,
+    sheetName,
+    sheetNames,
+    headers,
+    nameColumn: headers[nameIdx],
+    sequenceColumn: headers[seqIdx],
+    rowCount: counted,
+    duplicates,
+    bySeq
+  };
+}
+
+/**
+ * Exact header match, then case-insensitive, else a hard error naming the
+ * headers that are actually present. Inventory headers routinely contain
+ * characters that are easy to mistype (U+00B0 degree, U+03BC micro), and
+ * without the list a mismatch is a very slow thing to debug.
+ */
+function resolveColumn(headers, wanted, fallbackIdx, label) {
+  if (!wanted) {
+    if (fallbackIdx >= headers.length) {
+      throw new Error(`no column ${fallbackIdx + 1} to use as the ${label} column. Headers found: ${headers.join(' | ')}`);
+    }
+    return fallbackIdx;
+  }
+  let idx = headers.indexOf(wanted);
+  if (idx < 0) idx = headers.findIndex((h) => h.toLowerCase() === wanted.toLowerCase());
+  if (idx < 0) {
+    throw new Error(`${label} column "${wanted}" not found. Headers found: ${headers.join(' | ')}`);
+  }
+  return idx;
+}
+
+function findConflictedCopies(file) {
+  try {
+    const dir = path.dirname(file);
+    const hits = fs.readdirSync(dir).filter((f) => /conflicted copy/i.test(f) && /\.xlsx?$/i.test(f));
+    return hits.length
+      ? `${hits.length} "conflicted copy" file(s) sit beside this inventory. Make sure you are pointing at the right one.`
+      : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Attach an inventoryMatch to each cart item. Never mutates the stored cart. */
+function annotate(items) {
+  const inv = load();
+  const ok = inv.status === 'ok';
+
+  const annotated = items.map((it) => {
+    let match;
+    if (!ok) {
+      match = { status: inv.status === 'disabled' ? 'disabled' : 'unknown', found: false };
+    } else {
+      const hit = inv.bySeq.get(normalizeSeqKey(it.sequence));
+      match = hit
+        ? { status: 'ok', found: true, name: hit.name, sequence: hit.sequence }
+        : { status: 'ok', found: false };
+    }
+    return Object.assign({}, it, { inventoryMatch: match });
+  });
+
+  return {
+    items: annotated,
+    inventory: {
+      status: inv.status,
+      path: inv.path || '',
+      sheetName: inv.sheetName || null,
+      nameColumn: inv.nameColumn || null,
+      sequenceColumn: inv.sequenceColumn || null,
+      rowCount: inv.rowCount || 0,
+      duplicates: inv.duplicates || 0,
+      message: inv.message || null,
+      conflictWarning: inv.conflictWarning || null
+    }
+  };
+}
+
+function invalidate() {
+  cache = null;
+}
+
+module.exports = { load, annotate, invalidate, resolveColumn };
