@@ -1,34 +1,44 @@
 /*
- * Primer search overlay, running inside the OVE webview.
+ * Primer search, rendered as a native OVE panel.
  *
- * Finds primers from the configured inventory that bind the open plasmid, and
- * attaches a chosen one as a primer_bind annotation.
+ * It started as a modal overlay, which covered the very sequence you were
+ * trying to look at. OVE turns out to accept a `panelMap` prop that is merged
+ * over its built-in one, so "Primer Search" can be a real tab sitting beside
+ * Sequence Map in OVE's own split layout -- resizable, reorderable, and with
+ * the sequence still visible while you scan the results.
  *
- * The matching itself happens in the extension host (that is where the
- * inventory file lives); this module owns the UI, the scope, and the attach.
+ * A panel has to be a React component, and the UMD bundle does not export
+ * React. It does not need to: a React element is a plain object tagged with
+ * Symbol.for('react.element'), and that symbol comes from the global registry,
+ * so one can be hand-built. The component returns a single such element -- a
+ * div with a stable ref -- and everything inside it is ordinary DOM.
+ *
+ * Matching runs in the extension host, where the inventory file lives; this
+ * module owns the panel, the scope, and the attach.
  */
 (function () {
   'use strict';
 
+  const PANEL_ID = 'primerSearch';
+  const PANEL_NAME = 'Primer Search';
+  const REACT_ELEMENT = Symbol.for('react.element');
+
   let vscodeApi = null;
   let editor = null;
-  let overlay = null;
+  let root = null; // the DOM node OVE handed us for the panel body
 
   let state = {
     loading: false,
+    ran: false,
     hits: [],
     inventory: { status: 'disabled' },
     scoped: false,
-    selection: null,
     tookMs: 0,
-    truncated: false,
-    scanned: 0
+    truncated: false
   };
   let fullLengthOnly = false;
   let filterText = '';
-  let wantScoped = true;
 
-  const S = () => window.CartShared;
   const post = (m) => vscodeApi && vscodeApi.postMessage(m);
   const toast = (kind, text) => window.toastr && window.toastr[kind] && window.toastr[kind](text);
 
@@ -42,13 +52,75 @@
   }
 
   function currentSelection() {
-    const sel = (seqState().selectionLayer) || {};
+    const sel = seqState().selectionLayer || {};
     return typeof sel.start === 'number' && sel.start > -1 && sel.end > -1
       ? { start: sel.start, end: sel.end }
       : null;
   }
 
-  /* ------------------------------------------------------------- search -- */
+  /* ---------------------------------------------------- the OVE panel -- */
+
+  /**
+   * Minimal React.createElement. Only ever used for the one wrapper element;
+   * everything below it is plain DOM built in mount().
+   */
+  function reactElement(type, props) {
+    return {
+      $$typeof: REACT_ELEMENT,
+      type,
+      key: null,
+      ref: (props && props.ref) || null,
+      props: Object.assign({}, props),
+      _owner: null,
+      _store: {}
+    };
+  }
+
+  // Defined once, on purpose: an inline arrow would be a new ref on every
+  // render, and React would tear the DOM down and rebuild it each time.
+  const panelRef = (node) => {
+    if (!node) return; // unmounting
+    root = node;
+    root.className = 'ovesearch-root';
+    render();
+  };
+
+  function SearchPanelComponent() {
+    return reactElement('div', { className: 'ovesearch-mount', ref: panelRef });
+  }
+
+  const panelMap = { [PANEL_ID]: { comp: SearchPanelComponent } };
+
+  /**
+   * Make sure the panel is on screen and focused, putting it beside the
+   * sequence rather than on top of it.
+   */
+  function showPanel() {
+    const st = seqState();
+    const groups = (st.panelsShown || []).map((g) => (g || []).map((p) => Object.assign({}, p)));
+
+    for (const group of groups) {
+      const mine = group.find((p) => p.id === PANEL_ID);
+      if (mine) {
+        group.forEach((p) => { p.active = p.id === PANEL_ID; });
+        editor.updateEditor({ panelsShown: groups });
+        return;
+      }
+    }
+
+    const panel = { id: PANEL_ID, name: PANEL_NAME, active: true };
+    if (groups.length <= 1) {
+      // Split the view so the sequence stays visible next to the results.
+      groups.push([panel]);
+    } else {
+      const target = groups[groups.length - 1];
+      target.forEach((p) => { p.active = false; });
+      target.push(panel);
+    }
+    editor.updateEditor({ panelsShown: groups });
+  }
+
+  /* --------------------------------------------------------- searching -- */
 
   function run(scoped) {
     const sd = seqState().sequenceData || {};
@@ -56,24 +128,21 @@
     if (!sequence) { toast('warning', 'No sequence to search'); return; }
 
     const selection = scoped ? currentSelection() : null;
-    wantScoped = Boolean(selection);
     state.loading = true;
+    state.ran = true;
     render();
     post({ type: 'search/run', sequence, circular: Boolean(sd.circular), selection });
   }
 
   function open(opts) {
     const o = opts || {};
-    // The cart picker and this overlay share the backdrop chrome; make sure
-    // only one is ever mounted.
-    document.querySelectorAll('.ovecart-backdrop').forEach((n) => n.remove());
-    const sel = currentSelection();
-    run(o.scoped !== false && Boolean(sel));
+    showPanel();
+    // Let OVE lay the panel out before the first paint of results.
+    setTimeout(() => run(o.scoped !== false && Boolean(currentSelection())), 0);
   }
 
-  /* -------------------------------------------------------------- attach -- */
+  /* ---------------------------------------------------------- attaching -- */
 
-  /** Primers already in the file, keyed by footprint, so hits can be marked. */
   function attachedKeys() {
     const primers = (seqState().sequenceData || {}).primers || {};
     const keys = new Set();
@@ -99,10 +168,10 @@
 
     /*
      * justPassingPartialSeqData is not optional. Without it updateEditor
-     * REPLACES sequenceData wholesale and tidyUpSequenceData then coerces the
+     * REPLACES sequenceData wholesale and tidyUpSequenceData coerces the
      * missing keys to empty -- verified to leave a 0 bp "Untitled Sequence"
-     * with no features. And the primers map is replaced even on the partial
-     * path, so the existing primers must be spread in by hand.
+     * with no features. The primers map is replaced even on the partial path,
+     * so the existing primers must be spread in by hand.
      */
     editor.updateEditor({
       justPassingPartialSeqData: true,
@@ -126,12 +195,15 @@
     render();
   }
 
+  /** Select and scroll to a hit's footprint so it is visible in the map. */
   function reveal(hit) {
-    // Scrolls the sequence view; caretPosition is what RowView watches.
-    editor.updateEditor({ caretPosition: hit.threePrime });
+    editor.updateEditor({
+      selectionLayer: { start: hit.start, end: hit.end, forceUpdate: hit.threePrime },
+      caretPosition: -1
+    });
   }
 
-  /* ------------------------------------------------------------ rendering -- */
+  /* ---------------------------------------------------------- rendering -- */
 
   function el(tag, cls, text) {
     const n = document.createElement(tag);
@@ -139,14 +211,6 @@
     if (text !== undefined) n.textContent = text;
     return n;
   }
-
-  function close() {
-    if (overlay) overlay.remove();
-    overlay = null;
-    document.removeEventListener('keydown', onKey);
-  }
-
-  function onKey(e) { if (e.key === 'Escape') close(); }
 
   function visibleHits() {
     let hits = state.hits;
@@ -162,73 +226,55 @@
   }
 
   function render() {
-    const scrollTop = overlay ? (overlay.querySelector('.ovesearch-list') || {}).scrollTop : 0;
-    close();
+    if (!root) return;
+    root.textContent = '';
 
-    overlay = el('div', 'ovecart-backdrop');
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+    root.appendChild(buildControls());
+    const count = el('div', 'ovesearch-count');
+    root.appendChild(count);
+    const list = el('div', 'ovesearch-list');
+    root.appendChild(list);
+    renderList(list, count);
+  }
 
-    const panel = el('div', 'ovecart-panel ovesearch-panel');
-
-    // --- header
-    const head = el('div', 'ovecart-head');
-    head.appendChild(el('span', 'ovecart-title', 'Primer search'));
-    const x = el('button', 'ovecart-x', '×');
-    x.addEventListener('click', close);
-    head.appendChild(x);
-    panel.appendChild(head);
-
-    // --- controls
+  function buildControls() {
     const controls = el('div', 'ovesearch-controls');
     const sel = currentSelection();
 
-    const scopeWrap = el('div', 'ovesearch-scope');
-    const mkScope = (label, scoped, disabled) => {
-      const b = el('button', 'ovesearch-tab' + (state.scoped === scoped ? ' is-active' : ''), label);
+    const scope = el('div', 'ovesearch-scope');
+    const tab = (label, scoped, disabled) => {
+      const b = el('button', 'ovesearch-tab' + (state.ran && state.scoped === scoped ? ' is-active' : ''), label);
       b.disabled = Boolean(disabled) || state.loading;
       b.addEventListener('click', () => run(scoped));
       return b;
     };
-    scopeWrap.appendChild(mkScope(
-      sel ? `Selection ${sel.start + 1}..${sel.end + 1}` : 'Selection (none)', true, !sel));
-    scopeWrap.appendChild(mkScope('Whole plasmid', false, false));
-    controls.appendChild(scopeWrap);
+    scope.appendChild(tab(sel ? `Selection ${sel.start + 1}..${sel.end + 1}` : 'Selection', true, !sel));
+    scope.appendChild(tab('Whole plasmid', false, false));
+    controls.appendChild(scope);
 
-    const fullWrap = el('label', 'ovesearch-check');
+    const check = el('label', 'ovesearch-check');
     const cb = el('input');
     cb.type = 'checkbox';
     cb.checked = fullLengthOnly;
     cb.addEventListener('change', () => { fullLengthOnly = cb.checked; render(); });
-    fullWrap.appendChild(cb);
-    fullWrap.appendChild(el('span', null, '100% match only'));
-    fullWrap.title = 'Hide primers whose 5′ tail is not present in this template';
-    controls.appendChild(fullWrap);
+    check.appendChild(cb);
+    check.appendChild(el('span', null, '100% match'));
+    check.title = 'Hide primers whose 5′ tail is not present in this template';
+    controls.appendChild(check);
 
     const filter = el('input', 'ovesearch-filter');
     filter.type = 'search';
-    filter.placeholder = 'Filter by name, alias or sequence…';
+    filter.placeholder = 'Filter…';
     filter.value = filterText;
     filter.addEventListener('input', () => {
       filterText = filter.value;
-      renderList(list, countEl);
+      const list = root.querySelector('.ovesearch-list');
+      const count = root.querySelector('.ovesearch-count');
+      if (list && count) renderList(list, count);
     });
     controls.appendChild(filter);
-    panel.appendChild(controls);
 
-    const countEl = el('div', 'ovesearch-count');
-    panel.appendChild(countEl);
-
-    const list = el('div', 'ovesearch-list');
-    panel.appendChild(list);
-    renderList(list, countEl);
-
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-    document.addEventListener('keydown', onKey);
-    if (scrollTop) {
-      const l = overlay.querySelector('.ovesearch-list');
-      if (l) l.scrollTop = scrollTop;
-    }
+    return controls;
   }
 
   function renderList(list, countEl) {
@@ -237,18 +283,23 @@
 
     if (state.loading) {
       countEl.textContent = 'Searching…';
-      list.appendChild(el('div', 'ovesearch-empty', 'Matching the inventory against this sequence…'));
       return;
     }
 
-    // Inventory not usable: say so and offer the fix, rather than "0 results".
+    if (!state.ran) {
+      countEl.textContent = '';
+      list.appendChild(el('div', 'ovesearch-empty',
+        'Choose a scope above to find inventory primers that bind this plasmid.'));
+      return;
+    }
+
     if (inv.status === 'disabled') {
       countEl.textContent = '';
       const box = el('div', 'ovesearch-empty');
-      box.appendChild(el('div', null, 'No primer inventory configured.'));
+      box.appendChild(el('div', 'ovesearch-strong', 'No primer inventory configured.'));
       box.appendChild(el('div', 'ovesearch-dim',
         'Point the extension at a spreadsheet of primers you already own (.xlsx or .csv) to search it.'));
-      const pick = el('button', 'ovecart-primary', 'Choose file…');
+      const pick = el('button', 'ovesearch-cta', 'Choose file…');
       pick.addEventListener('click', () => post({ type: 'search/pickInventory' }));
       box.appendChild(pick);
       list.appendChild(box);
@@ -257,9 +308,9 @@
     if (inv.status !== 'ok') {
       countEl.textContent = '';
       const box = el('div', 'ovesearch-empty ovesearch-error');
-      box.appendChild(el('div', null, 'The primer inventory could not be read.'));
+      box.appendChild(el('div', 'ovesearch-strong', 'The primer inventory could not be read.'));
       if (inv.message) box.appendChild(el('div', 'ovesearch-dim', inv.message));
-      const pick = el('button', 'ovecart-secondary', 'Choose a different file…');
+      const pick = el('button', 'ovesearch-cta', 'Choose a different file…');
       pick.addEventListener('click', () => post({ type: 'search/pickInventory' }));
       box.appendChild(pick);
       list.appendChild(box);
@@ -268,9 +319,9 @@
 
     const hits = visibleHits();
     const bits = [`${hits.length}${hits.length === state.hits.length ? '' : ' of ' + state.hits.length} hit${state.hits.length === 1 ? '' : 's'}`];
-    bits.push(state.scoped ? 'in selection' : 'in whole plasmid');
-    bits.push(`${inv.rowCount} primers searched in ${state.tookMs} ms`);
-    if (state.truncated) bits.push('results capped');
+    bits.push(state.scoped ? 'in selection' : 'whole plasmid');
+    bits.push(`${inv.rowCount} searched · ${state.tookMs} ms`);
+    if (state.truncated) bits.push('capped');
     countEl.textContent = bits.join(' · ');
 
     if (!state.hits.length) {
@@ -279,7 +330,7 @@
         ? 'No inventory primer binds inside the selection.'
         : 'No inventory primer binds this plasmid.'));
       if (state.scoped) {
-        const wide = el('button', 'ovecart-secondary', 'Search the whole plasmid instead');
+        const wide = el('button', 'ovesearch-cta', 'Search the whole plasmid');
         wide.addEventListener('click', () => run(false));
         box.appendChild(wide);
       }
@@ -287,14 +338,14 @@
       return;
     }
     if (!hits.length) {
-      list.appendChild(el('div', 'ovesearch-empty', 'Every hit is filtered out by the options above.'));
+      list.appendChild(el('div', 'ovesearch-empty', 'Everything is filtered out by the options above.'));
       return;
     }
 
     const attached = attachedKeys();
 
     const header = el('div', 'ovesearch-row ovesearch-header');
-    ['Pos', 'Str', 'Name', 'Anneal', 'Tm', "5′ tail", 'Alias', ''].forEach((h, i) => {
+    ['Pos', 'Str', 'Name', 'Anneal', 'Tm', 'Tail', 'Alias', ''].forEach((h, i) => {
       header.appendChild(el('div', 'ovesearch-c' + i, h));
     });
     list.appendChild(header);
@@ -313,14 +364,14 @@
       name.title = `${hit.sequence}\n\n${hit.description || ''}`.trim();
       row.appendChild(name);
 
-      row.appendChild(el('div', 'ovesearch-c3', `${hit.anneal} nt`));
+      row.appendChild(el('div', 'ovesearch-c3', `${hit.anneal}`));
       row.appendChild(el('div', 'ovesearch-c4', hit.tm === null ? '—' : String(hit.tm)));
       row.appendChild(el('div', 'ovesearch-c5' + (hit.overhang ? ' has-tail' : ''),
         hit.overhang ? `+${hit.overhang}` : '—'));
       row.appendChild(el('div', 'ovesearch-c6', hit.alias || ''));
 
       const actions = el('div', 'ovesearch-c7');
-      const btn = el('button', 'ovesearch-attach', isAttached ? 'Attached' : 'Attach');
+      const btn = el('button', 'ovesearch-attach', isAttached ? '✓' : 'Attach');
       btn.disabled = isAttached;
       btn.title = isAttached
         ? 'A primer already covers this footprint'
@@ -329,6 +380,7 @@
       actions.appendChild(btn);
       row.appendChild(actions);
 
+      row.title = 'Click to select and scroll to this binding site';
       row.addEventListener('click', () => reveal(hit));
       list.appendChild(row);
     }
@@ -336,31 +388,40 @@
 
   /* -------------------------------------------------------- integration -- */
 
-  /** Menu entry appended to OVE's right-click menus. Plain object, no React. */
-  function searchItem(scoped) {
-    return {
+  /*
+   * The scope is decided from the live selection rather than from which menu
+   * was opened. Right-clicking a feature with a selection active should still
+   * search the selection, and right-clicking anywhere with nothing selected
+   * should search the plasmid -- keying it off the menu instead got this wrong
+   * both ways.
+   */
+  function withSearch(items) {
+    const scoped = Boolean(currentSelection());
+    const out = [...items, '--', {
       text: scoped ? 'Search primers in selection' : 'Search primers in plasmid',
       className: 'ove-search-menu-item',
       onClick: () => open({ scoped })
-    };
-  }
-
-  function withSearch(items, scoped) {
-    const out = [...items, '--', searchItem(scoped)];
+    }];
     // backgroundRightClicked hangs the originating event off the array itself;
     // a rebuilt array loses the menu's anchor without this.
     out._event = items._event;
     return out;
   }
 
-  // Stable reference: OVE memoises on identity and warns if it changes.
-  const rightClickOverrides = {
-    selectionLayerRightClicked: (items) => withSearch(items, true),
-    backgroundRightClicked: (items) => withSearch(items, false),
-    featureRightClicked: (items) => withSearch(items, true),
-    primerRightClicked: (items) => withSearch(items, true),
-    partRightClicked: (items) => withSearch(items, true)
-  };
+  /*
+   * Every right-click surface, so the entry is never missing depending on what
+   * happens to sit under the cursor -- a translation or ORF lying over the
+   * sequence would otherwise swallow it.
+   */
+  const rightClickOverrides = {};
+  for (const key of [
+    'selectionLayerRightClicked', 'backgroundRightClicked', 'featureRightClicked',
+    'primerRightClicked', 'partRightClicked', 'translationRightClicked',
+    'orfRightClicked', 'cutsiteRightClicked', 'warningRightClicked',
+    'searchLayerRightClicked', 'deletionLayerRightClicked', 'replacementLayerRightClicked'
+  ]) {
+    rightClickOverrides[key] = withSearch;
+  }
 
   function init(api, ove) {
     vscodeApi = api;
@@ -370,15 +431,14 @@
       if (msg.type === 'search/results') {
         state = {
           loading: false,
+          ran: true,
           hits: msg.hits || [],
           inventory: msg.inventory || { status: 'disabled' },
           scoped: Boolean(msg.scoped),
-          selection: msg.selection || null,
           tookMs: msg.tookMs || 0,
-          truncated: Boolean(msg.truncated),
-          scanned: msg.scanned || 0
+          truncated: Boolean(msg.truncated)
         };
-        if (msg.fullLengthOnly && !overlay) fullLengthOnly = true;
+        if (msg.fullLengthOnly) fullLengthOnly = true;
         render();
       } else if (msg.type === 'search/inventoryChanged') {
         run(state.scoped);
@@ -386,5 +446,5 @@
     });
   }
 
-  window.OveSearch = { init, open, rightClickOverrides, attach };
+  window.OveSearch = { init, open, showPanel, panelMap, rightClickOverrides, attach, PANEL_ID };
 })();

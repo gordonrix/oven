@@ -84,9 +84,11 @@ workaround.
 
 ## Primer search and attach
 
-Click **Primer Search** in the editor, or right-click the sequence (or a selection) and
-choose **Search primers**. It matches your inventory against the open plasmid and lists
-every primer that binds, sorted by position:
+Click **Primer Search** in the editor, or right-click anywhere in the sequence and choose
+**Search primers**. Results open as a **Primer Search tab beside the sequence map**, using
+OVE's own split layout — so you can see exactly where each hit lands while you scan the
+list, and drag the divider to resize. Clicking a row selects and scrolls to that binding
+site. Hits are sorted by position:
 
 | Pos | Str | Name | Anneal | Tm | 5′ tail | Alias | |
 |---|---|---|---|---|---|---|---|

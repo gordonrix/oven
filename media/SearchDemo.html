@@ -94,6 +94,11 @@
       });
 
       document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      document.addEventListener('__clearSelection', () => {
+        // VECTOR_EDITOR_UPDATE shallow-replaces selectionLayer, so it can be
+        // set to the empty sentinel that SELECTION_LAYER_UPDATE would reject.
+        window.__oveEditor.updateEditor({ selectionLayer: { start: -1, end: -1 }, caretPosition: 0 });
+      });
       document.addEventListener('__select', (e) => {
         window.__oveEditor.updateEditor({
           selectionLayer: { start: e.detail.start, end: e.detail.end }, caretPosition: -1
@@ -123,6 +128,7 @@
         disableSetReadOnly: false,
         disableBpEditing: true,
         rightClickOverrides: window.OveSearch.rightClickOverrides,
+        panelMap: window.OveSearch.panelMap,
         beforeAnnotationCreate: function (info) {
           try {
             if (info && info.annotationTypePlural === 'primers' && !info.isEdit) {

@@ -87,7 +87,8 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         showReadOnly: true,
         disableSetReadOnly: false,
         disableBpEditing: ${Boolean(disableBpEditing)},
-        ${withCart ? 'rightClickOverrides: window.OveSearch.rightClickOverrides,' : ''}
+        ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
+        panelMap: window.OveSearch.panelMap,` : ''}
         beforeAnnotationCreate: function (info) {
           try {
             if (${Boolean(withCart && autoAddCreatedPrimers)} && info &&

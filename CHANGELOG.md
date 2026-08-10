@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.5.1
+
+- Primer search results now open as a **Primer Search tab beside the sequence map**
+  rather than a modal overlay that covered the very sequence you were checking. OVE
+  accepts a `panelMap` prop merged over its built-in one, so this is a real panel in its
+  own split layout: resizable, reorderable, and visible alongside the map.
+- Clicking a result selects and scrolls to that binding site.
+- The right-click entry is registered on every annotation surface (translation, ORF,
+  cut site, feature, part, primer, warning...) instead of a handful, so it can no longer
+  go missing depending on what happens to lie under the cursor. Its scope now follows the
+  live selection rather than which menu was opened.
+
 ## 1.5.0
 
 - **Primer search.** Matches the configured primer inventory against the open plasmid,
