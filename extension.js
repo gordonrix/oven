@@ -1,6 +1,6 @@
 const vscode = require('vscode');
 const path = require('path');
-const { genbankToJson, fastaToJson, snapgeneToJson, jsonToGenbank, jsonToFasta } = require('./media/bioparser.umd.js');
+const { genbankToJson, fastaToJson, snapgeneToJson, jsonToSnapgene, jsonToGenbank, jsonToFasta } = require('./media/bioparser2.umd.js');
 
 function activate(context) {
   console.log('openvectoreditor: now activated!');
@@ -161,7 +161,9 @@ class DNAViewerProvider {
     const ext = path.extname(document.uri.fsPath.toLowerCase().trim());
     const defaultViewType = viewType(vscode.workspace.getConfiguration('openvectoreditor').get('viewType'));
 
-    let jsonOutput
+    let jsonOutput;
+    let snapgeneRawBlocks = null; // preserved for .dna roundtrip
+
     if (ext === '.gb' || ext === '.gbk') {
       const doc = await vscode.workspace.openTextDocument(document.uri);
       const fileContent = doc.getText();
@@ -173,23 +175,33 @@ class DNAViewerProvider {
     } else if (ext === '.dna') {
       let fileName = path.basename(document.uri.fsPath);
       const basename = path.parse(fileName).name.trim();
-      const buffer = await vscode.workspace.fs.readFile(document.uri); // Unit8Array
+      const buffer = await vscode.workspace.fs.readFile(document.uri); // Uint8Array
       const snapgeneOutput = await snapgeneToJson(buffer, { 'fileName': basename });
-      jsonOutput = JSON.stringify(snapgeneOutput[0].parsedSequence);
+      const parsed = snapgeneOutput[0].parsedSequence;
+      snapgeneRawBlocks = parsed._snapgeneRawBlocks || null; // keep primers/history/etc.
+      delete parsed._snapgeneRawBlocks;                      // don't send large binary blobs to webview
+      jsonOutput = JSON.stringify(parsed);
     }
 
-    function jsonToFile(newJsonData) {
-      if (ext == '.gb' || ext == '.gbk') {
-        return jsonToGenbank(newJsonData);
-      } else if (ext == '.fa' || ext == '.fasta') {
-        return jsonToFasta(newJsonData);
+    function toFileBytes(newJsonData) {
+      if (ext === '.dna') {
+        return jsonToSnapgene(Object.assign({}, newJsonData, { _snapgeneRawBlocks: snapgeneRawBlocks }));
+      } else if (ext === '.gb' || ext === '.gbk') {
+        return Buffer.from(jsonToGenbank(newJsonData));
+      } else if (ext === '.fa' || ext === '.fasta') {
+        return Buffer.from(jsonToFasta(newJsonData));
       }
     }
+
     webviewPanel.webview.onDidReceiveMessage(async (message) => {
       if (message.type === "save") {
-        const newJsonData = message.data;
-        const newFileContent = jsonToFile(newJsonData);
-        await vscode.workspace.fs.writeFile(document.uri, Buffer.from(newFileContent));
+        try {
+          const fileBytes = toFileBytes(message.data);
+          await vscode.workspace.fs.writeFile(document.uri, fileBytes);
+          vscode.window.showInformationMessage(`Saved: ${path.basename(document.uri.fsPath)}`);
+        } catch (e) {
+          vscode.window.showErrorMessage(`Save failed: ${e.message}`);
+        }
       }
     })
 
@@ -242,10 +254,7 @@ class DNAViewerProvider {
     const fileExt = ${JSON.stringify(ext)};
 
     function isSavable() {
-      // Check .dna file
-      if (fileExt === '.dna') {
-        document.getElementById("save-button").disabled = true;
-      }
+      // All supported formats are now savable
     }
 
     function postSave() {
