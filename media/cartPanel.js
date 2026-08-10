@@ -18,6 +18,8 @@
 
   let items = [];
   let inventory = { status: 'disabled' };
+  let sessions = [];
+  let activeId = null;
   let selected = new Set();
   let lastClicked = -1;
 
@@ -200,7 +202,18 @@
     });
   }
 
+  function renderSessionBar() {
+    const active = sessions.find((s) => s.id === activeId);
+    const others = sessions.length - 1;
+    const btn = $('sessionName');
+    btn.textContent = active ? active.name : 'Cart';
+    btn.title = others > 0
+      ? `Active session · ${others} other session${others === 1 ? '' : 's'} — click to switch, rename or delete`
+      : 'Active session — click to rename or delete';
+  }
+
   function render() {
+    renderSessionBar();
     renderBanner();
     listEl.textContent = '';
 
@@ -224,6 +237,8 @@
     if (ids.length) vscode.postMessage({ type: 'cart/remove', ids });
   });
   filterEl.addEventListener('input', render);
+  $('sessionName').addEventListener('click', () => vscode.postMessage({ type: 'cart/manageSessions' }));
+  $('newSession').addEventListener('click', () => vscode.postMessage({ type: 'cart/newSession' }));
 
   let gotState = false;
 
@@ -233,6 +248,8 @@
       gotState = true;
       items = msg.items || [];
       inventory = msg.inventory || { status: 'disabled' };
+      sessions = msg.sessions || [];
+      activeId = msg.activeId || null;
       const live = new Set(items.map((it) => it.id));
       selected = new Set([...selected].filter((id) => live.has(id)));
       render();

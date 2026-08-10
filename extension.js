@@ -5,26 +5,20 @@ const vscode = require('vscode');
 
 const config = require('./src/config');
 const { CartStore } = require('./src/cartStore');
-const { CartViewProvider } = require('./src/cartView');
+const { CartPanel } = require('./src/cartPanel');
 const { DNAViewerProvider } = require('./src/editorProvider');
 const { buildDemoHtml } = require('./src/editorHtml');
 
 function activate(context) {
   const cart = new CartStore(context);
+  const cartPanel = new CartPanel(context, cart);
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       'oveCart.editor',
-      new DNAViewerProvider(context, cart),
+      new DNAViewerProvider(context, cart, cartPanel),
       { webviewOptions: { retainContextWhenHidden: true } }
     )
-  );
-
-  const cartView = new CartViewProvider(context, cart);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('oveCart.cartView', cartView, {
-      webviewOptions: { retainContextWhenHidden: true }
-    })
   );
 
   context.subscriptions.push(
@@ -48,9 +42,14 @@ function activate(context) {
       });
     }),
 
-    vscode.commands.registerCommand('oveCart.exportCsv', () => cartView.exportCsv()),
-    vscode.commands.registerCommand('oveCart.refreshInventory', () => cartView.refreshInventory()),
-    vscode.commands.registerCommand('oveCart.clear', () => cartView.clearCart())
+    vscode.commands.registerCommand('oveCart.show', () => cartPanel.show()),
+    vscode.commands.registerCommand('oveCart.copyTsv', () => cartPanel.copy([], 'tsv')),
+    vscode.commands.registerCommand('oveCart.copySequences', () => cartPanel.copy([], 'seqs')),
+    vscode.commands.registerCommand('oveCart.exportCsv', () => cartPanel.exportCsv([])),
+    vscode.commands.registerCommand('oveCart.newSession', () => cartPanel.newSession()),
+    vscode.commands.registerCommand('oveCart.manageSessions', () => cartPanel.manageSessions()),
+    vscode.commands.registerCommand('oveCart.refreshInventory', () => cartPanel.refreshInventory()),
+    vscode.commands.registerCommand('oveCart.clear', () => cartPanel.clearCart())
   );
 }
 

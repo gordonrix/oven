@@ -33,6 +33,33 @@ button.primary {
 button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
 button.danger:not(:disabled) { color: var(--vscode-errorForeground); }
 
+/* ------------------------------------------------------------ sessions -- */
+
+.sessionbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.sessionbtn {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sessionbtn::after {
+  content: ' ⌄';
+  opacity: .6;
+}
+
+.sessionnew { flex: none; white-space: nowrap; }
+
 /* ------------------------------------------------------------- banners -- */
 
 .banner {

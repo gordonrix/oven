@@ -51,9 +51,21 @@ both will offer to open `.gb` files and "Reopen Editor With…" will show two OV
    create are added automatically (`oveCart.autoAddCreatedPrimers`).
 3. Repeat in as many plasmid files as you like — the cart is global and persists across
    restarts.
-4. Open the **Primer Cart** panel in the activity bar and use **Copy TSV** (pastes into
-   Excel/Sheets as columns), **Copy sequences** (one per line, for bulk oligo order
-   forms), or **Export CSV…**.
+4. Click **Open cart** at the top of that picker (or run **Primer Cart: Show Cart**) to
+   open the cart as an editor tab, listing primers from every file. Use **Copy TSV**
+   (pastes into Excel/Sheets as columns), **Copy sequences** (one per line, for bulk
+   oligo order forms), or **Export CSV…**.
+
+There is deliberately no activity-bar icon: the cart is opened on demand and closed when
+you are done, rather than occupying a permanent slot.
+
+### Sessions
+
+A cart belongs to a **session**, so it does not grow without bound. Hit **+ New session**
+in the cart to park the current batch and start empty — nothing is deleted, and the old
+session stays available from the session button. Sessions are named by date by default;
+rename them to something like `2026-08-10 backbone swaps` and old orders stay findable.
+Commands: **Primer Cart: New Session**, **Primer Cart: Switch or Manage Sessions**.
 
 ### Cross-referencing an existing inventory
 

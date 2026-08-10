@@ -35,9 +35,15 @@
     if (window.toastr && window.toastr[kind]) window.toastr[kind](text);
   }
 
+  let cartCount = 0;
+
   function setCount(n) {
+    cartCount = n || 0;
     const btn = document.getElementById('ove-cart-button');
-    if (btn) btn.textContent = n ? `Cart (${n})` : 'Cart';
+    // "Add to Cart", not "Cart": this button opens a picker scoped to the
+    // current file. The cart itself is the activity-bar panel, and labelling
+    // this one "Cart" made it read as "show me my cart".
+    if (btn) btn.textContent = cartCount ? `Add to Cart (${cartCount})` : 'Add to Cart';
   }
 
   /** Every primer in the open file, plus the live selection if there is one. */
@@ -115,11 +121,26 @@
     const panel = el('div', 'ovecart-panel');
     const head = el('div', 'ovecart-head');
     head.appendChild(el('span', 'ovecart-title', 'Add primers to cart'));
+
+    // This picker only ever lists the open file. Make the whole-cart view
+    // reachable from here rather than assuming the activity-bar icon is found.
+    const openCart = el('button', 'ovecart-link',
+      cartCount ? `Open cart (${cartCount} from all files) →` : 'Open cart →');
+    openCart.title = 'Show the Primer Cart panel, which lists primers from every file';
+    openCart.addEventListener('click', () => {
+      post({ type: 'cart/showPanel' });
+      close();
+    });
+    head.appendChild(openCart);
+
     const closeBtn = el('button', 'ovecart-x', '×');
     closeBtn.title = 'Close';
     closeBtn.addEventListener('click', close);
     head.appendChild(closeBtn);
     panel.appendChild(head);
+
+    panel.appendChild(el('div', 'ovecart-sub',
+      'Showing primers in this file only. The cart itself holds primers from every file — open it above.'));
 
     if (!rows.length) {
       panel.appendChild(el('div', 'ovecart-empty',

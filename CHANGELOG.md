@@ -4,6 +4,25 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.4.0
+
+- **Cart sessions.** The cart is grouped into named sessions so it does not grow without
+  bound; starting a new one parks the previous batch rather than deleting it. Existing
+  carts migrate into a first session automatically.
+- **No more activity-bar icon.** The cart now opens as an editor tab from the green
+  button in the editor or from `Primer Cart: Show Cart`, instead of occupying a permanent
+  activity-bar slot.
+- The editor button is relabelled **Add to Cart**. Calling it "Cart" made it read as
+  "show me my cart", when it only ever listed the open file's primers -- the actual cart
+  was somewhere else entirely.
+- Copy/export/session commands are all available from the command palette, so the cart
+  can be exported without opening any UI.
+
+## 1.3.2
+
+- Fixed: the cart panel could sit empty while the badge showed a full cart. Three
+  separate message-delivery faults; see the commit log.
+
 ## 1.3.0 (fork)
 
 Fork of [sanekun/ove-vscode](https://github.com/sanekun/ove-vscode) (GPL-3.0), branched

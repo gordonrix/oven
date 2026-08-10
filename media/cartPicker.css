@@ -37,6 +37,25 @@
 
 .ovecart-title { font-size: 16px; font-weight: 600; flex: 1; }
 
+.ovecart-link {
+  border: none;
+  background: none;
+  padding: 0 12px 0 0;
+  color: #137cbd;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ovecart-link:hover { text-decoration: underline; }
+
+.ovecart-sub {
+  padding: 10px 16px 0;
+  font-size: 11px;
+  color: #5c7080;
+  line-height: 1.4;
+}
+
 .ovecart-x {
   border: none;
   background: none;

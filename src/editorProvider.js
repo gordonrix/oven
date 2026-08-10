@@ -17,9 +17,10 @@ class DNAViewerProvider {
    * @param {vscode.ExtensionContext} context
    * @param {import('./cartStore').CartStore} cart
    */
-  constructor(context, cart) {
+  constructor(context, cart, cartPanel) {
     this.context = context;
     this.cart = cart;
+    this.cartPanel = cartPanel;
   }
 
   async openCustomDocument(uri) {
@@ -98,6 +99,11 @@ class DNAViewerProvider {
 
       if (message.type === 'cart/requestState') {
         pushCartState();
+        return;
+      }
+
+      if (message.type === 'cart/showPanel') {
+        this.cartPanel.show();
         return;
       }
 
