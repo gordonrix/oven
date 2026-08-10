@@ -61,22 +61,11 @@ const BASE_STYLE = `
       .ove-cart-btn:hover { background-color: #2a6f2d; }
       .ove-search-btn { background-color: #7050b3; }
       .ove-search-btn:hover { background-color: #5b3f96; }
-      /* Sits above OVE's own status bar, which is not extensible. */
+      /* Our item in OVE's status bar, alongside its own. */
       .ove-seltm {
-        position: fixed;
-        bottom: 30px;
-        right: 12px;
-        z-index: 20000;
-        padding: 3px 10px;
-        border-radius: 10px;
-        background: rgba(24, 32, 38, .86);
-        color: #fff;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 11px;
         font-variant-numeric: tabular-nums;
-        letter-spacing: .01em;
-        pointer-events: auto;
-        user-select: none;
+        white-space: nowrap;
+        opacity: .85;
       }`;
 
 /**
@@ -155,7 +144,6 @@ function buildEditorHtml(opts) {
               onclick="window.OveCart.openPicker()">Add to Cart</button>
       <button id="save-button" class="save-button" onclick="postSave()">Save</button>
     </div>
-    <div id="ove-seltm" class="ove-seltm" hidden></div>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
     <script src="${pickerUri}"></script>

@@ -127,11 +127,16 @@ Inventory File…**, also offered inline the first time you search). Tuning:
 
 ## Selection readout
 
-Whatever you have selected, a small readout in the bottom-right corner shows its length,
-GC content and NEB Q5 nearest-neighbour Tm — the same calculation `gibson_planner.py`
-designs against, so the numbers agree with your pipeline. It's for sizing up a candidate
-primer by dragging over it, so past 200 bp it declines to show a Tm rather than print a
-figure that means nothing.
+Select a region and OVE's status bar gains a `45% GC · Tm 64.5 °C` item alongside its own
+"Selecting 22 bps" and "Length". The Tm is the NEB Q5 nearest-neighbour calculation
+`gibson_planner.py` designs against, so it agrees with your pipeline.
+
+It's for sizing up a candidate primer by dragging over it, so past 100 bp it declines to
+show a Tm rather than print a figure that means nothing.
+
+OVE has its own melting-temp item under **View → Melting Temp of Selection**. That one
+calculates at 500 nM primer with no Mg²⁺ correction, so it will not match your designs —
+this item exists precisely because of that difference.
 
 ## Other features
 

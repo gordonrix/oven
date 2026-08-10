@@ -4,6 +4,12 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.6.1
+
+- The selection readout moved into OVE's status bar, next to "Selecting N bps" and
+  "Length", instead of floating in the corner where it was easy to miss.
+- Tm limit lowered from 200 bp to 100 bp.
+
 ## 1.6.0
 
 - A readout in the bottom-right corner showing length, GC and Tm for the current
