@@ -1,15 +1,19 @@
 /*
- * Length, GC and Tm for the current selection, shown in OVE's own status bar
- * alongside "Selecting N bps" and "Length".
+ * Makes OVE's own status-bar melting-temp item report the Tm your primer
+ * design pipeline uses.
  *
- * OVE does have a built-in melting-temp item (View -> Melting Temp of
- * Selection), but it calculates at 500 nM primer with no Mg correction, so its
- * number does not match the pipeline these primers are designed against. This
- * one uses the same NEB Q5 nearest-neighbour calculation as gibson_planner.py,
- * so the figure here is the figure the design tooling used.
+ * OVE already has "Melting Temp of Selection" and "Percent GC Content of
+ * Selection" items (View menu, both off by default). The Tm it shows is not
+ * the one gibson_planner.py designs against though -- OVE calculates at 500 nM
+ * primer with no Mg correction, and defaults to Breslauer rather than
+ * SantaLucia. So rather than add a competing readout, this turns those items
+ * on and substitutes the number in the existing one.
  *
- * There is no prop for adding a status-bar item, so the node is appended to
- * the bar's DOM and re-appended if React ever drops it.
+ * The substitution only ever rewrites the value of an existing text node.
+ * Replacing React-owned child *structure* invites reconciliation errors;
+ * overwriting a text node's nodeValue is exactly what React itself does on an
+ * update, so the worst case is that React writes its number back and the
+ * observer immediately puts ours in again.
  */
 (function () {
   'use strict';
@@ -18,13 +22,30 @@
   // arithmetically fine and biologically meaningless, so say so instead.
   const MAX_TM_BP = 100;
   const POLL_MS = 400;
+  const TM_ITEM = '[data-test="veStatusBar-selection-tm"]';
 
   let editor = null;
-  let node = null;
+  let useDesignTm = true;
   let observer = null;
-  let lastKey = null;
 
   const S = () => window.CartShared;
+
+  /*
+   * OVE keeps the melting-temp toggle in localStorage, not in a prop, so the
+   * only way to have it on by default is to seed the key before OVE first
+   * reads it -- which is why this runs at script load, ahead of
+   * createVectorEditor. Only when unset, so a later View-menu toggle sticks.
+   */
+  function seedShowMeltingTemp() {
+    try {
+      if (localStorage.getItem('showMeltingTemp') === null) {
+        localStorage.setItem('showMeltingTemp', 'true'); // JSON, per use-local-storage-state
+      }
+    } catch (e) {
+      /* storage unavailable; the item just stays off */
+    }
+  }
+  seedShowMeltingTemp();
 
   function state() {
     try {
@@ -40,82 +61,73 @@
     if (!(typeof sel.start === 'number' && sel.start > -1 && sel.end > -1)) return null;
     const sd = st.sequenceData || {};
     const bases = S().deriveBases(sd.sequence || '', sel.start, sel.end, 1, Boolean(sd.circular));
-    return bases ? { bases, start: sel.start, end: sel.end } : null;
+    return bases ? bases : null;
   }
 
-  /** Append our item to the status bar, next to the built-in ones. */
-  function mount() {
-    const anchor = document.querySelector('.veStatusBarItem');
-    if (!anchor || !anchor.parentNode) return false;
-    const bar = anchor.parentNode;
-
-    if (!node) {
-      node = document.createElement('div');
-      node.className = 'veStatusBarItem ove-seltm';
-      node.setAttribute('data-test', 'veStatusBar-oveCart-tm');
+  /**
+   * The text node holding OVE's number, so only its value is touched.
+   *
+   * Must walk descendants, not direct children: Blueprint's Button wraps its
+   * children in a span, so the number is a grandchild of the <button>.
+   */
+  function valueNode(item) {
+    const host = item.querySelector('button') || item;
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    let n = walker.nextNode();
+    while (n) {
+      const t = n.nodeValue.trim();
+      if (t && (/^-?[\d.]+$/.test(t) || t.startsWith('—'))) return n;
+      n = walker.nextNode();
     }
-    if (node.parentNode !== bar) bar.appendChild(node);
-
-    // React owns this container; if a re-render ever removes our node, put it
-    // back rather than silently losing the readout.
-    if (!observer) {
-      observer = new MutationObserver(() => {
-        if (node && node.parentNode !== bar && bar.isConnected) bar.appendChild(node);
-      });
-      observer.observe(bar, { childList: true });
-    }
-    return true;
+    return null;
   }
 
-  function refresh() {
-    if (!mount()) return;
+  function apply() {
+    if (!useDesignTm || !editor) return;
+    const item = document.querySelector(TM_ITEM);
+    if (!item) return;
 
-    const sel = selection();
-    if (!sel) {
-      lastKey = null;
-      node.style.display = 'none';
-      node.textContent = '';
-      return;
-    }
+    const bases = selection();
+    const n = bases ? bases.length : 0;
 
-    const key = `${sel.start}|${sel.end}|${sel.bases.length}`;
-    if (key === lastKey && node.style.display !== 'none') return;
-    lastKey = key;
-
-    const n = sel.bases.length;
-    const gc = S().gcFraction(sel.bases);
-    const bits = [];
-    if (gc !== null) bits.push(`${Math.round(gc * 100)}% GC`);
-
-    if (n > MAX_TM_BP) {
-      bits.push(`Tm — (>${MAX_TM_BP} bp)`);
+    let text;
+    if (!bases) {
+      text = '— '; // OVE shows a bare 0 with nothing selected, which reads as a real value
+    } else if (n > MAX_TM_BP) {
+      text = `— (>${MAX_TM_BP} bp) `;
     } else {
-      const tm = S().tmNebQ5(sel.bases);
-      bits.push(tm === null ? 'Tm —' : `Tm ${tm.toFixed(1)} °C`);
+      const tm = S().tmNebQ5(bases);
+      text = tm === null ? '— ' : `${tm.toFixed(1)} `;
     }
 
-    node.style.display = '';
-    node.textContent = bits.join(' · ');
-    node.title = n > MAX_TM_BP
+    const node = valueNode(item);
+    if (node && node.nodeValue !== text) node.nodeValue = text;
+
+    const host = item.querySelector('button') || item;
+    const tip = !bases ? 'Select a region to see its melting temperature.'
+      : n > MAX_TM_BP
       ? `Nearest-neighbour Tm is a primer model; over ${MAX_TM_BP} bp it is not meaningful.`
       : 'NEB Q5 nearest-neighbour Tm (SantaLucia 1998), 50 mM Na⁺, 1.5 mM Mg²⁺, 200 nM primer '
         + '— the same calculation gibson_planner.py designs against.';
+    if (host.title !== tip) host.title = tip;
   }
 
-  function init(ove) {
+  function init(ove, opts) {
     editor = ove;
-    refresh();
+    const o = opts || {};
+    if (o.useDesignTm === false) useDesignTm = false;
+    if (!useDesignTm) return;
 
-    /*
-     * onSelectionOrCaretChanged only fires for OVE's own selectionLayerUpdate
-     * and caretPositionUpdate actions -- it does not see a selection set via
-     * updateEditor, which is how the search panel reveals a hit. Polling for a
-     * changed range covers every path, and the key guard makes a quiet tick
-     * essentially free. It also handles the status bar not existing yet on the
-     * first call.
-     */
-    setInterval(refresh, POLL_MS);
+    apply();
+
+    // React rewrites the number on every selection change; re-apply after it.
+    observer = new MutationObserver(() => apply());
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    // Belt and braces for selections set via updateEditor, which OVE's own
+    // onSelectionOrCaretChanged never sees.
+    setInterval(apply, POLL_MS);
   }
 
-  window.OveSelectionTm = { init, refresh };
+  window.OveSelectionTm = { init, refresh: apply };
 })();

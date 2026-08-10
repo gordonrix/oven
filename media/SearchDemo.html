@@ -133,6 +133,7 @@
         disableBpEditing: true,
         rightClickOverrides: window.OveSearch.rightClickOverrides,
         panelMap: window.OveSearch.panelMap,
+        showGCContentByDefault: true,
         onSelectionOrCaretChanged: function () { window.OveSelectionTm.refresh(); },
         beforeAnnotationCreate: function (info) {
           try {
@@ -159,7 +160,7 @@
           });
           window.OveCart.init(vscode, editor);
           window.OveSearch.init(vscode, editor);
-          window.OveSelectionTm.init(editor);
+          window.OveSelectionTm.init(editor, { useDesignTm: true });
           document.body.dataset.ready = 'true';
         });
     </script>

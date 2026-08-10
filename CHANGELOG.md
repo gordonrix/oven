@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.7.0
+
+- Removed the separate selection readout added in 1.6.0. Open Vector Editor already has
+  melting-temp and GC status-bar items; a second one competing with them was the wrong
+  shape.
+- `oveCart.showSelectionStatsByDefault` (default on) turns OVE's own **Melting Temp of
+  Selection** and **Percent GC Content of Selection** on. The View-menu toggles still win.
+- `oveCart.useDesignTmCalculation` (default on) substitutes the pipeline's NEB Q5 Tm
+  (200 nM primer, 1.5 mM Mg²⁺) into OVE's item, in place of its own 500 nM no-Mg figure.
+
 ## 1.6.1
 
 - The selection readout moved into OVE's status bar, next to "Selecting N bps" and

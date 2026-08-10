@@ -223,7 +223,9 @@ class DNAViewerProvider {
       viewType: config.viewType(),
       readOnly: config.readOnly(),
       disableBpEditing: !config.allowSequenceEditing(),
-      autoAddCreatedPrimers: config.autoAddCreatedPrimers()
+      autoAddCreatedPrimers: config.autoAddCreatedPrimers(),
+      showSelectionStats: config.showSelectionStatsByDefault(),
+      useDesignTm: config.useDesignTmCalculation()
     });
   }
 }

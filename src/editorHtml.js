@@ -61,12 +61,7 @@ const BASE_STYLE = `
       .ove-cart-btn:hover { background-color: #2a6f2d; }
       .ove-search-btn { background-color: #7050b3; }
       .ove-search-btn:hover { background-color: #5b3f96; }
-      /* Our item in OVE's status bar, alongside its own. */
-      .ove-seltm {
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-        opacity: .85;
-      }`;
+`;
 
 /**
  * The inline script that boots OVE.
@@ -84,7 +79,8 @@ const BASE_STYLE = `
  * Both verified against the bundled OVE build; swapping them re-breaks the
  * Create menu or silently unlocks base editing.
  */
-function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, withCart }) {
+function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers,
+  showSelectionStats, withCart }) {
   return `
       const editor = window.createVectorEditor("createDomNodeForMe", {
         withPreviewMode: false,
@@ -93,6 +89,7 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         showReadOnly: true,
         disableSetReadOnly: false,
         disableBpEditing: ${Boolean(disableBpEditing)},
+        showGCContentByDefault: ${Boolean(showSelectionStats)},
         ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
         panelMap: window.OveSearch.panelMap,
         onSelectionOrCaretChanged: function () { window.OveSelectionTm.refresh(); },` : ''}
@@ -120,7 +117,8 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, sharedUri, pickerUri, searchUri,
-    selTmUri, sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers } = opts;
+    selTmUri, sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers,
+    showSelectionStats, useDesignTm } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -150,10 +148,10 @@ function buildEditorHtml(opts) {
     <script src="${searchUri}"></script>
     <script src="${selTmUri}"></script>
     <script>
-${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, withCart: true })}
+${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
-      window.OveSelectionTm.init(editor);
+      window.OveSelectionTm.init(editor, { useDesignTm: ${Boolean(useDesignTm)} });
     </script>
   </body>
 </html>`;
@@ -177,6 +175,7 @@ ${bootScript({
     readOnly: false,
     disableBpEditing: false,
     autoAddCreatedPrimers: false,
+    showSelectionStats: false,
     withCart: false
   })}
     </script>

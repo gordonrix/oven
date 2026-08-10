@@ -2,7 +2,7 @@
   "name": "ove-vscode-primer-cart",
   "displayName": "Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "repository": {
@@ -210,6 +210,16 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Header of an optional description column shown as a tooltip on search hits. Leave empty to use a column named `Description` if one exists."
+        },
+        "oveCart.showSelectionStatsByDefault": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Turn on Open Vector Editor's **Melting Temp of Selection** and **Percent GC Content of Selection** status-bar items the first time a sequence is opened. Both can still be toggled from the **View** menu afterwards, and your choice there wins."
+        },
+        "oveCart.useDesignTmCalculation": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the NEB Q5 nearest-neighbour melting temperature used by your primer-design pipeline (200 nM primer, 1.5 mM Mg²⁺) in the status bar, in place of Open Vector Editor's own figure (500 nM primer, no Mg correction). Over 100 bp no Tm is shown, since the nearest-neighbour model is a primer model."
         }
       }
     }

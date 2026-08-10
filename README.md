@@ -127,16 +127,25 @@ Inventory File…**, also offered inline the first time you search). Tuning:
 
 ## Selection readout
 
-Select a region and OVE's status bar gains a `45% GC · Tm 64.5 °C` item alongside its own
-"Selecting 22 bps" and "Length". The Tm is the NEB Q5 nearest-neighbour calculation
-`gibson_planner.py` designs against, so it agrees with your pipeline.
+Open Vector Editor has **Melting Temp of Selection** and **Percent GC Content of
+Selection** status-bar items, both off by default. `oveCart.showSelectionStatsByDefault`
+(on) switches them on the first time you open a sequence; toggling them yourself in the
+**View** menu afterwards always wins.
 
-It's for sizing up a candidate primer by dragging over it, so past 100 bp it declines to
-show a Tm rather than print a figure that means nothing.
+`oveCart.useDesignTmCalculation` (on) substitutes the number in that melting-temp item
+with the NEB Q5 nearest-neighbour Tm `gibson_planner.py` designs against — 200 nM primer
+with a 1.5 mM Mg²⁺ correction — instead of OVE's own figure at 500 nM with no Mg. The
+difference is small but real; on a 22 bp region OVE reports 64.6 where your pipeline
+says 64.5. Turn it off to get OVE's stock behaviour back.
 
-OVE has its own melting-temp item under **View → Melting Temp of Selection**. That one
-calculates at 500 nM primer with no Mg²⁺ correction, so it will not match your designs —
-this item exists precisely because of that difference.
+Selecting a region gives you, in one line:
+
+```
+DNA | Editable | Selecting 22 bps from 101 to 122 (45.5% GC) | Melting Temp: 64.5 | Length: 6537 bps
+```
+
+Over 100 bp it shows `Melting Temp: — (>100 bp)` rather than a figure that means nothing:
+the nearest-neighbour model is a primer model.
 
 ## Other features
 
