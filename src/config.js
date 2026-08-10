@@ -60,6 +60,17 @@ module.exports = {
   inventorySheet: () => String(cfg().get('inventorySheet', '') || '').trim(),
   inventoryNameColumn: () => String(cfg().get('inventoryNameColumn', '') || '').trim(),
   inventorySequenceColumn: () => String(cfg().get('inventorySequenceColumn', '') || '').trim(),
+  inventoryAliasColumn: () => String(cfg().get('inventoryAliasColumn', '') || '').trim(),
+  inventoryDescriptionColumn: () => String(cfg().get('inventoryDescriptionColumn', '') || '').trim(),
+  searchMinAnneal: () => {
+    const n = Number(cfg().get('searchMinAnneal', 15));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 15;
+  },
+  searchFullLengthOnly: () => cfg().get('searchFullLengthOnly', false),
+  searchMaxHits: () => {
+    const n = Number(cfg().get('searchMaxHits', 500));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 500;
+  },
   sequenceCopyIncludesName: () => cfg().get('sequenceCopyIncludesName', 'sequence') === 'name-tab-sequence',
   SECTION
 };

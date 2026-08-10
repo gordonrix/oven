@@ -1,0 +1,88 @@
+{
+ "hits": [
+  {
+   "name": "DEMO_CLEAN_F",
+   "alias": "clean fwd",
+   "description": "full-length forward",
+   "sequence": "TGTGACATCCTCCTATTAGCAATAG",
+   "strand": 1,
+   "anneal": 25,
+   "annealSeq": "TGTGACATCCTCCTATTAGCAATAG",
+   "overhang": 0,
+   "start": 300,
+   "end": 324,
+   "threePrime": 324,
+   "wraps": false,
+   "tm": 62.6
+  },
+  {
+   "name": "DEMO_CLEAN_R",
+   "alias": "clean rev",
+   "description": "full-length reverse",
+   "sequence": "AGAAGTGCCTAGTAAGAACGGAATTA",
+   "strand": -1,
+   "anneal": 26,
+   "annealSeq": "TAATTCCGTTCTTACTAGGCACTTCT",
+   "overhang": 0,
+   "start": 800,
+   "end": 825,
+   "threePrime": 800,
+   "wraps": false,
+   "tm": 64.4
+  },
+  {
+   "name": "DEMO_TAIL_F",
+   "alias": "gibson fwd",
+   "description": "16 nt tail",
+   "sequence": "ggggccccttttaaaaCGAGAATTCTAGAGCTGGATCG",
+   "strand": 1,
+   "anneal": 23,
+   "annealSeq": "ACGAGAATTCTAGAGCTGGATCG",
+   "overhang": 15,
+   "start": 1499,
+   "end": 1521,
+   "threePrime": 1521,
+   "wraps": false,
+   "tm": 64.4
+  },
+  {
+   "name": "DEMO_TAIL_R",
+   "alias": "bsmbi rev",
+   "description": "9 nt tail",
+   "sequence": "CACGTCTCACCCCCGTCATGGCATACGGTTGCA",
+   "strand": -1,
+   "anneal": 24,
+   "annealSeq": "TGCAACCGTATGCCATGACGGGGG",
+   "overhang": 9,
+   "start": 2200,
+   "end": 2223,
+   "threePrime": 2200,
+   "wraps": false,
+   "tm": 73.7
+  },
+  {
+   "name": "DEMO_LATE_F",
+   "alias": "",
+   "description": "",
+   "sequence": "GGAACATTGGGAACATTGTCA",
+   "strand": 1,
+   "anneal": 21,
+   "annealSeq": "GGAACATTGGGAACATTGTCA",
+   "overhang": 0,
+   "start": 4000,
+   "end": 4020,
+   "threePrime": 4020,
+   "wraps": false,
+   "tm": 61.9
+  }
+ ],
+ "inventory": {
+  "status": "ok",
+  "path": "/demo/inventory.xlsx",
+  "message": null,
+  "rowCount": 6
+ },
+ "scanned": 5,
+ "skipped": 1,
+ "truncated": false
+}

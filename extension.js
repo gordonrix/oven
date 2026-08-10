@@ -6,7 +6,7 @@ const vscode = require('vscode');
 const config = require('./src/config');
 const { CartStore } = require('./src/cartStore');
 const { CartPanel } = require('./src/cartPanel');
-const { DNAViewerProvider } = require('./src/editorProvider');
+const { DNAViewerProvider, pickInventoryFile } = require('./src/editorProvider');
 const { buildDemoHtml } = require('./src/editorHtml');
 
 function activate(context) {
@@ -49,6 +49,7 @@ function activate(context) {
     vscode.commands.registerCommand('oveCart.newSession', () => cartPanel.newSession()),
     vscode.commands.registerCommand('oveCart.manageSessions', () => cartPanel.manageSessions()),
     vscode.commands.registerCommand('oveCart.refreshInventory', () => cartPanel.refreshInventory()),
+    vscode.commands.registerCommand('oveCart.pickInventoryFile', () => pickInventoryFile()),
     vscode.commands.registerCommand('oveCart.clear', () => cartPanel.clearCart())
   );
 }

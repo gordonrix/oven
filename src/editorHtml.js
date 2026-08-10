@@ -25,33 +25,42 @@ function panelsShown(viewTypeConfig) {
           ]`;
 }
 
+/*
+ * The buttons used to be individually `position: fixed` with hand-tuned right
+ * offsets, which does not survive a third button -- especially since the cart
+ * button's label grows to "Add to Cart (12)" at runtime. One fixed flex row
+ * instead, so widths take care of themselves.
+ */
 const BASE_STYLE = `
       html, body { width: 100%; height: 100%; }
       .ove-created-div { height: 100%; background-color: white; }
-      .ove-cart-btn, .save-button {
-        display: inline-block;
+      .ove-toolbtns {
+        position: fixed;
+        top: 10px;
+        right: 35px;
+        z-index: 20000;
+        display: flex;
+        gap: 8px;
+      }
+      .ove-toolbtns button {
         padding: 10px;
-        background-color: #0078d4;
         color: white;
-        text-decoration: none;
         border-radius: 4px;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         font-size: 16px;
         font-weight: 600;
-        box-shadow: none;
         border: none;
         cursor: pointer;
-        position: fixed;
-        top: 10px;
-        z-index: 20000;
+        white-space: nowrap;
       }
-      .save-button { right: 35px; }
-      .ove-cart-btn { right: 115px; background-color: #37903b; }
-      .save-button:hover { background-color: #005a9e; box-shadow: 0 4px 8px rgba(0,0,0,.2); }
-      .ove-cart-btn:hover { background-color: #2a6f2d; box-shadow: 0 4px 8px rgba(0,0,0,.2); }
-      .save-button:disabled, .ove-cart-btn:disabled {
-        background-color: gray; cursor: not-allowed; opacity: .6;
-      }`;
+      .ove-toolbtns button:hover { box-shadow: 0 4px 8px rgba(0,0,0,.2); }
+      .ove-toolbtns button:disabled { background-color: gray; cursor: not-allowed; opacity: .6; }
+      .save-button { background-color: #0078d4; }
+      .save-button:hover { background-color: #005a9e; }
+      .ove-cart-btn { background-color: #37903b; }
+      .ove-cart-btn:hover { background-color: #2a6f2d; }
+      .ove-search-btn { background-color: #7050b3; }
+      .ove-search-btn:hover { background-color: #5b3f96; }`;
 
 /**
  * The inline script that boots OVE.
@@ -78,6 +87,7 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         showReadOnly: true,
         disableSetReadOnly: false,
         disableBpEditing: ${Boolean(disableBpEditing)},
+        ${withCart ? 'rightClickOverrides: window.OveSearch.rightClickOverrides,' : ''}
         beforeAnnotationCreate: function (info) {
           try {
             if (${Boolean(withCart && autoAddCreatedPrimers)} && info &&
@@ -101,14 +111,15 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
-  const { styleUri, scriptUri, cartCssUri, sharedUri, pickerUri, sequenceJson,
-    viewType, readOnly, disableBpEditing, autoAddCreatedPrimers } = opts;
+  const { styleUri, scriptUri, cartCssUri, searchCssUri, sharedUri, pickerUri, searchUri,
+    sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers } = opts;
 
   return `<!DOCTYPE html>
 <html>
   <head>
     <link rel="stylesheet" href="${styleUri}" />
     <link rel="stylesheet" href="${cartCssUri}" />
+    <link rel="stylesheet" href="${searchCssUri}" />
     <style>${BASE_STYLE}</style>
   </head>
   <body>
@@ -118,14 +129,21 @@ function buildEditorHtml(opts) {
         vscode.postMessage({ type: "save", data: editor.getState()["sequenceData"] });
       }
     </script>
-    <button id="save-button" class="save-button" onclick="postSave()">Save</button>
-    <button id="ove-cart-button" class="ove-cart-btn" onclick="window.OveCart.openPicker()">Cart</button>
+    <div class="ove-toolbtns">
+      <button id="ove-search-button" class="ove-search-btn"
+              onclick="window.OveSearch.open({scoped:true})">Primer Search</button>
+      <button id="ove-cart-button" class="ove-cart-btn"
+              onclick="window.OveCart.openPicker()">Add to Cart</button>
+      <button id="save-button" class="save-button" onclick="postSave()">Save</button>
+    </div>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
     <script src="${pickerUri}"></script>
+    <script src="${searchUri}"></script>
     <script>
 ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, withCart: true })}
       window.OveCart.init(vscode, editor);
+      window.OveSearch.init(vscode, editor);
     </script>
   </body>
 </html>`;

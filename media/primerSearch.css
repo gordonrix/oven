@@ -1,0 +1,129 @@
+/*
+ * Primer search overlay. Reuses .ovecart-backdrop / .ovecart-panel / .ovecart-head
+ * from cartPicker.css for the chrome; only the table and controls live here.
+ * Literal colours, not VS Code theme tokens — the OVE webview is a white page.
+ */
+
+.ovesearch-panel { width: min(940px, 96vw); }
+
+.ovesearch-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px 8px;
+}
+
+.ovesearch-scope { display: flex; gap: 0; }
+
+.ovesearch-tab {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d3dae0;
+  background: #f5f8fa;
+  color: #394b59;
+  cursor: pointer;
+}
+.ovesearch-tab:first-child { border-radius: 3px 0 0 3px; }
+.ovesearch-tab:last-child { border-radius: 0 3px 3px 0; border-left: none; }
+.ovesearch-tab.is-active { background: #137cbd; border-color: #137cbd; color: #fff; }
+.ovesearch-tab:disabled { opacity: .5; cursor: not-allowed; }
+
+.ovesearch-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #394b59;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ovesearch-filter {
+  flex: 1;
+  min-width: 160px;
+  padding: 5px 10px;
+  border: 1px solid #d3dae0;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.ovesearch-filter:focus { outline: none; border-color: #137cbd; }
+
+.ovesearch-count {
+  padding: 0 16px 8px;
+  font-size: 11px;
+  color: #5c7080;
+}
+
+.ovesearch-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 8px 12px;
+}
+
+.ovesearch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 28px 16px;
+  font-size: 13px;
+  color: #394b59;
+}
+.ovesearch-dim { font-size: 12px; color: #5c7080; max-width: 62ch; line-height: 1.5; }
+.ovesearch-error { color: #a82a2a; }
+
+/* --- table ------------------------------------------------------------- */
+
+.ovesearch-row {
+  display: grid;
+  grid-template-columns: 64px 28px minmax(0, 1.6fr) 68px 52px 62px minmax(0, 1.4fr) 92px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ovesearch-row:not(.ovesearch-header):hover { background: #f5f8fa; }
+.ovesearch-row.is-attached { opacity: .55; }
+
+.ovesearch-header {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  border-bottom: 1px solid #e1e8ed;
+  border-radius: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #5c7080;
+  cursor: default;
+}
+
+.ovesearch-c0 { font-variant-numeric: tabular-nums; color: #5c7080; }
+.ovesearch-c1 { font-weight: 700; text-align: center; }
+.ovesearch-c1.fwd { color: #0f9960; }
+.ovesearch-c1.rev { color: #c23030; }
+.ovesearch-c2 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovesearch-c3,
+.ovesearch-c4 { font-variant-numeric: tabular-nums; color: #394b59; }
+.ovesearch-c5 { font-variant-numeric: tabular-nums; color: #5c7080; }
+.ovesearch-c5.has-tail { color: #bf7326; font-weight: 600; }
+.ovesearch-c6 { color: #5c7080; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovesearch-c7 { text-align: right; }
+
+.ovesearch-attach {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #137cbd;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ovesearch-attach:hover:not(:disabled) { background: #106ba3; }
+.ovesearch-attach:disabled { background: #ced9e0; color: #5c7080; cursor: default; }

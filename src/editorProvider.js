@@ -10,7 +10,38 @@ const {
 } = require('../media/bioparser2.umd.js');
 
 const config = require('./config');
+const inventory = require('./inventory');
 const { buildEditorHtml } = require('./editorHtml');
+
+/**
+ * Ask for an inventory file and store it in user settings.
+ *
+ * Shared by the in-overlay "Choose file…" button and the
+ * oveCart.pickInventoryFile command, so both paths behave identically.
+ */
+async function pickInventoryFile() {
+  const picked = await vscode.window.showOpenDialog({
+    title: 'Choose a primer inventory',
+    openLabel: 'Use this inventory',
+    canSelectMany: false,
+    filters: { 'Primer inventory': ['xlsx', 'xlsm', 'csv', 'tsv', 'txt'] }
+  });
+  if (!picked || !picked.length) return null;
+
+  const file = picked[0].fsPath;
+  await vscode.workspace.getConfiguration('oveCart')
+    .update('inventoryPath', file, vscode.ConfigurationTarget.Global);
+  inventory.invalidate();
+
+  const inv = inventory.load();
+  if (inv.status === 'ok') {
+    vscode.window.showInformationMessage(
+      `Primer inventory set: ${inv.rowCount} primers from ${path.basename(file)}.`);
+  } else {
+    vscode.window.showWarningMessage(`Primer inventory: ${inv.message || inv.status}`);
+  }
+  return file;
+}
 
 class DNAViewerProvider {
   /**
@@ -107,6 +138,35 @@ class DNAViewerProvider {
         return;
       }
 
+      if (message.type === 'search/run') {
+        // The webview supplies the sequence rather than the host reusing its
+        // open-time parse, so a search can never run against a stale template.
+        const res = inventory.searchSequence(message.sequence, message.circular, {
+          minAnneal: config.searchMinAnneal(),
+          maxHits: config.searchMaxHits(),
+          selection: message.selection || null
+        });
+        webview.postMessage({
+          type: 'search/results',
+          scoped: Boolean(message.selection),
+          selection: message.selection || null,
+          fullLengthOnly: config.searchFullLengthOnly(),
+          hits: res.hits,
+          inventory: res.inventory,
+          tookMs: res.tookMs,
+          scanned: res.scanned,
+          skipped: res.skipped,
+          truncated: res.truncated
+        });
+        return;
+      }
+
+      if (message.type === 'search/pickInventory') {
+        await pickInventoryFile();
+        webview.postMessage({ type: 'search/inventoryChanged', inventory: inventory.load().status });
+        return;
+      }
+
       if (message.type === 'cart/add') {
         try {
           const entries = (message.items || []).map((it) => Object.assign({}, it, {
@@ -143,9 +203,11 @@ class DNAViewerProvider {
     webview.html = buildEditorHtml({
       styleUri: this.mediaUri(webview, 'ove.css'),
       cartCssUri: this.mediaUri(webview, 'cartPicker.css'),
+      searchCssUri: this.mediaUri(webview, 'primerSearch.css'),
       scriptUri: this.mediaUri(webview, 'index.umd.js'),
       sharedUri: this.mediaUri(webview, 'cartShared.js'),
       pickerUri: this.mediaUri(webview, 'cartPicker.js'),
+      searchUri: this.mediaUri(webview, 'primerSearch.js'),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
       viewType: config.viewType(),
       readOnly: config.readOnly(),
@@ -155,4 +217,4 @@ class DNAViewerProvider {
   }
 }
 
-module.exports = { DNAViewerProvider };
+module.exports = { DNAViewerProvider, pickInventoryFile };

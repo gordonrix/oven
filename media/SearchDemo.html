@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<!--
+  Standalone harness for primer search and attach, driving the real OVE bundle
+  with no VS Code involved. The extension host is stubbed: a search/run request
+  is answered from test/fixtures/searchHits.json (real matcher output over a
+  synthetic inventory, so hit shapes are genuine without committing anyone's
+  primer data).
+
+  Playwright's page.evaluate runs in an isolated world and cannot see this
+  page's globals, so everything a test needs is mirrored into DOM nodes:
+    #posted   messages sent to the stubbed host
+    #probe    editor state, refreshed on a __probe event
+    body[data-ready]
+
+  Excluded from the VSIX by .vscodeignore.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ove.css" />
+    <link rel="stylesheet" href="cartPicker.css" />
+    <link rel="stylesheet" href="primerSearch.css" />
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; }
+      .ove-created-div { height: 100%; background-color: white; }
+      .ove-toolbtns { position: fixed; top: 10px; right: 35px; z-index: 20000; display: flex; gap: 8px; }
+      .ove-toolbtns button {
+        padding: 10px; color: #fff; border-radius: 4px; border: none; cursor: pointer;
+        font-family: "Segoe UI", Tahoma, sans-serif; font-size: 16px; font-weight: 600; white-space: nowrap;
+      }
+      .save-button { background: #0078d4; }
+      .ove-cart-btn { background: #37903b; }
+      .ove-search-btn { background: #7050b3; }
+    </style>
+  </head>
+  <body>
+    <div id="posted" style="display:none">[]</div>
+    <div id="probe" style="display:none">{}</div>
+
+    <script>
+      window.__posted = [];
+      const syncPosted = () => {
+        document.getElementById('posted').textContent = JSON.stringify(window.__posted);
+      };
+
+      function acquireVsCodeApi() {
+        return {
+          postMessage: (m) => {
+            window.__posted.push(m);
+            syncPosted();
+            // Stand in for the extension host's search branch.
+            if (m.type === 'search/run') {
+              fetch('../test/fixtures/searchHits.json').then((r) => r.json()).then((fx) => {
+                let hits = fx.hits;
+                if (m.selection) {
+                  const { start, end } = m.selection;
+                  hits = hits.filter((h) => (start <= end
+                    ? h.threePrime >= start && h.threePrime <= end
+                    : h.threePrime >= start || h.threePrime <= end));
+                }
+                window.postMessage(Object.assign({}, fx, {
+                  type: 'search/results', hits,
+                  scoped: Boolean(m.selection), selection: m.selection || null,
+                  fullLengthOnly: false
+                }), '*');
+              });
+            }
+          }
+        };
+      }
+      const vscode = acquireVsCodeApi();
+      function postSave() {
+        vscode.postMessage({ type: 'save', data: editor.getState()['sequenceData'] });
+      }
+
+      document.addEventListener('__probe', () => {
+        let payload;
+        try {
+          const sd = window.__oveEditor.getState().sequenceData || {};
+          payload = {
+            seqLen: (sd.sequence || '').length,
+            name: sd.name,
+            circular: sd.circular,
+            features: Object.keys(sd.features || {}).length,
+            parts: Object.keys(sd.parts || {}).length,
+            primerIds: Object.keys(sd.primers || {}).sort(),
+            primers: Object.values(sd.primers || {}).map((p) => ({
+              id: p.id, name: p.name, start: p.start, end: p.end,
+              strand: p.strand, type: p.type, bases: p.bases || null
+            })).sort((a, b) => (a.id < b.id ? -1 : 1))
+          };
+        } catch (e) { payload = { error: String(e) }; }
+        document.getElementById('probe').textContent = JSON.stringify(payload);
+      });
+
+      document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      document.addEventListener('__select', (e) => {
+        window.__oveEditor.updateEditor({
+          selectionLayer: { start: e.detail.start, end: e.detail.end }, caretPosition: -1
+        });
+      });
+    </script>
+
+    <div class="ove-toolbtns">
+      <button id="ove-search-button" class="ove-search-btn"
+              onclick="window.OveSearch.open({scoped:true})">Primer Search</button>
+      <button id="ove-cart-button" class="ove-cart-btn"
+              onclick="window.OveCart.openPicker()">Add to Cart</button>
+      <button id="save-button" class="save-button" onclick="postSave()">Save</button>
+    </div>
+
+    <script src="index.umd.js"></script>
+    <script src="bioparser2.umd.js"></script>
+    <script src="cartShared.js"></script>
+    <script src="cartPicker.js"></script>
+    <script src="primerSearch.js"></script>
+    <script>
+      const editor = window.createVectorEditor('createDomNodeForMe', {
+        withPreviewMode: false,
+        editorName: 'VectorEditor',
+        showMenuBar: true,
+        showReadOnly: true,
+        disableSetReadOnly: false,
+        disableBpEditing: true,
+        rightClickOverrides: window.OveSearch.rightClickOverrides,
+        beforeAnnotationCreate: function (info) {
+          try {
+            if (info && info.annotationTypePlural === 'primers' && !info.isEdit) {
+              window.OveCart.addCreated(info);
+            }
+          } catch (e) { console.error('primer cart: auto-add failed', e); }
+          return true;
+        }
+      });
+      window.__oveEditor = editor;
+
+      fetch('../test/fixtures/synthetic-plasmid.gb')
+        .then((r) => r.text())
+        .then((text) => {
+          const parsed = window.bioParsers.genbankToJson(text)[0].parsedSequence;
+          editor.updateEditor({
+            sequenceData: parsed,
+            panelsShown: [[
+              { id: 'sequence', name: 'Sequence Map', active: true },
+              { id: 'properties', name: 'Properties', active: false }
+            ]],
+            readOnly: false
+          });
+          window.OveCart.init(vscode, editor);
+          window.OveSearch.init(vscode, editor);
+          document.body.dataset.ready = 'true';
+        });
+    </script>
+  </body>
+</html>

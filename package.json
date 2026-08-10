@@ -2,7 +2,7 @@
   "name": "ove-vscode-primer-cart",
   "displayName": "Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "repository": {
@@ -106,6 +106,10 @@
       {
         "command": "oveCart.clear",
         "title": "Primer Cart: Clear Current Session"
+      },
+      {
+        "command": "oveCart.pickInventoryFile",
+        "title": "Primer Cart: Choose Primer Inventory File..."
       }
     ],
     "configuration": {
@@ -179,6 +183,33 @@
             "One bare sequence per line.",
             "Name and sequence separated by a tab, one per line."
           ]
+        },
+        "oveCart.searchMinAnneal": {
+          "type": "number",
+          "default": 15,
+          "minimum": 8,
+          "markdownDescription": "Minimum number of bases at a primer's 3' end that must match the template exactly for it to count as a hit. Lower finds more and noisier; higher is stricter."
+        },
+        "oveCart.searchFullLengthOnly": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Start each primer search with **100% match only** ticked, hiding primers whose 5' tail is absent from the template."
+        },
+        "oveCart.searchMaxHits": {
+          "type": "number",
+          "default": 500,
+          "minimum": 1,
+          "description": "Safety cap on how many primer-search hits are returned. Overflow is reported in the results header."
+        },
+        "oveCart.inventoryAliasColumn": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Header of an optional column shown alongside each search hit. Leave empty to use a column named `Alias` if one exists; a missing column is never an error."
+        },
+        "oveCart.inventoryDescriptionColumn": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Header of an optional description column shown as a tooltip on search hits. Leave empty to use a column named `Description` if one exists."
         }
       }
     }

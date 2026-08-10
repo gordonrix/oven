@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.5.0
+
+- **Primer search.** Matches the configured primer inventory against the open plasmid,
+  exact matches only, from a toolbar button or the sequence right-click menu. Anchored on
+  each primer's 3' end rather than matching whole sequences, so primers carrying a 5'
+  Gibson tail or restriction site are found -- a third of the reference inventory, and
+  invisible to whole-string matching. Case is not used to locate the tail; the convention
+  does not hold in real data.
+- Scope to the whole plasmid or to the current selection. A hit is kept when its 3' end
+  falls inside the selection, even if the match extends outside it.
+- **100% match only** filter, applied client-side so toggling it is instant.
+- **Primer attach.** Turns a hit into a `primer_bind` annotation over the annealing
+  footprint, keeping the full ordered sequence (tail included) on the primer and in a
+  `/Sequence` qualifier.
+- `Primer Cart: Choose Primer Inventory File...`, also offered inline when a search runs
+  with no inventory configured.
+- The editor buttons now sit in one flex row rather than three hand-tuned offsets.
+
 ## 1.4.0
 
 - **Cart sessions.** The cart is grouped into named sessions so it does not grow without

@@ -15,6 +15,7 @@ const path = require('path');
 const config = require('./config');
 const csvLite = require('./csvLite');
 const xlsxLite = require('./xlsxLite');
+const primerMatch = require('./primerMatch');
 const { normalizeSeqKey } = require('../media/cartShared');
 
 const READ_TIMEOUT_MS = 3000;
@@ -94,7 +95,17 @@ function parseInventory(file) {
   const nameIdx = resolveColumn(headers, config.inventoryNameColumn(), 0, 'name');
   const seqIdx = resolveColumn(headers, config.inventorySequenceColumn(), 1, 'sequence');
 
+  // Alias and description are decoration, not identity, so their lookup must
+  // never fail the parse -- resolveColumn throws, and a file without an
+  // "Alias" header would otherwise turn status:'ok' into status:'error' and
+  // take the inventory badges down with it.
+  const aliasIdx = optionalColumn(headers, config.inventoryAliasColumn(), 'Alias');
+  const descIdx = optionalColumn(headers, config.inventoryDescriptionColumn(), 'Description');
+
+  const cell = (row, i) => (i < 0 || row[i] === undefined ? '' : String(row[i]).trim());
+
   const bySeq = new Map();
+  const entries = [];
   let duplicates = 0;
   let counted = 0;
 
@@ -103,10 +114,17 @@ function parseInventory(file) {
     const seq = String(row[seqIdx] === undefined ? '' : row[seqIdx]).trim();
     if (!seq) continue;
     counted++;
+    const name = cell(row, nameIdx);
+
+    // Search wants every row, including duplicates-by-sequence: two inventory
+    // entries with the same oligo are still two things you could pick off the
+    // shelf. The matcher dedupes per binding site instead.
+    entries.push({ name, sequence: seq, alias: cell(row, aliasIdx), description: cell(row, descIdx) });
+
     const key = normalizeSeqKey(seq);
     if (bySeq.has(key)) { duplicates++; continue; } // first occurrence wins
     bySeq.set(key, {
-      name: String(row[nameIdx] === undefined ? '' : row[nameIdx]).trim(),
+      name,
       sequence: seq // echoed verbatim: lower/upper case encodes overhang vs annealing region
     });
   }
@@ -119,10 +137,25 @@ function parseInventory(file) {
     headers,
     nameColumn: headers[nameIdx],
     sequenceColumn: headers[seqIdx],
+    aliasColumn: aliasIdx < 0 ? null : headers[aliasIdx],
+    descriptionColumn: descIdx < 0 ? null : headers[descIdx],
     rowCount: counted,
     duplicates,
-    bySeq
+    bySeq,
+    entries
   };
+}
+
+/**
+ * Resolve an optional column: the configured header if set, else a header with
+ * the conventional name, else -1. Never throws.
+ */
+function optionalColumn(headers, wanted, conventional) {
+  const target = wanted || conventional;
+  if (!target) return -1;
+  const exact = headers.indexOf(target);
+  if (exact >= 0) return exact;
+  return headers.findIndex((h) => h.toLowerCase() === String(target).toLowerCase());
 }
 
 /**
@@ -194,6 +227,50 @@ function annotate(items) {
 
 function invalidate() {
   cache = null;
+  indexCache = null;
 }
 
-module.exports = { load, annotate, invalidate, resolveColumn };
+/*
+ * The plasmid k-mer index is memoised so repeated searches on one file (scope
+ * toggles, re-runs) skip the rebuild. Keyed on length plus both ends rather
+ * than the whole sequence, which is enough to notice a different plasmid
+ * without hashing 10 kb on every call.
+ */
+let indexCache = null;
+
+function indexFor(sequence, circular, maxPrimerLen) {
+  const key = `${sequence.length}|${circular}|${sequence.slice(0, 64)}|${sequence.slice(-64)}`;
+  if (indexCache && indexCache.key === key) return indexCache.index;
+  const index = primerMatch.buildIndex(sequence, circular, maxPrimerLen);
+  indexCache = { key, index };
+  return index;
+}
+
+/**
+ * Search the inventory for primers binding this sequence.
+ *
+ * @returns {{hits, inventory, tookMs, scanned, skipped, truncated}} — `hits` is
+ *   empty whenever the inventory is not loadable, and `inventory.status` says why.
+ */
+function searchSequence(sequence, circular, opts) {
+  const inv = load();
+  const summary = {
+    status: inv.status,
+    path: inv.path || '',
+    message: inv.message || null,
+    rowCount: inv.rowCount || 0
+  };
+  if (inv.status !== 'ok') {
+    return { hits: [], inventory: summary, tookMs: 0, scanned: 0, skipped: 0, truncated: false };
+  }
+
+  const entries = inv.entries || [];
+  const maxPrimerLen = entries.reduce((m, e) => Math.max(m, e.sequence.length), 0);
+
+  const t0 = Date.now();
+  const index = indexFor(String(sequence || '').toUpperCase(), Boolean(circular), maxPrimerLen);
+  const res = primerMatch.search(index, entries, opts);
+  return Object.assign({ inventory: summary, tookMs: Date.now() - t0 }, res);
+}
+
+module.exports = { load, annotate, invalidate, resolveColumn, optionalColumn, searchSequence };

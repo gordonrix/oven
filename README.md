@@ -82,6 +82,43 @@ The `.xlsx` reader is dependency-free and deliberately minimal (it reads two col
 text). If it ever fails on a workbook, converting that sheet to `.csv` is the fastest
 workaround.
 
+## Primer search and attach
+
+Click **Primer Search** in the editor, or right-click the sequence (or a selection) and
+choose **Search primers**. It matches your inventory against the open plasmid and lists
+every primer that binds, sorted by position:
+
+| Pos | Str | Name | Anneal | Tm | 5′ tail | Alias | |
+|---|---|---|---|---|---|---|---|
+| 325 | + | P_0048 | 25 nt | 72.4 | — | fwd screen | Attach |
+| 1522 | + | P_0123 | 22 nt | 65.4 | +16 | gibson fwd | Attach |
+
+Matching is **exact and 3′-anchored**: a primer counts as binding if enough bases at its
+3′ end match the template, so primers carrying a 5′ Gibson tail, restriction site or
+barcode are found even though their full sequence appears nowhere in the plasmid. The
+unmatched tail is reported in the **5′ tail** column. Tick **100% match only** to hide
+anything with a tail.
+
+Scoping to a selection is what makes this usable — a whole 10 kb plasmid can legitimately
+return hundreds of hits, while a 200 bp selection returns a handful. A primer is kept when
+its **3′ end** lands inside the selection; the rest of the match may extend outside it,
+which is what you want when checking whether an existing primer can prime from a chosen
+point.
+
+**Attach** adds a `primer_bind` annotation over the annealing footprint only, with the
+full ordered sequence (tail included) stored on the primer and written out as a
+`/Sequence` qualifier, so nothing about the oligo you'd actually order is lost. As with
+Create → New Primer, press **Save** to write it to the file. Attaching is not undoable
+with Cmd+Z; remove it from Properties → Primers instead.
+
+Clicking a row scrolls the sequence view to that binding site.
+
+Configure the inventory with `oveCart.inventoryPath` (or **Primer Cart: Choose Primer
+Inventory File…**, also offered inline the first time you search). Tuning:
+`oveCart.searchMinAnneal` (default 15), `oveCart.searchFullLengthOnly`,
+`oveCart.searchMaxHits`, and optional `oveCart.inventoryAliasColumn` /
+`inventoryDescriptionColumn` (auto-detected from `Alias` / `Description` headers).
+
 ## Other features
 
 - Supports `.dna`, `.fa`, `.fasta`, `.gb`, `.gbk`
