@@ -64,7 +64,7 @@ function buildIndex(sequence, circular, maxPrimerLen, k) {
 }
 
 /** Is position p inside [start, end], honouring an origin-spanning window? */
-function inWindow(p, start, end, n) {
+function inWindow(p, start, end) {
   if (start <= end) return p >= start && p <= end;
   return p >= start || p <= end; // window wraps the origin
 }
@@ -131,7 +131,7 @@ function search(index, entries, opts) {
         // A selection filters on where the primer's 3' end lands. The match is
         // allowed to run outside the window -- that is the whole point of
         // scoping by 3' end rather than by containment.
-        if (sel && !inWindow(threePrime, sel.start, sel.end, n)) continue;
+        if (sel && !inWindow(threePrime, sel.start, sel.end)) continue;
 
         const key = `${entry.name}|${strand}|${threePrime}`;
         if (seen.has(key)) continue; // duplicate inventory rows land here

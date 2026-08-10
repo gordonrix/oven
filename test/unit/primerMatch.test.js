@@ -161,9 +161,9 @@ test('selection scoping uses the reverse primer\'s own 3\' end', () => {
 });
 
 test('an origin-spanning selection window is honoured', () => {
-  assert.ok(inWindow(5, 170, 20, 180));
-  assert.ok(inWindow(175, 170, 20, 180));
-  assert.ok(!inWindow(100, 170, 20, 180));
+  assert.ok(inWindow(5, 170, 20));
+  assert.ok(inWindow(175, 170, 20));
+  assert.ok(!inWindow(100, 170, 20));
   const primer = SEQ.slice(0, 25); // 3' end at 24
   const hits = searchPlasmid(SEQ, true, [p('W', primer)], { selection: { start: 170, end: 30 } }).hits;
   assert.strictEqual(find(hits, 'W', 1).length, 1);
