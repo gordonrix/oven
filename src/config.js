@@ -3,12 +3,21 @@
 
 const os = require('os');
 const path = require('path');
-const vscode = require('vscode');
 
 const SECTION = 'oveCart';
 
+/*
+ * `vscode` is required lazily rather than at module load. Everything in this
+ * tree ends up transitively importing this file, and a top-level require would
+ * make all of it unloadable under `node --test`, where the vscode module does
+ * not exist. Nothing here touches the API until a getter is actually called.
+ */
+function vs() {
+  return require('vscode');
+}
+
 function cfg() {
-  return vscode.workspace.getConfiguration(SECTION);
+  return vs().workspace.getConfiguration(SECTION);
 }
 
 /**
@@ -18,7 +27,7 @@ function cfg() {
 function viewType() {
   const own = cfg().get('viewType');
   if (own) return own;
-  const legacy = vscode.workspace.getConfiguration('openvectoreditor').get('viewType');
+  const legacy = vs().workspace.getConfiguration('openvectoreditor').get('viewType');
   return legacy || 'sequence';
 }
 
@@ -28,7 +37,8 @@ function resolvePath(raw) {
   if (!p) return '';
 
   if (p.includes('${workspaceFolder}')) {
-    const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+    const folders = vs().workspace.workspaceFolders;
+    const folder = folders && folders[0];
     p = p.replace(/\$\{workspaceFolder\}/g, folder ? folder.uri.fsPath : '');
   }
   if (p === '~') p = os.homedir();

@@ -197,7 +197,7 @@
   "scripts": {
     "lint": "eslint .",
     "pretest": "yarn run lint",
-    "test": "node --test test/unit",
+    "test": "node --test 'test/unit/*.test.js'",
     "test:vscode": "vscode-test",
     "package": "vsce package --no-dependencies"
   },

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!--
+  Standalone harness for the cart picker, mirroring UMDDemo.html.
+
+  Serve this directory (python3 -m http.server) and open it, or drive it with
+  Playwright. acquireVsCodeApi is stubbed so posted messages land in
+  window.__posted instead of an extension host, which lets the whole
+  editor-side flow be tested without launching VS Code.
+
+  Excluded from the VSIX by .vscodeignore.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ove.css" />
+    <link rel="stylesheet" href="cartPicker.css" />
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; }
+      .ove-created-div { height: 100%; background-color: white; }
+      .ove-cart-btn, .save-button {
+        display: inline-block; padding: 10px; background-color: #0078d4; color: white;
+        border-radius: 4px; font-family: "Segoe UI", Tahoma, sans-serif; font-size: 16px;
+        font-weight: 600; border: none; cursor: pointer; position: fixed; top: 10px; z-index: 20000;
+      }
+      .save-button { right: 35px; }
+      .ove-cart-btn { right: 115px; background-color: #37903b; }
+    </style>
+  </head>
+  <body>
+    <!--
+      State bridge. A Playwright page.evaluate runs in an isolated world and
+      cannot see this page's JS globals, so everything a test needs to assert
+      on is mirrored into the DOM, which both worlds share.
+        #posted  JSON array of messages sent to the (stubbed) extension host
+        #probe   editor state, refreshed when a __probe event is dispatched
+        body[data-ready]  set once the fixture has finished loading
+    -->
+    <div id="posted" style="display:none">[]</div>
+    <div id="probe" style="display:none">{}</div>
+
+    <script>
+      window.__posted = [];
+      function syncPosted() {
+        document.getElementById('posted').textContent = JSON.stringify(window.__posted);
+      }
+      function acquireVsCodeApi() {
+        return {
+          postMessage: (m) => { window.__posted.push(m); syncPosted(); }
+        };
+      }
+      const vscode = acquireVsCodeApi();
+      function postSave() {
+        vscode.postMessage({ type: 'save', data: editor.getState()['sequenceData'] });
+      }
+
+      document.addEventListener('__probe', () => {
+        let payload;
+        try {
+          const st = window.__oveEditor.getState();
+          const sd = st.sequenceData || {};
+          payload = {
+            readOnly: st.readOnly,
+            primerCount: Object.keys(sd.primers || {}).length,
+            primerNames: Object.values(sd.primers || {}).map((p) => p.name),
+            sequenceLength: (sd.sequence || '').length
+          };
+        } catch (e) {
+          payload = { error: String(e) };
+        }
+        document.getElementById('probe').textContent = JSON.stringify(payload);
+      });
+
+      document.addEventListener('__clearPosted', () => {
+        window.__posted.length = 0;
+        syncPosted();
+      });
+
+      // Set a selection so Create > New Primer opens pre-filled, the way it
+      // does when a user drags across the sequence.
+      document.addEventListener('__select', (e) => {
+        window.__oveEditor.updateEditor({
+          selectionLayer: { start: e.detail.start, end: e.detail.end }
+        });
+      });
+    </script>
+
+    <button id="save-button" class="save-button" onclick="postSave()">Save</button>
+    <button id="ove-cart-button" class="ove-cart-btn" onclick="window.OveCart.openPicker()">Cart</button>
+
+    <script src="index.umd.js"></script>
+    <script src="bioparser2.umd.js"></script>
+    <script src="cartShared.js"></script>
+    <script src="cartPicker.js"></script>
+    <script>
+      const editor = window.createVectorEditor('createDomNodeForMe', {
+        withPreviewMode: false,
+        editorName: 'VectorEditor',
+        showMenuBar: true,
+        showReadOnly: true,
+        disableSetReadOnly: false,
+        disableBpEditing: true,
+        beforeAnnotationCreate: function (info) {
+          try {
+            if (info && info.annotationTypePlural === 'primers' && !info.isEdit) {
+              window.OveCart.addCreated(info);
+            }
+          } catch (e) {
+            console.error('primer cart: auto-add failed', e);
+          }
+          return true;
+        }
+      });
+      window.__oveEditor = editor;
+
+      fetch('../test/fixtures/synthetic-plasmid.gb')
+        .then((r) => r.text())
+        .then((text) => {
+          const parsed = window.bioParsers.genbankToJson(text)[0].parsedSequence;
+          editor.updateEditor({
+            sequenceData: parsed,
+            panelsShown: [[
+              { id: 'sequence', name: 'Sequence Map', active: true },
+              { id: 'circular', name: 'Circular Map', active: false },
+              { id: 'properties', name: 'Properties', active: false }
+            ]],
+            readOnly: false
+          });
+          window.OveCart.init(vscode, editor);
+          document.body.dataset.ready = 'true';
+        });
+    </script>
+  </body>
+</html>
