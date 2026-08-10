@@ -153,8 +153,8 @@ function findConflictedCopies(file) {
     return hits.length
       ? `${hits.length} "conflicted copy" file(s) sit beside this inventory. Make sure you are pointing at the right one.`
       : null;
-  } catch (e) {
-    return null;
+  } catch {
+    return null; // an unreadable directory is not worth surfacing
   }
 }
 

@@ -138,3 +138,6 @@ dist
 media/test.js
 # Claude Code local settings (upstream accidentally shipped theirs in the VSIX)
 .claude/
+
+# packaged builds
+*.vsix

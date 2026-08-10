@@ -16,7 +16,14 @@
     "Other"
   ],
   "keywords": [
-    "DNA", "vector", "genbank", "biology", "plasmid", "research", "primer", "oligo"
+    "DNA",
+    "vector",
+    "genbank",
+    "biology",
+    "plasmid",
+    "research",
+    "primer",
+    "oligo"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -209,6 +216,7 @@
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "^3.2.1",
     "depcheck": "^1.4.7",
-    "eslint": "^9.21.0"
+    "eslint": "^9.21.0",
+    "globals": "^15.14.0"
   }
 }
