@@ -14,6 +14,7 @@ class CartViewProvider {
     this.context = context;
     this.cart = cart;
     this.view = null;
+    this.pending = false;
 
     context.subscriptions.push(cart.onDidChange(() => this.push()));
     context.subscriptions.push(
@@ -36,8 +37,11 @@ class CartViewProvider {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.file(path.join(this.context.extensionPath, 'media'))]
     };
-    webview.html = this.html(webview);
 
+    // The message handler must be registered BEFORE webview.html is assigned.
+    // Assigning html runs the panel script synchronously, and it posts
+    // cart/ready straight away; with no listener attached yet that message is
+    // dropped and the panel never gets its initial state.
     webview.onDidReceiveMessage(async (msg) => {
       if (!msg) return;
       switch (msg.type) {
@@ -57,11 +61,30 @@ class CartViewProvider {
         default: break;
       }
     });
+
+    // A hidden webview view silently discards postMessage -- retainContextWhenHidden
+    // preserves its DOM but does not queue messages. Without this, every cart
+    // change made while the panel was collapsed was lost, and reopening the
+    // panel showed a stale snapshot rather than the real cart.
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible && this.pending) this.push();
+    });
+
+    webviewView.onDidDispose(() => {
+      if (this.view === webviewView) this.view = null;
+    });
+
+    webview.html = this.html(webview);
   }
 
   /** Current cart plus inventory annotations, pushed to the view wholesale. */
   push() {
     if (!this.view) return;
+    if (!this.view.visible) {
+      this.pending = true; // deliver when the panel comes back into view
+      return;
+    }
+    this.pending = false;
     const { items, inventory: inv } = inventory.annotate(this.cart.items());
     this.view.webview.postMessage({ type: 'cart/state', items, inventory: inv });
   }

@@ -66,7 +66,16 @@ class DNAViewerProvider {
       return null;
     }
 
+    // Same hidden-webview caveat as the sidebar: postMessage to a webview that
+    // is not currently visible is dropped, so a badge updated while this tab
+    // was in the background would be stale on return. Defer instead.
+    let pendingCartPush = false;
     const pushCartState = () => {
+      if (!webviewPanel.visible) {
+        pendingCartPush = true;
+        return;
+      }
+      pendingCartPush = false;
       webview.postMessage({
         type: 'cart/state',
         count: this.cart.items().length,
@@ -117,7 +126,13 @@ class DNAViewerProvider {
 
     // Keep the button badge in step when the cart changes from the sidebar.
     const sub = this.cart.onDidChange(() => pushCartState());
-    webviewPanel.onDidDispose(() => sub.dispose());
+    const visSub = webviewPanel.onDidChangeViewState(() => {
+      if (webviewPanel.visible && pendingCartPush) pushCartState();
+    });
+    webviewPanel.onDidDispose(() => {
+      sub.dispose();
+      visSub.dispose();
+    });
 
     webview.html = buildEditorHtml({
       styleUri: this.mediaUri(webview, 'ove.css'),
