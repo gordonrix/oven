@@ -31,7 +31,10 @@ Module._load = function (request, ...rest) {
         workspaceFolders: null,
         onDidChangeConfiguration: () => ({ dispose() {} })
       },
-      window: { showInformationMessage() {}, showWarningMessage() {}, showErrorMessage() {} },
+      window: {
+        showInformationMessage() {}, showWarningMessage() {}, showErrorMessage() {},
+        createOutputChannel: () => ({ appendLine() {}, dispose() {} })
+      },
       commands: { executeCommand() {} },
       env: { clipboard: { writeText: async () => {} } }
     };
@@ -137,6 +140,32 @@ test('updates made while hidden are delivered when the panel reappears', async (
   const last = view.posted[view.posted.length - 1];
   assert.deepStrictEqual(last.items.map((i) => i.name), ['A_fwd', 'B_fwd', 'C_fwd']);
   assert.strictEqual(provider.pending, false);
+});
+
+test('answers cart/ready even when the view reports itself not visible', async () => {
+  // The window-reload case. On a restored window resolveWebviewView can run
+  // while `visible` is still false, and if no visibility *change* follows, a
+  // deferred reply is never flushed -- the panel sits empty while the badge
+  // correctly shows a full cart. cart/ready means the panel is alive and
+  // waiting, so it must be answered regardless of the visibility flag.
+  const ctx = makeContext();
+  const cart = new CartStore(ctx);
+  await cart.add([
+    primer('A_fwd', 'ATGCATGCATGCAAAA', 'fileA'),
+    primer('B_fwd', 'GGGGCCCCGGGGTTTT', 'fileB'),
+    primer('C_fwd', 'TTTTAAAACCCCGGGG', 'fileC')
+  ], 500);
+
+  const provider = new CartViewProvider(ctx, cart);
+  const view = makeView(false); // laid out but not yet reported visible
+  provider.resolveWebviewView(view);
+
+  assert.strictEqual(view.posted.length, 0, 'nothing sent before the panel asks');
+
+  await view._msgHandler({ type: 'cart/ready' });
+
+  assert.strictEqual(view.posted.length, 1, 'cart/ready must be answered immediately');
+  assert.deepStrictEqual(view.posted[0].items.map((i) => i.name), ['A_fwd', 'B_fwd', 'C_fwd']);
 });
 
 test('no redundant push when a visible panel is merely re-shown', async () => {

@@ -225,9 +225,12 @@
   });
   filterEl.addEventListener('input', render);
 
+  let gotState = false;
+
   window.addEventListener('message', (event) => {
     const msg = event.data || {};
     if (msg.type === 'cart/state') {
+      gotState = true;
       items = msg.items || [];
       inventory = msg.inventory || { status: 'disabled' };
       const live = new Set(items.map((it) => it.id));
@@ -236,6 +239,18 @@
     }
   });
 
+  const requestState = () => vscode.postMessage({ type: 'cart/ready' });
+
+  // A panel showing nothing while the cart is full is the worst failure mode
+  // this thing has, and it only takes one dropped message. Ask again a few
+  // times until state arrives, and again whenever the panel is re-shown.
+  const retry = (ms) => setTimeout(() => { if (!gotState) requestState(); }, ms);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) requestState();
+  });
+
   render();
-  vscode.postMessage({ type: 'cart/ready' });
+  requestState();
+  [300, 1200, 4000].forEach(retry);
 })();

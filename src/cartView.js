@@ -32,6 +32,7 @@ class CartViewProvider {
 
   resolveWebviewView(webviewView) {
     this.view = webviewView;
+    this.log(`resolveWebviewView: visible=${webviewView.visible}, cart has ${this.cart.items().length} item(s)`);
     const webview = webviewView.webview;
     webview.options = {
       enableScripts: true,
@@ -45,7 +46,9 @@ class CartViewProvider {
     webview.onDidReceiveMessage(async (msg) => {
       if (!msg) return;
       switch (msg.type) {
-        case 'cart/ready': this.push(); break;
+        // The panel has just told us it is alive and waiting, so honour it
+        // unconditionally -- see the note on push().
+        case 'cart/ready': this.push(true); break;
         case 'cart/remove': await this.remove(msg.ids || []); break;
         case 'cart/clear': await this.clearCart(); break;
         case 'cart/copyTsv': await this.copy(msg.ids, 'tsv'); break;
@@ -67,6 +70,7 @@ class CartViewProvider {
     // change made while the panel was collapsed was lost, and reopening the
     // panel showed a stale snapshot rather than the real cart.
     webviewView.onDidChangeVisibility(() => {
+      this.log(`visibility -> ${webviewView.visible} (pending=${this.pending})`);
       if (webviewView.visible && this.pending) this.push();
     });
 
@@ -77,16 +81,30 @@ class CartViewProvider {
     webview.html = this.html(webview);
   }
 
-  /** Current cart plus inventory annotations, pushed to the view wholesale. */
-  push() {
+  /**
+   * Current cart plus inventory annotations, pushed to the view wholesale.
+   *
+   * @param {boolean} [force] Bypass the visibility guard. Required when the
+   *   panel itself asked for state: on a restored window `visible` can still
+   *   read false while the view is being laid out, and if no visibility
+   *   *change* follows, a deferred reply is never flushed and the panel sits
+   *   empty forever even though the cart is full.
+   */
+  push(force) {
     if (!this.view) return;
-    if (!this.view.visible) {
+    if (!force && !this.view.visible) {
       this.pending = true; // deliver when the panel comes back into view
       return;
     }
     this.pending = false;
     const { items, inventory: inv } = inventory.annotate(this.cart.items());
+    this.log(`push: ${items.length} item(s), inventory=${inv.status}, forced=${Boolean(force)}`);
     this.view.webview.postMessage({ type: 'cart/state', items, inventory: inv });
+  }
+
+  log(message) {
+    if (!this.output) this.output = vscode.window.createOutputChannel('Primer Cart');
+    this.output.appendLine(`[${new Date().toISOString()}] ${message}`);
   }
 
   /** Resolve an id list to items; an empty selection means "everything". */
