@@ -40,7 +40,7 @@
   let filterText = '';
 
   // Pos, Str, Name, Anneal, Tm, Tail, Alias, action
-  const COLUMN_DEFAULTS = [56, 26, 150, 48, 46, 46, 130, 62];
+  const COLUMN_DEFAULTS = [56, 26, 56, 48, 46, 46, 130, 62];
   const MIN_COLUMN = 24;
   let columnWidths = COLUMN_DEFAULTS.slice();
 

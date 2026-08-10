@@ -110,7 +110,7 @@
  */
 .ovesearch-row {
   display: grid;
-  grid-template-columns: var(--ovesearch-cols, 56px 26px 150px 48px 46px 46px 130px 62px);
+  grid-template-columns: var(--ovesearch-cols, 56px 26px 56px 48px 46px 46px 130px 62px);
   align-items: center;
   gap: 6px;
   padding: 5px 10px;

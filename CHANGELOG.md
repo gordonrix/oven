@@ -4,6 +4,11 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.5.3
+
+- Narrower default width for the primer search Name column, matching Pos. Existing saved
+  widths win over the new default; double-click a divider to reset.
+
 ## 1.5.2
 
 - Primer search table columns are now resizable: drag a header divider, or
