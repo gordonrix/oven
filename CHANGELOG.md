@@ -4,6 +4,26 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.3.0 (fork)
+
+Fork of [sanekun/ove-vscode](https://github.com/sanekun/ove-vscode) (GPL-3.0), branched
+from upstream v1.2.0. Upstream git `main` is v1.1.5; the v1.2.0 sources were imported
+from the published Marketplace VSIX, recorded under the `vendor-1.2.0` tag with a sha256
+per file.
+
+- **Primer Cart**: sidebar panel collecting primers across plasmid files, with copy-TSV,
+  copy-sequences and CSV export, plus optional cross-reference against a user-supplied
+  `.xlsx`/`.csv` primer inventory.
+- **Fixed: the Create menu was always empty.** OVE's `readOnly` state defaults to `true`
+  and the wrapper never overrode it, so every Create item was hidden. Now passes
+  `readOnly: false` with `disableBpEditing: true`, so annotations can be created while
+  the sequence itself stays protected.
+- Renamed identity to `gordonrix.ove-vscode-primer-cart` and the custom editor viewType
+  to `oveCart.editor`; settings moved from `openvectoreditor.*` to `oveCart.*` (the old
+  `viewType` key is still read as a fallback).
+- Removed `media/bioparser.umd.js`, `media/style.css`, two committed `.vsix` files and
+  the unused `react` dependency (~10 MB off the repo, ~3 MB off the VSIX).
+
 ## 1.1.0
 
 - 250629

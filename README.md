@@ -1,52 +1,93 @@
-# openvectoreditor in vscode
+# Open Vector Editor + Primer Cart
 
-Generate [openvectoreditor](https://github.com/TeselaGen/tg-oss/tree/master/packages/ove) webview when open dna format in vscode.
-
-refer to ove (https://github.com/TeselaGen/tg-oss/tree/master/packages/ove)
+View plasmid sequences in VS Code with [Open Vector Editor](https://github.com/TeselaGen/tg-oss/tree/master/packages/ove),
+and collect the primers you design across many plasmid files into one list you can copy
+straight into a spreadsheet or an oligo order.
 
 ![ove-vscode](https://github.com/sanekun/ove-vscode/raw/HEAD/media/ove-vscode.png)
 
+## Fork notice
+
+This is a fork of [sanekun/ove-vscode](https://github.com/sanekun/ove-vscode), which is
+licensed under **GPL-3.0**. This fork is also GPL-3.0; see [LICENSE](LICENSE).
+
+It is based on upstream **v1.2.0**. Note that upstream's git `main` is still at v1.1.5 —
+v1.2.0 was published to the Marketplace but never pushed to git, so the v1.2.0 sources
+here were imported from the published VSIX (see the `vendor-1.2.0` tag, which records a
+sha256 for every imported file).
+
+Changes made in this fork:
+
+- **Primer Cart** — a sidebar panel that accumulates primers across plasmid files, with
+  copy-as-TSV, copy-sequences, and CSV export, plus optional cross-referencing against
+  your own primer inventory spreadsheet.
+- **The editor is no longer read-only by default.** Upstream never overrode OVE's
+  `readOnly` default of `true`, which hid every item in the **Create** menu — so
+  "Create → New Primer" appeared as an empty popup. Base editing stays locked separately
+  via `oveCart.allowSequenceEditing`, so annotations work without risking the sequence.
+- Removed ~10 MB of dead artifacts (a superseded bio-parser bundle, a duplicate
+  stylesheet, two committed `.vsix` files) and an unused `react` dependency.
+- Renamed the extension identity and custom-editor `viewType` so it can be installed
+  alongside, or instead of, the Marketplace original.
+
 ## Installation
 
-vscode-marketplace: https://marketplace.visualstudio.com/items?itemName=sanekun.openvectoreditor
+Not published to the Marketplace. Build and sideload:
 
-vscode - tab menu - Extensions: Install from VSIX - select openvectoreditor-1.2.0.vsix
+```sh
+npm install
+npm run package
+code --install-extension ove-vscode-primer-cart-1.3.0.vsix --force
+```
 
+If you have the original `sanekun.openvectoreditor` installed, uninstall it — otherwise
+both will offer to open `.gb` files and "Reopen Editor With…" will show two OVE entries.
 
-## Features
+## Using the Primer Cart
 
-- tab menu: openvectoreditor.show: open general ove (Can remain contents)
-- Support .dna, .fa, .fasta, .gb, .gbk format
-- Select DNA File - Open With - select OVE (Can set as default)
-- Save file with custom button (support all formats including .dna)
+1. Open a plasmid file. Select a region and use **Create → New Primer**, or use an
+   existing primer already annotated in the file.
+2. Click **Cart** in the top-right of the editor to pick primers to add. Primers you
+   create are added automatically (`oveCart.autoAddCreatedPrimers`).
+3. Repeat in as many plasmid files as you like — the cart is global and persists across
+   restarts.
+4. Open the **Primer Cart** panel in the activity bar and use **Copy TSV** (pastes into
+   Excel/Sheets as columns), **Copy sequences** (one per line, for bulk oligo order
+   forms), or **Export CSV…**.
 
-## Known Issues
+### Cross-referencing an existing inventory
 
-data remaining
-- When switching to another tab, the content does not persist.
-- Only the editor opened via the command `openvectoreditor.show` retains its content.
+Point `oveCart.inventoryPath` at an `.xlsx` or `.csv` of primers you have already
+ordered and each cart row is flagged green (already in inventory, with its ID) or orange
+(new). By default the first column is the name and the second is the sequence; override
+with `oveCart.inventoryNameColumn` / `oveCart.inventorySequenceColumn`. Matching is by
+exact sequence, ignoring case and whitespace.
 
-## Release Notes
+If the inventory cannot be read, every row shows a grey **unknown** badge rather than
+orange — a primer is never labelled "new" on the strength of a failed lookup.
 
-- refer to [Changelog](https://github.com/sanekun/ove-vscode/blob/HEAD/CHANGELOG.md)
+The `.xlsx` reader is dependency-free and deliberately minimal (it reads two columns of
+text). If it ever fails on a workbook, converting that sheet to `.csv` is the fastest
+workaround.
 
-### 1.1.0
+## Other features
 
-- Change initial state `preview mode` to `normal mode`
-- Use umd version bioparser
-    - Change fasta name from `jsonToFasta` function
-    ``` code
-    name||length||description > name
-    ```
-- **Update ove-webview panel**
-    - background color is always white
-    - height is always 100%
-- **Support .dna format**
-    - Edit bio-parser script
-    ``` code
-    // const arrayBuffer = yield getArrayBufferFromFile(fileObj);
-    const arrayBuffer = fileObj;
-    ```
-    - Change `CustomTextEditorProvider` to `CustomEditorProvider` (can read binary)
-    - disabled save button.
-- Update README to 1.1.0
+- Supports `.dna`, `.fa`, `.fasta`, `.gb`, `.gbk`
+- Select a DNA file → Open With → OVE (can be set as the default)
+- Save with the custom Save button (all formats, including `.dna`)
+- Command **Open Vector Editor: Open Demo Editor** (`oveCart.showEditor`) opens a
+  scratch editor whose contents persist across tab switches
+
+## Known issues
+
+Inherited from upstream:
+
+- Content in a file-backed editor does not persist when you switch to another tab; only
+  the editor opened via `oveCart.showEditor` retains its contents.
+- `.dna` files: primers in the file are displayed and preserved on save, but **new**
+  primers created in the UI are not written back to `.dna`. Use `.gb` if you need that.
+  (The Primer Cart is unaffected — it holds primers regardless of what the file can store.)
+
+## Release notes
+
+See [CHANGELOG.md](CHANGELOG.md).

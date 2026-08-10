@@ -1,12 +1,13 @@
 {
-  "name": "openvectoreditor",
-  "displayName": "openvectoreditor",
-  "description": "DNA editor in vscode",
-  "version": "1.2.0",
-  "publisher": "sanekun",
+  "name": "ove-vscode-primer-cart",
+  "displayName": "Open Vector Editor + Primer Cart",
+  "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
+  "version": "1.3.0",
+  "publisher": "gordonrix",
+  "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sanekun/ove-vscode"
+    "url": "https://github.com/gordonrix/ove-vscode"
   },
   "engines": {
     "vscode": "^1.98.0"
@@ -15,7 +16,7 @@
     "Other"
   ],
   "keywords": [
-    "DNA", "vector", "genbank", "biology", "plasmid", "research"
+    "DNA", "vector", "genbank", "biology", "plasmid", "research", "primer", "oligo"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -40,7 +41,7 @@
     ],
     "customEditors": [
       {
-        "viewType": "openvectoreditor.editor",
+        "viewType": "oveCart.editor",
         "displayName": "OVE",
         "selector": [
           {
@@ -62,19 +63,69 @@
         ]
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "oveCart",
+          "title": "Primer Cart",
+          "icon": "media/cart.svg"
+        }
+      ]
+    },
+    "views": {
+      "oveCart": [
+        {
+          "type": "webview",
+          "id": "oveCart.cartView",
+          "name": "Primer Cart"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "openvectoreditor.show",
-        "title": "openvectoreditor:show"
+        "command": "oveCart.showEditor",
+        "title": "Open Vector Editor: Open Demo Editor"
+      },
+      {
+        "command": "oveCart.exportCsv",
+        "title": "Primer Cart: Export CSV...",
+        "icon": "$(save)"
+      },
+      {
+        "command": "oveCart.refreshInventory",
+        "title": "Primer Cart: Reload Primer Inventory",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "oveCart.clear",
+        "title": "Primer Cart: Clear Cart"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "oveCart.exportCsv",
+          "when": "view == oveCart.cartView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "oveCart.refreshInventory",
+          "when": "view == oveCart.cartView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "oveCart.clear",
+          "when": "view == oveCart.cartView"
+        }
+      ]
+    },
     "configuration": {
-      "title": "openvectoreditor",
+      "title": "Open Vector Editor + Primer Cart",
       "properties": {
-        "openvectoreditor.viewType": {
+        "oveCart.viewType": {
           "type": "string",
           "default": "sequence",
-          "description": "Select the default view type for the editor.",
+          "description": "Default view type when a sequence is opened.",
           "enum": [
             "sequence",
             "circular",
@@ -84,6 +135,60 @@
             "Show sequence only.",
             "Show circular map only.",
             "Show sequence and circular map."
+          ]
+        },
+        "oveCart.readOnly": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Open sequences with editing locked. While locked, the **Create** menu (New Feature, New Primer, ...) is hidden entirely. You can always toggle the padlock in the editor toolbar for a single file."
+        },
+        "oveCart.allowSequenceEditing": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Allow the DNA bases themselves to be edited. When off (the default), annotations can be created and edited but the sequence cannot be cut, pasted over, complemented or deleted."
+        },
+        "oveCart.autoAddCreatedPrimers": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically add a primer to the Primer Cart when you create one with **Create -> New Primer**."
+        },
+        "oveCart.maxItems": {
+          "type": "number",
+          "default": 500,
+          "minimum": 1,
+          "description": "Maximum number of primers the cart will hold. Adds beyond this are refused rather than silently dropping older entries."
+        },
+        "oveCart.inventoryPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to a primer inventory `.xlsx` or `.csv`, used to flag cart primers that you have already ordered. Supports `~` and `${workspaceFolder}`. Leave empty to disable cross-referencing."
+        },
+        "oveCart.inventorySheet": {
+          "type": "string",
+          "default": "",
+          "description": "Worksheet name to read from an .xlsx inventory. Leave empty to use the first sheet."
+        },
+        "oveCart.inventoryNameColumn": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `°` or `μ`; if it does not match, the error message lists the headers actually found."
+        },
+        "oveCart.inventorySequenceColumn": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Header of the column holding primer sequences. Leave empty to use the second column. Matching against the cart is by exact sequence, ignoring case and whitespace."
+        },
+        "oveCart.sequenceCopyIncludesName": {
+          "type": "string",
+          "default": "sequence",
+          "description": "Format used by the \"Copy sequences\" button.",
+          "enum": [
+            "sequence",
+            "name-tab-sequence"
+          ],
+          "enumDescriptions": [
+            "One bare sequence per line.",
+            "Name and sequence separated by a tab, one per line."
           ]
         }
       }

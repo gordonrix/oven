@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+     fill="none" stroke="currentColor" stroke-width="1.7"
+     stroke-linecap="round" stroke-linejoin="round">
+  <!-- cart handle and basket -->
+  <path d="M2 4h2.4l1 3.2"/>
+  <path d="M5.4 7.2h16l-2.3 8.1H8.1z"/>
+  <circle cx="9.6" cy="19.4" r="1.5"/>
+  <circle cx="17.6" cy="19.4" r="1.5"/>
+  <!-- double-stranded primer sitting in the basket -->
+  <path d="M8.6 10h9"/>
+  <path d="M8.6 12.5h6.2"/>
+</svg>
