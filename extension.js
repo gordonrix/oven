@@ -82,7 +82,7 @@ function viewType(viewTypeConfig) {
 
 function getTestHtml(context, webview) {
   const styleUri = webview.asWebviewUri(
-    vscode.Uri.file(path.join(context.extensionPath, 'media', 'style.css'))
+    vscode.Uri.file(path.join(context.extensionPath, 'media', 'ove.css'))
   );
   const scriptUri = webview.asWebviewUri(
     vscode.Uri.file(path.join(context.extensionPath, 'media', 'index.umd.js'))

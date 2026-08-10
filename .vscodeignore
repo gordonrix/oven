@@ -12,3 +12,5 @@ vsc-extension-quickstart.md
 media/test.js
 media/UMDDemo.html
 test/*
+.claude/**
+media/CartDemo.html
