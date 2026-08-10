@@ -4,6 +4,13 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.5.2
+
+- Primer search table columns are now resizable: drag a header divider, or
+  double-click one to restore the defaults. Widths persist across files and sessions.
+- Replaced the automatic column hiding at narrow widths, which removed data with no way
+  to get it back. A narrow pane now scrolls sideways and what is visible is your choice.
+
 ## 1.5.1
 
 - Primer search results now open as a **Primer Search tab beside the sequence map**

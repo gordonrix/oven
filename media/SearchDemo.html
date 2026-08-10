@@ -49,6 +49,7 @@
             window.__posted.push(m);
             syncPosted();
             // Stand in for the extension host's search branch.
+            if (m.type === 'search/setColumnWidths') window.__savedWidths = m.widths;
             if (m.type === 'search/run') {
               fetch('../test/fixtures/searchHits.json').then((r) => r.json()).then((fx) => {
                 let hits = fx.hits;
@@ -61,7 +62,8 @@
                 window.postMessage(Object.assign({}, fx, {
                   type: 'search/results', hits,
                   scoped: Boolean(m.selection), selection: m.selection || null,
-                  fullLengthOnly: false
+                  fullLengthOnly: false,
+                  columnWidths: window.__savedWidths || null
                 }), '*');
               });
             }

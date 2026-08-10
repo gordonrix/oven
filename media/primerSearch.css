@@ -103,15 +103,23 @@
 }
 .ovesearch-cta:hover { background: #5b3f96; }
 
+/*
+ * Column widths come from --ovesearch-cols, set by the resize handles. Rows
+ * are max-content wide so the header and body stay aligned when the total
+ * exceeds the pane and the list scrolls sideways.
+ */
 .ovesearch-row {
   display: grid;
-  grid-template-columns: 52px 20px minmax(0, 1.5fr) 42px 42px 42px minmax(0, 1.2fr) 60px;
+  grid-template-columns: var(--ovesearch-cols, 56px 26px 150px 48px 46px 46px 130px 62px);
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
   font-size: 11px;
   cursor: pointer;
   border-bottom: 1px solid #f5f8fa;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
 }
 .ovesearch-row:not(.ovesearch-header):hover { background: #f0ebfa; }
 .ovesearch-row.is-attached { opacity: .5; }
@@ -129,6 +137,40 @@
   color: #5c7080;
   cursor: default;
 }
+
+/* --- resize handles ----------------------------------------------------- */
+
+/*
+ * overflow:visible is load-bearing. The Name and Alias cells clip their text
+ * with overflow:hidden, which also clips the absolutely-positioned grip --
+ * leaving a handle that looks draggable but has no hit area past the cell
+ * edge. Header labels are short enough not to need the ellipsis.
+ */
+.ovesearch-header > div { position: relative; overflow: visible; }
+
+.ovesearch-grip {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  right: -6px;
+  width: 9px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.ovesearch-grip::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 4px;
+  width: 1px;
+  background: #d3dae0;
+}
+.ovesearch-grip:hover::after { background: #7050b3; width: 2px; left: 3px; }
+
+/* While dragging, stop the pointer turning into a text caret everywhere. */
+body.ovesearch-resizing,
+body.ovesearch-resizing * { cursor: col-resize !important; user-select: none !important; }
 
 .ovesearch-c0 { font-variant-numeric: tabular-nums; color: #5c7080; }
 .ovesearch-c1 { font-weight: 700; text-align: center; }
@@ -159,19 +201,8 @@
 .ovesearch-attach:disabled { background: transparent; color: #0f9960; cursor: default; font-size: 13px; }
 
 /*
- * A split pane can get narrow. Shed the least essential columns rather than
- * letting the grid overflow: alias first, then Tm, then the tail count.
+ * Columns used to be shed automatically as the pane narrowed. That fought the
+ * user rather than helping: it hid data with no way to get it back. Now every
+ * column is draggable and a narrow pane scrolls sideways instead, so what is
+ * visible is always the user's choice.
  */
-@container (max-width: 520px) {
-  .ovesearch-row { grid-template-columns: 52px 20px minmax(0, 1fr) 42px 42px 42px 60px; }
-  .ovesearch-c6 { display: none; }
-}
-@container (max-width: 400px) {
-  .ovesearch-row { grid-template-columns: 48px 20px minmax(0, 1fr) 40px 40px 58px; }
-  .ovesearch-c4 { display: none; }
-}
-@container (max-width: 320px) {
-  .ovesearch-row { grid-template-columns: 44px 18px minmax(0, 1fr) 56px; }
-  .ovesearch-c3, .ovesearch-c5 { display: none; }
-}
-.ovesearch-root { container-type: inline-size; }

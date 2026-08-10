@@ -13,6 +13,8 @@ const config = require('./config');
 const inventory = require('./inventory');
 const { buildEditorHtml } = require('./editorHtml');
 
+const SEARCH_COLS_KEY = 'oveCart.searchColumnWidths';
+
 /**
  * Ask for an inventory file and store it in user settings.
  *
@@ -151,6 +153,7 @@ class DNAViewerProvider {
           scoped: Boolean(message.selection),
           selection: message.selection || null,
           fullLengthOnly: config.searchFullLengthOnly(),
+          columnWidths: this.context.globalState.get(SEARCH_COLS_KEY, null),
           hits: res.hits,
           inventory: res.inventory,
           tookMs: res.tookMs,
@@ -158,6 +161,13 @@ class DNAViewerProvider {
           skipped: res.skipped,
           truncated: res.truncated
         });
+        return;
+      }
+
+      // Column widths live in globalState so a layout the user has tuned
+      // survives closing the file, rather than resetting on every open.
+      if (message.type === 'search/setColumnWidths') {
+        await this.context.globalState.update(SEARCH_COLS_KEY, message.widths || null);
         return;
       }
 

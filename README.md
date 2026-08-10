@@ -115,6 +115,10 @@ with Cmd+Z; remove it from Properties → Primers instead.
 
 Clicking a row scrolls the sequence view to that binding site.
 
+Drag the divider at the right of any column header to resize it, and double-click a
+divider to restore the defaults. Widths are remembered across files and sessions. If the
+columns total more than the pane, the table scrolls sideways rather than hiding anything.
+
 Configure the inventory with `oveCart.inventoryPath` (or **Primer Cart: Choose Primer
 Inventory File…**, also offered inline the first time you search). Tuning:
 `oveCart.searchMinAnneal` (default 15), `oveCart.searchFullLengthOnly`,

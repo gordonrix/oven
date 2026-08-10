@@ -39,6 +39,11 @@
   let fullLengthOnly = false;
   let filterText = '';
 
+  // Pos, Str, Name, Anneal, Tm, Tail, Alias, action
+  const COLUMN_DEFAULTS = [56, 26, 150, 48, 46, 46, 130, 62];
+  const MIN_COLUMN = 24;
+  let columnWidths = COLUMN_DEFAULTS.slice();
+
   const post = (m) => vscodeApi && vscodeApi.postMessage(m);
   const toast = (kind, text) => window.toastr && window.toastr[kind] && window.toastr[kind](text);
 
@@ -212,6 +217,55 @@
     return n;
   }
 
+  /* ------------------------------------------------- column resizing -- */
+
+  /**
+   * Widths drive a single CSS variable on the root, so a drag restyles the
+   * whole table without re-rendering a row -- which is what keeps it smooth.
+   */
+  function applyWidths() {
+    if (root) root.style.setProperty('--ovesearch-cols', columnWidths.map((w) => `${w}px`).join(' '));
+  }
+
+  function persistWidths() {
+    post({ type: 'search/setColumnWidths', widths: columnWidths });
+  }
+
+  function makeGrip(colIndex) {
+    const grip = el('div', 'ovesearch-grip');
+    grip.title = 'Drag to resize · double-click to reset all columns';
+
+    grip.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // the header must not treat this as a row click
+      const startX = e.clientX;
+      const startWidth = columnWidths[colIndex];
+
+      const onMove = (ev) => {
+        columnWidths[colIndex] = Math.max(MIN_COLUMN, Math.round(startWidth + ev.clientX - startX));
+        applyWidths();
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('ovesearch-resizing');
+        persistWidths();
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.body.classList.add('ovesearch-resizing');
+    });
+
+    grip.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      columnWidths = COLUMN_DEFAULTS.slice();
+      applyWidths();
+      persistWidths();
+    });
+
+    return grip;
+  }
+
   function visibleHits() {
     let hits = state.hits;
     if (fullLengthOnly) hits = hits.filter((h) => h.overhang === 0);
@@ -346,9 +400,12 @@
 
     const header = el('div', 'ovesearch-row ovesearch-header');
     ['Pos', 'Str', 'Name', 'Anneal', 'Tm', 'Tail', 'Alias', ''].forEach((h, i) => {
-      header.appendChild(el('div', 'ovesearch-c' + i, h));
+      const cell = el('div', 'ovesearch-c' + i, h);
+      cell.appendChild(makeGrip(i));
+      header.appendChild(cell);
     });
     list.appendChild(header);
+    applyWidths();
 
     for (const hit of hits) {
       const row = el('div', 'ovesearch-row');
@@ -439,6 +496,9 @@
           truncated: Boolean(msg.truncated)
         };
         if (msg.fullLengthOnly) fullLengthOnly = true;
+        if (Array.isArray(msg.columnWidths) && msg.columnWidths.length === COLUMN_DEFAULTS.length) {
+          columnWidths = msg.columnWidths.map((w) => Math.max(MIN_COLUMN, Number(w) || MIN_COLUMN));
+        }
         render();
       } else if (msg.type === 'search/inventoryChanged') {
         run(state.scoped);

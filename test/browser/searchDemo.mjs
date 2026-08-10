@@ -182,6 +182,69 @@ export default async function run(page) {
   }
   await dismiss(page);
 
+  // --- resizable columns ---------------------------------------------------
+  const colsNow = () => page.evaluate(() =>
+    getComputedStyle(document.querySelector('.ovesearch-root'))
+      .getPropertyValue('--ovesearch-cols').trim());
+  const nameWidth = () => page.evaluate(() =>
+    Math.round(document.querySelector('.ovesearch-header .ovesearch-c2').getBoundingClientRect().width));
+
+  out.colsDefault = await colsNow();
+  out.nameWidthBefore = await nameWidth();
+
+  await clearPosted(page);
+  const grip = page.locator('.ovesearch-header .ovesearch-c2 .ovesearch-grip');
+  out.gripCount = await page.locator('.ovesearch-grip').count();
+  if (out.gripCount !== 8) fail.push(`expected a grip per column, got ${out.gripCount}`);
+
+  const box = await grip.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 70, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  out.nameWidthAfter = await nameWidth();
+  out.colsAfter = await colsNow();
+  out.savedWidths = (await posted(page)).filter((m) => m.type === 'search/setColumnWidths');
+
+  const grew = out.nameWidthAfter - out.nameWidthBefore;
+  if (grew < 50 || grew > 90) fail.push(`dragging +70px should widen the Name column by ~70, got ${grew}`);
+  if (out.savedWidths.length !== 1) fail.push(`expected one width save on mouseup, got ${out.savedWidths.length}`);
+  if (out.savedWidths[0] && out.savedWidths[0].widths.length !== 8) fail.push('saved widths should cover all 8 columns');
+
+  // body rows must track the header, or the table shears
+  out.bodyNameWidth = await page.evaluate(() => Math.round(
+    document.querySelector('.ovesearch-row:not(.ovesearch-header) .ovesearch-c2').getBoundingClientRect().width));
+  if (Math.abs(out.bodyNameWidth - out.nameWidthAfter) > 2) {
+    fail.push(`body column ${out.bodyNameWidth} does not match header ${out.nameWidthAfter}`);
+  }
+
+  // double-click resets every column
+  await clearPosted(page);
+  await grip.dblclick();
+  await page.waitForTimeout(300);
+  out.colsAfterReset = await colsNow();
+  if (out.colsAfterReset !== out.colsDefault) {
+    fail.push(`double-click should restore the defaults: ${out.colsAfterReset} vs ${out.colsDefault}`);
+  }
+
+  // a re-search must not throw the widths away
+  await grip.boundingBox().then(async (b) => {
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 40, b.y + b.height / 2, { steps: 5 });
+    await page.mouse.up();
+  });
+  await page.waitForTimeout(250);
+  const widened = await nameWidth();
+  await page.locator('.ovesearch-tab', { hasText: 'Whole plasmid' }).click();
+  await page.waitForTimeout(700);
+  out.nameWidthAfterResearch = await nameWidth();
+  if (Math.abs(out.nameWidthAfterResearch - widened) > 2) {
+    fail.push(`widths must survive a re-search: ${widened} -> ${out.nameWidthAfterResearch}`);
+  }
+
   // --- scoping ------------------------------------------------------------
   await page.evaluate(() =>
     document.dispatchEvent(new CustomEvent('__select', { detail: { start: 1400, end: 1600 } })));
