@@ -125,6 +125,14 @@ Inventory File…**, also offered inline the first time you search). Tuning:
 `oveCart.searchMaxHits`, and optional `oveCart.inventoryAliasColumn` /
 `inventoryDescriptionColumn` (auto-detected from `Alias` / `Description` headers).
 
+## Selection readout
+
+Whatever you have selected, a small readout in the bottom-right corner shows its length,
+GC content and NEB Q5 nearest-neighbour Tm — the same calculation `gibson_planner.py`
+designs against, so the numbers agree with your pipeline. It's for sizing up a candidate
+primer by dragging over it, so past 200 bp it declines to show a Tm rather than print a
+figure that means nothing.
+
 ## Other features
 
 - Supports `.dna`, `.fa`, `.fasta`, `.gb`, `.gbk`

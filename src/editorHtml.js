@@ -60,7 +60,24 @@ const BASE_STYLE = `
       .ove-cart-btn { background-color: #37903b; }
       .ove-cart-btn:hover { background-color: #2a6f2d; }
       .ove-search-btn { background-color: #7050b3; }
-      .ove-search-btn:hover { background-color: #5b3f96; }`;
+      .ove-search-btn:hover { background-color: #5b3f96; }
+      /* Sits above OVE's own status bar, which is not extensible. */
+      .ove-seltm {
+        position: fixed;
+        bottom: 30px;
+        right: 12px;
+        z-index: 20000;
+        padding: 3px 10px;
+        border-radius: 10px;
+        background: rgba(24, 32, 38, .86);
+        color: #fff;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: .01em;
+        pointer-events: auto;
+        user-select: none;
+      }`;
 
 /**
  * The inline script that boots OVE.
@@ -88,7 +105,8 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         disableSetReadOnly: false,
         disableBpEditing: ${Boolean(disableBpEditing)},
         ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
-        panelMap: window.OveSearch.panelMap,` : ''}
+        panelMap: window.OveSearch.panelMap,
+        onSelectionOrCaretChanged: function () { window.OveSelectionTm.refresh(); },` : ''}
         beforeAnnotationCreate: function (info) {
           try {
             if (${Boolean(withCart && autoAddCreatedPrimers)} && info &&
@@ -113,7 +131,7 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, sharedUri, pickerUri, searchUri,
-    sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers } = opts;
+    selTmUri, sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -137,14 +155,17 @@ function buildEditorHtml(opts) {
               onclick="window.OveCart.openPicker()">Add to Cart</button>
       <button id="save-button" class="save-button" onclick="postSave()">Save</button>
     </div>
+    <div id="ove-seltm" class="ove-seltm" hidden></div>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
     <script src="${pickerUri}"></script>
     <script src="${searchUri}"></script>
+    <script src="${selTmUri}"></script>
     <script>
 ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, withCart: true })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
+      window.OveSelectionTm.init(editor);
     </script>
   </body>
 </html>`;

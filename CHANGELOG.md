@@ -4,6 +4,14 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.6.0
+
+- A readout in the bottom-right corner showing length, GC and Tm for the current
+  selection. The Tm calculation moved into the shared module so the host and the webview
+  cannot drift apart; verified to match the Python to four decimals.
+- Declines to show a Tm over 200 bp, where the nearest-neighbour primer model stops
+  meaning anything.
+
 ## 1.5.3
 
 - Narrower default width for the primer search Name column, matching Pos. Existing saved

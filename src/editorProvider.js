@@ -218,6 +218,7 @@ class DNAViewerProvider {
       sharedUri: this.mediaUri(webview, 'cartShared.js'),
       pickerUri: this.mediaUri(webview, 'cartPicker.js'),
       searchUri: this.mediaUri(webview, 'primerSearch.js'),
+      selTmUri: this.mediaUri(webview, 'selectionTm.js'),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
       viewType: config.viewType(),
       readOnly: config.readOnly(),
