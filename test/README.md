@@ -21,18 +21,29 @@ pins it to that function's output. If the Python ever changes, regenerate with:
 python3 - > test/fixtures/tm-oracle.json <<'PY'
 import json, math, random
 # ... paste _NN_R, _NN_TERM_DS/DH, _NN_DS/DH and tm_neb_q5 from gibson_planner.py ...
-random.seed(20260809)
+random.seed(20260811)
 cases = [{'seq': s, 'tm': tm_neb_q5(s)} for s in
-         ['AT','GC','ATGC','GGGGCCCC','ATATATATAT',
-          'ACGTACGTACGTACGTACGTA','GGGGCCTCTCTTACTGTGT','GGGGCCCCTTTTAAAACCCC',
-          'ggggccccttttaaaaGGGGCCCCTTTTAAAACCCCGGGG'] +
+         ['AT','GC','ATGC','GGGGCCCC','ATATATATAT'] +
          [''.join(random.choice('ACGT') for _ in range(random.randint(15, 45))) for _ in range(15)]]
 print(json.dumps(cases, indent=1))
 PY
 ```
 
-The sequences are synthetic on purpose — no real primer data belongs in a
-public repo.
+Every sequence is synthetic on purpose. No real primer or plasmid data belongs in a
+public repo, and the tests do not need any: they need realistic shapes, which a
+generator provides more reliably than a real file.
+
+### Regenerating `fixtures/synthetic-plasmid.gb`
+
+```sh
+node test/fixtures/make-synthetic-plasmid.mjs
+```
+
+A generated stand-in for a plasmid: 6537 bp, a handful of features, three primers, and
+deliberately awkward cases (lowercase ORIGIN, an origin-spanning `join(...)`, forward and
+reverse primers, a lowercase 5' tail, `/Sequence` qualifiers to check derivation against).
+Regenerate `fixtures/searchHits.json` from it with the snippet in `searchDemo.mjs`'s header
+if you change it.
 
 ## Browser
 

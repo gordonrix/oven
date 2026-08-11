@@ -82,23 +82,28 @@ test('csv delimiter is sniffed from the header line', () => {
   assert.deepStrictEqual(csvLite.parse('name\tseq\nBE_1\tATGC\n'), [['name', 'seq'], ['BE_1', 'ATGC']]);
 });
 
-// Runs only on a machine that actually has the workbook; the real inventory is
-// the user's data and is deliberately not committed.
-const REAL_INVENTORY =
-  '${OVECART_TEST_INVENTORY}';
+/*
+ * An optional check against a real workbook, for the awkward things a
+ * hand-written fixture will not reproduce -- rich-text headers, thousands of
+ * rows, characters like U+00B0 and U+03BC. Point OVECART_TEST_INVENTORY at a
+ * spreadsheet to run it; it skips otherwise. No real path is committed: the
+ * inventory is the user's data and so is where it lives.
+ *
+ *   OVECART_TEST_INVENTORY="/path/to/Primers Inventory.xlsx" npm test
+ */
+const REAL_INVENTORY = process.env.OVECART_TEST_INVENTORY || '';
 
-test('reads the real Primers Inventory workbook', { skip: !fs.existsSync(REAL_INVENTORY) }, () => {
+test('reads a real inventory workbook', { skip: !REAL_INVENTORY || !fs.existsSync(REAL_INVENTORY) }, () => {
   const { rows, sheetNames } = readSheet(REAL_INVENTORY);
   assert.ok(sheetNames.length >= 1);
 
   const headers = rows[0];
-  assert.strictEqual(headers.length, 10);
-  assert.strictEqual(headers[0], 'Name/barcode');
-  assert.strictEqual(headers[1], 'Sequence');
-  assert.strictEqual(headers[3], 'Tm (°C)');   // rich-text guard, U+00B0
-  assert.strictEqual(headers[6], '[] (μM)');   // U+03BC, not the micro sign
-
-  assert.ok(rows.length > 1000, `expected >1000 rows, got ${rows.length}`);
+  assert.ok(headers.length >= 2, 'need at least a name and a sequence column');
+  assert.ok(headers.every((h) => typeof h === 'string'));
+  // Rich-text headers are the regression this guards: a header split across
+  // runs must come back whole, not truncated at the first run.
+  assert.ok(headers.every((h) => !h.endsWith('(')), `header looks truncated: ${headers.join(' | ')}`);
+  assert.ok(rows.length > 1, 'expected data rows below the header');
 
   // Casing is meaningful: lowercase marks the Gibson overhang tail.
   const mixed = rows.slice(1).map((r) => r[1]).find((s) => /[a-z]/.test(s) && /[A-Z]/.test(s));

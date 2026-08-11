@@ -75,11 +75,16 @@ export default async function run(page) {
     fail.push(`picker showed ${out.pickerRows.length} rows, expected ${out.initialState.primerCount}`);
   }
 
-  // The reverse primer's derived sequence must match its /Sequence qualifier.
-  const acyc = out.pickerRows.find((r) => r.name.startsWith('SYN-rev-primer'));
-  out.reversePrimerDerived = acyc ? acyc.seq : null;
-  if (!acyc || acyc.seq !== 'GGGGCCTCTCTTACTGTGT') {
-    fail.push(`reverse primer derived as ${acyc && acyc.seq}, expected GGGGCCTCTCTTACTGTGT`);
+  /*
+   * The reverse primer's derived sequence must match the /Sequence qualifier
+   * the fixture states independently -- that is the whole point of the check.
+   * The literal comes from test/fixtures/make-synthetic-plasmid.mjs, which is
+   * deterministic; regenerate the fixture and this moves with it.
+   */
+  const rev = out.pickerRows.find((r) => r.name.startsWith('SYN-rev-primer'));
+  out.reversePrimerDerived = rev ? rev.seq : null;
+  if (!rev || rev.seq !== 'GGGGCCTCTCTTACTGTGT') {
+    fail.push(`reverse primer derived as ${rev && rev.seq}, expected GGGGCCTCTCTTACTGTGT`);
   }
 
   // --- check two, add ------------------------------------------------------

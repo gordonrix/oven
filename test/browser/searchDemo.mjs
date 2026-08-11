@@ -115,7 +115,9 @@ export default async function run(page) {
   if (added) {
     if (added.name !== 'DEMO_TAIL_F') fail.push(`attached primer named ${added.name}`);
     if (added.type !== 'primer_bind') fail.push(`attached primer type ${added.type}`);
-    if (added.start !== 1500 || added.end !== 1521) fail.push(`footprint should be 1500..1521, got ${added.start}..${added.end}`);
+    // 1499, not 1500: the tail's last base happens to match the template too,
+    // so the annealing footprint legitimately extends one base further 5'.
+    if (added.start !== 1499 || added.end !== 1521) fail.push(`footprint should be 1499..1521, got ${added.start}..${added.end}`);
     if (added.strand !== 1) fail.push(`strand should be 1, got ${added.strand}`);
     // The tail is absent from the template but must survive on the primer.
     if (!added.bases || added.bases.length !== 38) {

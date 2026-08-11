@@ -27,8 +27,10 @@ export default async function run(page) {
 
   await select(page, 100, 121);          // 22 bp -> our value is 64.5
   out.short = await bar(page);
-  if (!/64\.5/.test(out.short.tmText)) {
-    fail.push(`native item should show our 64.5 (not OVE's 64.6), got: ${out.short.tmText}`);
+  // 61.9 is our NEB Q5 figure for bases 101..122 of the synthetic fixture;
+  // OVE's own calculation gives a different number, which is the point.
+  if (!/61\.9/.test(out.short.tmText)) {
+    fail.push(`native item should show our 61.9, got: ${out.short.tmText}`);
   }
   // GC only renders once something is selected, so check it here not at rest.
   if (!/45\.5% GC/.test(out.short.items.join(' '))) {
