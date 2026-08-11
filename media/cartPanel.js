@@ -75,9 +75,6 @@
     } else if (inv.status === 'missing' || inv.status === 'error') {
       text = `Primer inventory could not be read — every primer shows as “unknown”. ${inv.message || ''}`;
       cls += ' error';
-    } else if (inv.conflictWarning) {
-      text = inv.conflictWarning;
-      cls += ' warn';
     }
 
     bannerEl.textContent = '';

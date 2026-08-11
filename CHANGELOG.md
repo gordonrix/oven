@@ -4,6 +4,12 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.7.1
+
+- Dropped the "conflicted copy" warning. It scanned the inventory's folder on every load
+  to flag similarly named siblings, which is a directory read per parse in a Dropbox tree
+  in exchange for a warning about a file that is usually harmless.
+
 ## 1.7.0
 
 - Removed the separate selection readout added in 1.6.0. Open Vector Editor already has

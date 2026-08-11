@@ -50,7 +50,6 @@ function load() {
   let result;
   try {
     result = parseInventory(file);
-    result.conflictWarning = findConflictedCopies(file);
   } catch (e) {
     result = { status: 'error', path: file, message: e.message };
   }
@@ -179,18 +178,6 @@ function resolveColumn(headers, wanted, fallbackIdx, label) {
   return idx;
 }
 
-function findConflictedCopies(file) {
-  try {
-    const dir = path.dirname(file);
-    const hits = fs.readdirSync(dir).filter((f) => /conflicted copy/i.test(f) && /\.xlsx?$/i.test(f));
-    return hits.length
-      ? `${hits.length} "conflicted copy" file(s) sit beside this inventory. Make sure you are pointing at the right one.`
-      : null;
-  } catch {
-    return null; // an unreadable directory is not worth surfacing
-  }
-}
-
 /** Attach an inventoryMatch to each cart item. Never mutates the stored cart. */
 function annotate(items) {
   const inv = load();
@@ -219,8 +206,7 @@ function annotate(items) {
       sequenceColumn: inv.sequenceColumn || null,
       rowCount: inv.rowCount || 0,
       duplicates: inv.duplicates || 0,
-      message: inv.message || null,
-      conflictWarning: inv.conflictWarning || null
+      message: inv.message || null
     }
   };
 }
