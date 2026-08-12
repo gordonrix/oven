@@ -200,10 +200,20 @@
     render();
   }
 
-  /** Select and scroll to a hit's footprint so it is visible in the map. */
+  /**
+   * Select and scroll to a hit's footprint so it is visible in the map.
+   *
+   * The className rides through to the rendered layer div, which is what gives
+   * the hit a strand indicator -- a selection alone carries no strand.
+   */
   function reveal(hit) {
     editor.updateEditor({
-      selectionLayer: { start: hit.start, end: hit.end, forceUpdate: hit.threePrime },
+      selectionLayer: {
+        start: hit.start,
+        end: hit.end,
+        forceUpdate: hit.threePrime,
+        className: hit.strand === 1 ? 'ove-strand-fwd' : 'ove-strand-rev'
+      },
       caretPosition: -1
     });
   }

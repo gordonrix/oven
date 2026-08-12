@@ -1,0 +1,107 @@
+/*
+ * Strand indicator: a light grey bar hugging the letters of a search hit,
+ * above them for a top-strand match and below them for a bottom-strand one.
+ *
+ * It is an ::after on the highlight layer itself, which is the only hook OVE
+ * offers -- there is nowhere to inject a sibling element into its React tree.
+ * Two sources feed it:
+ *
+ *   .veSearchLayer[BottomStrand]   OVE's own Find tool, which tags the strand
+ *   .ove-strand-fwd / -rev         our Primer Search reveal, which passes the
+ *                                  class through selectionLayer.className
+ *
+ * A hand-dragged selection carries neither class and so gets no bar, which is
+ * right: it has no strand.
+ *
+ * Geometry is the user's spec, with X = 2px, the caret width:
+ *   thickness  3X = 6px
+ *   end gap    X  = 2px of clear space between the bar and each black caret
+ *
+ * The insets are asymmetric because the carets are: both are drawn with their
+ * right edge on the boundary, so the start caret sits just outside the layer
+ * box and the end caret just inside it. Measured, not assumed.
+ *
+ * Vertical placement comes from --ovestrand-top / --ovestrand-bottom, set per
+ * row by strandBar.js. The fallbacks put the bar at the block edge, which is
+ * wrong but visible, if that script has not run.
+ */
+
+.veRowView .veSearchLayer.notCaret::after,
+.veRowView .ove-strand-fwd.notCaret::after,
+.veRowView .ove-strand-rev.notCaret::after {
+  content: '';
+  display: block;
+  position: absolute;
+  height: 6px;
+  left: 0;
+  right: 0;
+  background: #bdbdbd;
+  pointer-events: none;
+  z-index: 11;
+  /*
+   * Undoing OVE's bottom-strand triangle, which lives on this same ::after as
+   * a zero-sized box with 15px borders. Repositioning it is not enough --
+   * without these it just draws a triangle somewhere new.
+   */
+  border: 0;
+  width: auto;
+  bottom: auto;
+}
+
+/* Only inset where a caret is actually drawn; a mid-hit row has neither. */
+.veRowView .veSearchLayer.notCaret.isTrueStart::after,
+.veRowView .ove-strand-fwd.notCaret.isTrueStart::after,
+.veRowView .ove-strand-rev.notCaret.isTrueStart::after { left: 2px; }
+
+.veRowView .veSearchLayer.notCaret.isTrueEnd::after,
+.veRowView .ove-strand-fwd.notCaret.isTrueEnd::after,
+.veRowView .ove-strand-rev.notCaret.isTrueEnd::after { right: 4px; }
+
+/* Top strand above the forward letters. */
+.veRowView .veSearchLayer.notCaret:not(.veSearchLayerBottomStrand)::after,
+.veRowView .ove-strand-fwd.notCaret::after {
+  top: var(--ovestrand-top, -6px);
+}
+
+/* Bottom strand below the reverse letters. */
+.veRowView .veSearchLayer.notCaret.veSearchLayerBottomStrand::after,
+.veRowView .ove-strand-rev.notCaret::after {
+  top: var(--ovestrand-bottom, 100%);
+}
+
+/*
+ * The second gold triangle. Unlike ::after there is nothing to reuse it for,
+ * so it goes entirely.
+ */
+.veRowView .veSearchLayer.notCaret.veSearchLayerBottomStrand::before { content: none; }
+
+/*
+ * opacity: 0.3 on the layer creates a group, so the bar would be painted at
+ * 30% too -- which is exactly why OVE's own triangles look washed out, and
+ * `opacity: 1` on the pseudo-element cannot rescue it. Restore full opacity
+ * and move the transparency into the fill, reproducing each layer's existing
+ * colour so only the bar's appearance changes.
+ *
+ * The !important is needed to beat `.veSearchLayer { background: gold
+ * !important }`.
+ */
+.veRowView .veSearchLayer.veRowViewSelectionLayer,
+.veRowView .ove-strand-fwd.veRowViewSelectionLayer,
+.veRowView .ove-strand-rev.veRowViewSelectionLayer { opacity: 1; }
+
+.veRowView .veSearchLayer.veRowViewSelectionLayer.notCaret {
+  background: rgba(255, 215, 0, .3) !important;   /* gold */
+}
+.veRowView .veSearchLayerActive.veRowViewSelectionLayer.notCaret {
+  background: rgba(0, 128, 0, .3) !important;     /* green, the active match */
+}
+
+/* Our own reveal follows OVE's selection colours: grey unfocused, blue focused. */
+.veVectorInteractionWrapper .veRowView .ove-strand-fwd.notCaret,
+.veVectorInteractionWrapper .veRowView .ove-strand-rev.notCaret {
+  background: rgba(128, 128, 128, .3) !important;
+}
+.veVectorInteractionWrapper:focus .veRowView .ove-strand-fwd.notCaret,
+.veVectorInteractionWrapper:focus .veRowView .ove-strand-rev.notCaret {
+  background: rgba(0, 153, 255, .3) !important;
+}

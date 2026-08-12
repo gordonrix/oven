@@ -116,9 +116,9 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
-  const { styleUri, scriptUri, cartCssUri, searchCssUri, sharedUri, pickerUri, searchUri,
-    selTmUri, sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers,
-    showSelectionStats, useDesignTm } = opts;
+  const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, pickerUri,
+    searchUri, selTmUri, strandUri, sequenceJson, viewType, readOnly, disableBpEditing,
+    autoAddCreatedPrimers, showSelectionStats, useDesignTm } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -126,6 +126,7 @@ function buildEditorHtml(opts) {
     <link rel="stylesheet" href="${styleUri}" />
     <link rel="stylesheet" href="${cartCssUri}" />
     <link rel="stylesheet" href="${searchCssUri}" />
+    <link rel="stylesheet" href="${strandCssUri}" />
     <style>${BASE_STYLE}</style>
   </head>
   <body>
@@ -147,11 +148,13 @@ function buildEditorHtml(opts) {
     <script src="${pickerUri}"></script>
     <script src="${searchUri}"></script>
     <script src="${selTmUri}"></script>
+    <script src="${strandUri}"></script>
     <script>
 ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
       window.OveSelectionTm.init(editor, { useDesignTm: ${Boolean(useDesignTm)} });
+      window.OveStrandBar.init();
     </script>
   </body>
 </html>`;

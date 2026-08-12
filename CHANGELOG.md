@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.8.0
+
+- Search hits now say which strand they came from: a light grey bar hugging the letters,
+  above them for a top-strand match and below them for a bottom-strand one. It applies
+  both to OVE's Find tool and to clicking a row in Primer Search, which previously
+  revealed the footprint with no strand cue at all.
+- Removed the gold triangles OVE drew on bottom-strand Find hits. They were washed out by
+  the highlight's own 30% opacity and read as decoration rather than direction; the bar
+  replaces what they were for.
+
 ## 1.7.1
 
 - Dropped the "conflicted copy" warning. It scanned the inventory's folder on every load
