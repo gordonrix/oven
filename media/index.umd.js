@@ -146443,10 +146443,15 @@ double click --> edit`}`;
         }
       }
     }
+    const veWrapLen = sequenceLength > 0 ? sequenceLength : 0;
+    const veNormOffset = (v) => veWrapLen ? (v % veWrapLen + veWrapLen) % veWrapLen : v;
     const aRange = {
-      //tnr: this probably needs to be changed in case annotation wraps origin
-      start: annotationRange.start - start2,
-      end: annotationRange.end - start2
+      //ove-vscode patch: offsets go negative when the annotation wraps the
+      //origin, and getSequenceWithinRange returns "" for a negative range, so
+      //a wrapping primer lost every base. Normalising is a no-op otherwise:
+      //for a non-wrapping annotation the offset is already in [0, length).
+      start: veNormOffset(annotationRange.start - start2),
+      end: veNormOffset(annotationRange.end - start2)
     };
     const r2 = {
       aRange,
@@ -146613,7 +146618,7 @@ double click --> edit`}`;
           );
         }
       });
-      const textLength = charWidth2 * basesNoInsertsWithMetaData.length - fudge - fudge2;
+      const textLength = Math.max(0, charWidth2 * basesNoInsertsWithMetaData.length - fudge - fudge2);
       basesToShow.baseEl = /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(
         "text",
         __spreadProps(__spreadValues({}, {

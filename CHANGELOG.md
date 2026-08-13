@@ -4,6 +4,20 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.8.1
+
+- **Fixed: primers spanning the origin rendered as empty hatched boxes, drawn twice.**
+  Two separate faults in the same file, both specific to a `join(...)` that crosses the
+  origin — as the Gibson planner emits for a backbone primer.
+  - Open Vector Editor computed the primer's bases from an offset that goes negative when
+    the annotation wraps, so it found no bases at all and emitted an invalid negative SVG
+    `textLength`. Patched in the vendored bundle; see [patches/README.md](patches/README.md).
+  - The parser describes an origin wrap twice over — as a wrapped start/end *and* as a
+    two-entry `locations` array — and OVE draws both, stacking two copies 8 px apart. The
+    redundant half is now dropped on load. A genuine spliced join keeps its exons, and the
+    strip is undone before saving, so files are still written with `join(...)` exactly as
+    they came in rather than the non-standard `4113..17` the writer falls back to.
+
 ## 1.8.0
 
 - Search hits now say which strand they came from: a light grey bar hugging the letters,

@@ -116,6 +116,8 @@
         .then((r) => r.text())
         .then((text) => {
           const parsed = window.bioParsers.genbankToJson(text)[0].parsedSequence;
+          // Same display-only strip the extension applies on load.
+          window.CartShared.dropRedundantWrapLocations(parsed);
           editor.updateEditor({
             sequenceData: parsed,
             panelsShown: [[

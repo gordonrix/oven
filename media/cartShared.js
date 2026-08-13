@@ -72,6 +72,96 @@
     return String(seq || '').replace(/\s+/g, '').toUpperCase();
   }
 
+  /* ---------------------------------------------- origin-spanning joins -- */
+
+  /**
+   * True when an annotation's `locations` say nothing its wrapped start/end
+   * does not already say.
+   *
+   * GenBank spells an origin-spanning feature as join(4113..4130,1..17), and
+   * the parser turns that into BOTH a wrapped start/end (4112 -> 16) and a
+   * two-entry `locations` array holding those same two halves. OVE maps an
+   * annotation to rows once for its own span and again for each location, so
+   * such a feature is drawn twice, stacked, in every row it touches.
+   *
+   * A genuine multi-exon join is not this: its halves do not butt against the
+   * origin, so it fails this test and keeps its locations.
+   */
+  function locationsRestateOrigin(ann, sequenceLength) {
+    if (!ann || !Array.isArray(ann.locations) || ann.locations.length !== 2) return false;
+    if (typeof ann.start !== 'number' || typeof ann.end !== 'number') return false;
+    if (ann.end >= ann.start) return false; // does not wrap
+    if (!(sequenceLength > 0)) return false;
+
+    // Order-insensitive; the parser's ordering is not guaranteed.
+    const [tail, head] = ann.locations[0].start === 0
+      ? [ann.locations[1], ann.locations[0]]
+      : [ann.locations[0], ann.locations[1]];
+    return Boolean(tail && head) &&
+      tail.start === ann.start && tail.end === sequenceLength - 1 &&
+      head.start === 0 && head.end === ann.end;
+  }
+
+  const WRAPPABLE = ['features', 'primers', 'parts'];
+
+  function eachAnnotation(sequenceData, fn) {
+    if (!sequenceData || typeof sequenceData.sequence !== 'string') return 0;
+    const len = sequenceData.sequence.length;
+    let changed = 0;
+    WRAPPABLE.forEach((kind) => {
+      const group = sequenceData[kind];
+      if (!group) return;
+      Object.keys(group).forEach((id) => { if (fn(group[id], len)) changed++; });
+    });
+    return changed;
+  }
+
+  /**
+   * Strip those redundant locations from every annotation type, in place.
+   *
+   * Kept here rather than patched into the OVE bundle so that a real spliced
+   * join still renders per-exon, and so the host and the webview cannot end up
+   * disagreeing about what a feature covers.
+   *
+   * This is a DISPLAY-ONLY transform. The GenBank writer emits join(...) from
+   * `locations` and falls back to a non-standard "4113..17" without them, so
+   * anything on its way back to disk must go through restoreWrapLocations
+   * first -- otherwise saving a plasmid would quietly rewrite valid joins into
+   * something other tools may not read.
+   *
+   * @returns {number} how many annotations were changed.
+   */
+  function dropRedundantWrapLocations(sequenceData) {
+    return eachAnnotation(sequenceData, (ann, len) => {
+      if (!locationsRestateOrigin(ann, len)) return false;
+      delete ann.locations;
+      return true;
+    });
+  }
+
+  /**
+   * The inverse: give every origin-spanning annotation back the two locations
+   * that make the writer emit join(...).
+   *
+   * Applied to anything that wraps, not only to what we stripped, so a primer
+   * drawn across the origin inside the editor is written out as a proper join
+   * as well.
+   *
+   * @returns {number} how many annotations were changed.
+   */
+  function restoreWrapLocations(sequenceData) {
+    return eachAnnotation(sequenceData, (ann, len) => {
+      if (!ann || typeof ann.start !== 'number' || typeof ann.end !== 'number') return false;
+      if (ann.end >= ann.start) return false;
+      if (Array.isArray(ann.locations) && ann.locations.length) return false;
+      ann.locations = [
+        { start: ann.start, end: len - 1 },
+        { start: 0, end: ann.end }
+      ];
+      return true;
+    });
+  }
+
   /* ------------------------------------------------------------------ Tm -- */
 
   /*
@@ -139,5 +229,8 @@
     return gc / s.length;
   }
 
-  return { revComp, deriveBases, wrapsOrigin, normalizeSeqKey, tmNebQ5, gcFraction };
+  return {
+    revComp, deriveBases, wrapsOrigin, normalizeSeqKey, tmNebQ5, gcFraction,
+    locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations
+  };
 });

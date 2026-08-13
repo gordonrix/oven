@@ -11,6 +11,7 @@ const {
 
 const config = require('./config');
 const inventory = require('./inventory');
+const shared = require('../media/cartShared.js');
 const { buildEditorHtml } = require('./editorHtml');
 
 const SEARCH_COLS_KEY = 'oveCart.searchColumnWidths';
@@ -91,7 +92,20 @@ class DNAViewerProvider {
       delete parsed._snapgeneRawBlocks; // large binary blobs must not cross into the webview
     }
 
+    /*
+     * An origin-spanning join() arrives described twice -- as a wrapped
+     * start/end and as a locations array holding the same two halves -- and
+     * OVE draws both, so the feature appears doubled and offset in every row.
+     * Drop the redundant half before it reaches the editor. Only saved back to
+     * disk through jsonToGenbank, which re-derives the join from start/end.
+     */
+    if (parsed) shared.dropRedundantWrapLocations(parsed);
+
     function toFileBytes(newJsonData) {
+      // Undo the display-only strip above, so what lands on disk is spelled
+      // exactly the way the parser found it -- join(4113..4130,1..17), not the
+      // non-standard "4113..17" the writer falls back to without locations.
+      shared.restoreWrapLocations(newJsonData);
       if (ext === '.dna') {
         return jsonToSnapgene(Object.assign({}, newJsonData, { _snapgeneRawBlocks: snapgeneRawBlocks }));
       }
