@@ -1,0 +1,158 @@
+/*
+ * Alignment panel. The OVE alignment view is a white page, so these are
+ * literal colours rather than VS Code theme tokens -- same reasoning as
+ * primerSearch.css.
+ */
+
+.ovealign-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #182026;
+  background: #fff;
+}
+
+/* --- setup strip -------------------------------------------------------- */
+
+.ovealign-setup {
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e1e8ed;
+}
+
+.ovealign-refrow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.ovealign-reflabel { color: #5c7080; }
+.ovealign-refname { font-weight: 600; }
+.ovealign-refmeta { color: #5c7080; font-size: 11px; }
+
+.ovealign-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #7050b3;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/*
+ * The drop zone. It stays visible after the first alignment so more reads can
+ * be added, but shrinks out of the way -- the alignment is the point, not the
+ * picker.
+ */
+.ovealign-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 12px;
+  border: 2px dashed #c7cdd4;
+  border-radius: 5px;
+  color: #5c7080;
+  font-size: 12px;
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.ovealign-root.has-alignment .ovealign-drop { padding: 8px 12px; }
+.ovealign-drop.is-over {
+  border-color: #7050b3;
+  background: #f0ebfa;
+  color: #5b3f96;
+}
+.ovealign-drophint { font-size: 11px; color: #738694; }
+
+.ovealign-btn {
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #7050b3;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ovealign-btn:hover:not(:disabled) { background: #5b3f96; }
+.ovealign-btn:disabled { background: #b5b5b5; cursor: not-allowed; }
+.ovealign-btn.secondary {
+  background: #f5f8fa;
+  color: #394b59;
+  border: 1px solid #d3dae0;
+}
+.ovealign-btn.secondary:hover:not(:disabled) { background: #e8eef2; }
+
+/* --- read list ---------------------------------------------------------- */
+
+.ovealign-reads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ovealign-read {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 8px;
+  font-size: 11px;
+  background: #f5f8fa;
+  border: 1px solid #d3dae0;
+  border-radius: 3px;
+  max-width: 100%;
+}
+.ovealign-read.is-error { background: #fdf0ef; border-color: #e5a5a0; }
+
+.ovealign-readname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.ovealign-readstat { color: #5c7080; font-variant-numeric: tabular-nums; }
+.ovealign-readstat.is-clean { color: #0f9960; font-weight: 600; }
+.ovealign-readstat.is-diff { color: #bf7326; font-weight: 600; }
+.ovealign-readerr { color: #a82a2a; }
+
+.ovealign-x {
+  border: none;
+  background: none;
+  color: #5c7080;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.ovealign-x:hover { color: #a82a2a; }
+
+.ovealign-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ovealign-status { font-size: 11px; color: #5c7080; }
+.ovealign-status.is-error { color: #a82a2a; }
+
+/* --- the alignment itself ----------------------------------------------- */
+
+.ovealign-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ovealign-empty {
+  padding: 24px 16px;
+  font-size: 12px;
+  color: #5c7080;
+  line-height: 1.6;
+}

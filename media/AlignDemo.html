@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<!--
+  Standalone harness for the alignment panel, driving the real OVE bundle with
+  no VS Code involved. The extension host is stubbed: align/run is answered
+  from a pre-computed alignment, so the client half (setup strip, drop zone,
+  createAlignmentView payload) is exercised without needing MAFFT in the
+  browser.
+
+  Playwright's page.evaluate runs in an isolated world and cannot see this
+  page's globals, so everything a test needs is mirrored into DOM nodes:
+    #posted   messages sent to the stubbed host
+    body[data-ready]
+
+  Excluded from the VSIX by .vscodeignore.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ove.css" />
+    <link rel="stylesheet" href="alignView.css" />
+    <style>html, body { width: 100%; height: 100%; margin: 0; }</style>
+  </head>
+  <body>
+    <div id="posted" style="display:none">[]</div>
+
+    <script>
+      window.__posted = [];
+      const syncPosted = () => {
+        document.getElementById('posted').textContent = JSON.stringify(window.__posted);
+      };
+
+      /* A short reference, one clean read with a trace, one with a deletion. */
+      const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(2);
+      const CLEAN = REF;
+      const DELETED = REF.slice(0, 30) + REF.slice(33);
+      const DELETED_ROW = REF.slice(0, 30) + '---' + REF.slice(33);
+
+      function fakeChrom(seq) {
+        return {
+          baseCalls: seq.split(''),
+          qualNums: seq.split('').map(() => 45),
+          baseTraces: seq.split('').map((b) => {
+            const t = { aTrace: [], tTrace: [], gTrace: [], cTrace: [] };
+            for (let i = 0; i < 5; i++) {
+              const h = i === 2 ? 900 : 150;
+              t.aTrace.push(b === 'A' ? h : 15);
+              t.tTrace.push(b === 'T' ? h : 15);
+              t.gTrace.push(b === 'G' ? h : 15);
+              t.cTrace.push(b === 'C' ? h : 15);
+            }
+            return t;
+          })
+        };
+      }
+
+      const ALIGNMENT = {
+        alignmentType: 'Sanger sequencing',
+        tracks: [
+          {
+            sequenceData: {
+              name: 'demo-reference', sequence: REF, circular: false,
+              features: [{ id: 'f1', name: 'demo feature', start: 5, end: 40, strand: 1, type: 'CDS' }]
+            },
+            alignmentData: { sequence: REF }
+          },
+          {
+            sequenceData: { name: 'clean-read', sequence: CLEAN, circular: false },
+            alignmentData: { sequence: CLEAN },
+            chromatogramData: fakeChrom(CLEAN)
+          },
+          {
+            // No chromatogramData at all -- stands in for a GenBank read, which
+            // must render without a trace rather than breaking the view.
+            sequenceData: { name: 'gb-read', sequence: DELETED, circular: false },
+            alignmentData: { sequence: DELETED_ROW }
+          }
+        ]
+      };
+
+      let state = {
+        reference: { name: 'demo-reference', length: REF.length, circular: true },
+        reads: [
+          { id: 1, name: 'clean-read.ab1', path: '/demo/clean-read.ab1', length: CLEAN.length },
+          { id: 2, name: 'gb-read.gb', path: '/demo/gb-read.gb', length: DELETED.length }
+        ],
+        alignment: null, status: '', error: '', busy: false
+      };
+
+      const send = () => window.postMessage({ type: 'align/state', state }, '*');
+
+      function acquireVsCodeApi() {
+        return {
+          postMessage: (m) => {
+            window.__posted.push(m);
+            syncPosted();
+            if (m.type === 'align/ready') { send(); return; }
+            if (m.type === 'align/run') {
+              state = Object.assign({}, state, {
+                alignment: ALIGNMENT,
+                status: 'Aligned 2 reads in 12 ms',
+                reads: [
+                  Object.assign({}, state.reads[0], {
+                    mismatches: 0, substitutions: 0, gaps: 0, identity: 1, strand: 1, rotation: 0
+                  }),
+                  Object.assign({}, state.reads[1], {
+                    mismatches: 3, substitutions: 0, gaps: 3, identity: 1, strand: 1, rotation: 0
+                  })
+                ]
+              });
+              send();
+              return;
+            }
+            if (m.type === 'align/remove') {
+              state = Object.assign({}, state, {
+                reads: state.reads.filter((r) => r.id !== m.id), alignment: null
+              });
+              send();
+              return;
+            }
+            // addUris / addBytes: echo back a row so the drop paths are visible.
+            if (m.type === 'align/addUris' || m.type === 'align/addBytes') {
+              const names = m.type === 'align/addUris'
+                ? m.uris.map((u) => u.split('/').pop())
+                : m.files.map((f) => f.name);
+              const fresh = names
+                .filter((n) => !state.reads.some((r) => r.name === n))
+                .map((n, i) => ({ id: 100 + state.reads.length + i, name: n, length: 42 }));
+              state = Object.assign({}, state, { reads: state.reads.concat(fresh) });
+              send();
+            }
+          }
+        };
+      }
+
+      document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+    </script>
+
+    <div class="ovealign-root">
+      <div id="setup" class="ovealign-setup"></div>
+      <div id="view" class="ovealign-view"></div>
+    </div>
+
+    <script src="index.umd.js"></script>
+    <script src="alignView.js"></script>
+    <script>
+      // alignView.js renders synchronously on load and asks for state, which
+      // the stub answers immediately.
+      setTimeout(() => { document.body.dataset.ready = 'true'; }, 50);
+    </script>
+  </body>
+</html>

@@ -61,6 +61,8 @@ const BASE_STYLE = `
       .ove-cart-btn:hover { background-color: #2a6f2d; }
       .ove-search-btn { background-color: #7050b3; }
       .ove-search-btn:hover { background-color: #5b3f96; }
+      .ove-align-btn { background-color: #b06f18; }
+      .ove-align-btn:hover { background-color: #8c5711; }
 `;
 
 /**
@@ -137,6 +139,8 @@ function buildEditorHtml(opts) {
       }
     </script>
     <div class="ove-toolbtns">
+      <button id="ove-align-button" class="ove-align-btn"
+              onclick="vscode.postMessage({type:'align/open'})">Align</button>
       <button id="ove-search-button" class="ove-search-btn"
               onclick="window.OveSearch.open({scoped:true})">Primer Search</button>
       <button id="ove-cart-button" class="ove-cart-btn"

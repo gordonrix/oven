@@ -2,7 +2,7 @@
   "name": "ove-vscode-primer-cart",
   "displayName": "Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "repository": {
@@ -110,6 +110,11 @@
       {
         "command": "oveCart.pickInventoryFile",
         "title": "Primer Cart: Choose Primer Inventory File..."
+      },
+      {
+        "command": "oveCart.align",
+        "title": "Open Vector Editor: New Alignment",
+        "category": "Primer Cart"
       }
     ],
     "configuration": {
@@ -164,7 +169,7 @@
         "oveCart.inventoryNameColumn": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `°` or `μ`; if it does not match, the error message lists the headers actually found."
+          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `\u00b0` or `\u03bc`; if it does not match, the error message lists the headers actually found."
         },
         "oveCart.inventorySequenceColumn": {
           "type": "string",
@@ -219,7 +224,27 @@
         "oveCart.useDesignTmCalculation": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show the NEB Q5 nearest-neighbour melting temperature used by your primer-design pipeline (200 nM primer, 1.5 mM Mg²⁺) in the status bar, in place of Open Vector Editor's own figure (500 nM primer, no Mg correction). Over 100 bp no Tm is shown, since the nearest-neighbour model is a primer model."
+          "markdownDescription": "Show the NEB Q5 nearest-neighbour melting temperature used by your primer-design pipeline (200 nM primer, 1.5 mM Mg\u00b2\u207a) in the status bar, in place of Open Vector Editor's own figure (500 nM primer, no Mg correction). Over 100 bp no Tm is shown, since the nearest-neighbour model is a primer model."
+        },
+        "oveCart.mafftPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `mafft` executable. Leave empty to use `mafft` from your `PATH`. MAFFT is required for the alignment tool: install it with `brew install mafft` or `conda install -c bioconda mafft`."
+        },
+        "oveCart.mafftArgs": {
+          "type": "string",
+          "default": "--auto",
+          "markdownDescription": "Extra arguments passed to MAFFT. `--auto` lets MAFFT pick a strategy; use `--localpair --maxiterate 1000` for L-INS-i accuracy, or `--retree 1` for speed on large read sets. `--adjustdirection`, `--preservecase` and `--quiet` are always added."
+        },
+        "oveCart.alignTrimQuality": {
+          "type": "number",
+          "default": 20,
+          "markdownDescription": "Trim trace ends below this Phred quality before aligning, so end noise does not dominate the mismatch count. Set to `0` to align the full base calls. Only affects `.ab1` reads, which are the only ones carrying quality scores."
+        },
+        "oveCart.alignMaxReads": {
+          "type": "number",
+          "default": 50,
+          "markdownDescription": "Maximum number of reads in one alignment. Reads beyond this are ignored, with a note in the panel."
         }
       }
     }

@@ -74,5 +74,18 @@ module.exports = {
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 500;
   },
   sequenceCopyIncludesName: () => cfg().get('sequenceCopyIncludesName', 'sequence') === 'name-tab-sequence',
+
+  mafftPath: () => String(cfg().get('mafftPath', '') || '').trim() || 'mafft',
+  mafftArgs: () => String(cfg().get('mafftArgs', '--auto') || '').trim(),
+  // 0 disables trimming. A negative threshold would keep nothing, so it is
+  // treated as "off" rather than taken literally.
+  alignTrimQuality: () => {
+    const n = Number(cfg().get('alignTrimQuality', 20));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  },
+  alignMaxReads: () => {
+    const n = Number(cfg().get('alignMaxReads', 50));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 50;
+  },
   SECTION
 };

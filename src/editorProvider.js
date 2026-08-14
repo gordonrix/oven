@@ -51,10 +51,11 @@ class DNAViewerProvider {
    * @param {vscode.ExtensionContext} context
    * @param {import('./cartStore').CartStore} cart
    */
-  constructor(context, cart, cartPanel) {
+  constructor(context, cart, cartPanel, alignPanel) {
     this.context = context;
     this.cart = cart;
     this.cartPanel = cartPanel;
+    this.alignPanel = alignPanel;
   }
 
   async openCustomDocument(uri) {
@@ -151,6 +152,20 @@ class DNAViewerProvider {
 
       if (message.type === 'cart/showPanel') {
         this.cartPanel.show();
+        return;
+      }
+
+      if (message.type === 'align/open') {
+        // The plasmid on screen becomes the reference. Its sequence comes from
+        // our own parse rather than the editor's state, so an unsaved base edit
+        // cannot silently become the thing everything is measured against.
+        this.alignPanel.show({
+          name: (parsed && parsed.name) || sourceName,
+          sequence: (parsed && parsed.sequence) || '',
+          circular: Boolean(parsed && parsed.circular),
+          sequenceData: parsed,
+          path: document.uri.fsPath
+        });
         return;
       }
 

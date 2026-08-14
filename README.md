@@ -127,6 +127,41 @@ Inventory File…**, also offered inline the first time you search). Tuning:
 `oveCart.searchMaxHits`, and optional `oveCart.inventoryAliasColumn` /
 `inventoryDescriptionColumn` (auto-detected from `Alias` / `Description` headers).
 
+## Alignment
+
+Click **Align** in an open plasmid. That plasmid becomes the reference; add reads by
+dropping files onto the panel — from Finder or from the VS Code Explorer — or with
+**Browse…**. `.ab1`, `.gb`, `.gbk` and `.fasta` are all accepted, and a FASTA holding
+several records becomes one track per record.
+
+The reference sits along the top with its annotations and translations; each read gets its
+own row, showing its chromatogram when it has one and just its bases when it does not, so a
+GenBank read aligns perfectly happily without a trace. Mismatches are highlighted in the
+rows and marked in the summary strip at the bottom, and each read reports its own mismatch
+count, identity and strand in the panel above.
+
+**MAFFT does the alignment and must be installed:**
+
+```bash
+brew install mafft            # or: conda install -c bioconda mafft
+```
+
+Point `oveCart.mafftPath` at the binary if it is not on your `PATH`, and use
+`oveCart.mafftArgs` (default `--auto`) to choose a strategy — `--localpair --maxiterate
+1000` for L-INS-i accuracy, say. `--adjustdirection` is always passed, so a read given in
+the wrong orientation is flipped rather than reported as garbage.
+
+**Reads that cross the origin are handled.** MAFFT has no notion of circular topology, and
+a full-plasmid read starts wherever the assembler happened to break it. Each read is
+therefore k-mer anchored and rotated into the reference's frame before alignment, with its
+chromatogram rotated to match so the peaks still sit over their own bases. On a real
+4489 bp plasmid this is the difference between 0 mismatches and 2140. The reference is
+never rotated, so every position stays in its coordinates.
+
+Trace ends below `oveCart.alignTrimQuality` (default 20) are trimmed first, so a noisy
+Sanger tail does not drown the mismatch count; set it to `0` to align the full read.
+`oveCart.alignMaxReads` (default 50) caps one alignment.
+
 ## Selection readout
 
 Open Vector Editor has **Melting Temp of Selection** and **Percent GC Content of

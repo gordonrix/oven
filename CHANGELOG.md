@@ -4,6 +4,30 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.9.0
+
+- **Alignment tool.** Press **Align** in an open plasmid to check sequencing reads against
+  it. The reference keeps its annotations along the top, each read gets its own row with its
+  AB1 chromatogram, and a summary strip underneath marks mismatches in red. Reads are added
+  by dropping files onto the panel — from Finder or from the VS Code Explorer — or with
+  **Browse…**; `.ab1`, `.gb`, `.gbk` and `.fasta` are accepted, and a multi-record FASTA
+  becomes one track per record. A read with no trace data simply renders without one.
+- Alignment is done by **MAFFT**, which is now required for this feature: install it with
+  `brew install mafft` or `conda install -c bioconda mafft`. `oveCart.mafftPath` and
+  `oveCart.mafftArgs` control which binary is used and how it is run.
+- **Reads that cross the origin align end to end.** MAFFT has no notion of circular
+  topology, and a full-plasmid read starts wherever the assembler broke it — measured on a
+  real 4489 bp plasmid, handing MAFFT the read unchanged gave 2140 mismatches instead of 0.
+  Reads are therefore k-mer anchored and rotated into the reference's frame first, with the
+  chromatogram carried along so peaks still line up with their bases. The reference is never
+  rotated, so positions stay in its coordinates.
+- Trace ends below `oveCart.alignTrimQuality` (default 20) are trimmed before aligning, so
+  end noise does not dominate the mismatch count. Set it to `0` to align the full read.
+- **Fixed: `.ab1` files could not be read at all.** Three separate faults in the vendored
+  parser, each a hard throw; see [patches/README.md](patches/README.md). Any Node input
+  produced a zero-length view; trace tags written only as number 1 were not found; and tags
+  whose data is 4 bytes or fewer, which ABIF stores inline, were dereferenced as offsets.
+
 ## 1.8.1
 
 - **Fixed: primers spanning the origin rendered as empty hatched boxes, drawn twice.**
