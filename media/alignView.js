@@ -38,28 +38,39 @@
   let dropOpen = true;  // the picker IS the empty state until there is an alignment
 
   /*
-   * Below this, a read is not a variant of the reference -- it is a different
-   * sequence, or the wrong file. Calling that a "partial match" would suggest
-   * the differences are worth reading one by one.
+   * A perfect stretch shorter than this is not evidence of anything -- a few
+   * dozen bases will match somewhere by luck, and calling that a partial match
+   * would dress up noise as a result.
    */
-  const MIN_IDENTITY = 0.8;
+  const MIN_COVERED_BP = 50;
 
   /**
    * One of three verdicts, rather than a raw count.
    *
-   *   match          identical over the aligned span
-   *   partial match  aligns, but with differences worth looking at
-   *   mismatch       did not align well enough to be the same sequence
+   *   match          perfect, and covers the reference end to end
+   *   partial match  perfect over the window it covers, but only part of it
+   *   mismatch       something actually differs
    *
-   * The counts stay in the tooltip: the label answers "is this the construct?",
-   * the tooltip answers "how far off is it?".
+   * The distinction that matters is between "verified" and "verified as far as
+   * it goes": a Sanger read can only ever reach partial match, because it
+   * covers a window; only whole-plasmid sequencing can turn the whole reference
+   * green. Any real difference is a mismatch regardless of coverage -- one
+   * wrong base is one wrong base whether the read spans 800 bp or the lot.
+   *
+   * The numbers stay in the tooltip: the label answers "is this the construct?",
+   * the tooltip answers "how much of it did we see, and how far off is it?".
    */
-  function verdict(read) {
+  function verdict(read, referenceLength) {
     if (read.mismatches === undefined || read.mismatches === null) return null;
-    if (read.anchored === false || (read.identity || 0) < MIN_IDENTITY) {
+    const covered = read.compared || 0;
+    if (read.anchored === false || read.mismatches > 0 || covered < MIN_COVERED_BP) {
       return { label: 'mismatch', cls: 'is-bad' };
     }
-    if (read.mismatches === 0) return { label: 'match', cls: 'is-clean' };
+    // `compared` counts reference positions the read actually spoke to, so it
+    // equals the reference length only when nothing was left out.
+    if (referenceLength && covered === referenceLength) {
+      return { label: 'match', cls: 'is-clean' };
+    }
     return { label: 'partial match', cls: 'is-diff' };
   }
 
@@ -183,12 +194,17 @@
     name.title = read.path || read.name;
     chip.appendChild(name);
 
-    const v = read.error ? null : verdict(read);
+    const refLen = state.reference && state.reference.length;
+    const v = read.error ? null : verdict(read, refLen);
     if (read.error) {
       chip.appendChild(el('span', 'ovealign-readerr', read.error));
     } else if (v) {
       const stat = el('span', `ovealign-readstat ${v.cls}`, v.label);
+      const covered = read.compared || 0;
       stat.title = [
+        refLen
+          ? `covers ${covered} of ${refLen} bp (${((covered / refLen) * 100).toFixed(1)}%)`
+          : `covers ${covered} bp`,
         `${read.substitutions} substitution(s), ${read.gaps} gapped column(s)`,
         read.identity !== undefined ? `identity ${(read.identity * 100).toFixed(3)}%` : null,
         read.strand === -1 ? 'aligned reverse-complemented' : 'forward strand',

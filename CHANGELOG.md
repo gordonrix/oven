@@ -9,10 +9,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - **The alignment now fills the panel.** It was collapsing to a short strip with dead space
   underneath because the panel page never set a height on `html`/`body`, so the layout had
   nothing to resolve `100%` against. It also tracks the panel as you resize it.
-- **Reads report a verdict, not a count**: **match** (green), **partial match** (gold) or
-  **mismatch** (red). A read that never anchored, or that falls below 80% identity, is a
-  different sequence rather than a near miss and is no longer coloured like one that differs
-  by three bases. The counts, identity, strand and rotation stay in the tooltip.
+- **Reads report a verdict, not a count**: **match** (green) is perfect *and* covers the
+  reference end to end; **partial match** (gold) is perfect over the window it covers;
+  **mismatch** (red) is anything that actually differs. A Sanger read can therefore only
+  ever reach partial match — only whole-plasmid sequencing turns the whole reference green.
+  Coverage, counts, identity, strand and rotation stay in the tooltip. A perfect stretch
+  under 50 bp is treated as luck rather than evidence and reads as a mismatch.
 - **The drop box folds away once there is an alignment**, behind an **Add sequences** button
   that opens and closes it. It is still the whole empty state before the first alignment.
 - Dropped the invented "Sanger sequencing" label from the alignment header, and renamed

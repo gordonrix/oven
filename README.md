@@ -136,9 +136,21 @@ several records becomes one track per record.
 
 The reference sits along the top with its annotations and translations; each read gets its
 own row, showing its chromatogram when it has one and just its bases when it does not, so a
-GenBank read aligns perfectly happily without a trace. Mismatches are highlighted in the
-rows and marked in the summary strip at the bottom, and each read reports its own mismatch
-count, identity and strand in the panel above.
+GenBank read aligns perfectly happily without a trace. Differences are highlighted in the
+rows and marked in the summary strip at the bottom.
+
+Each read is given one of three verdicts in the panel above:
+
+| | meaning |
+|---|---|
+| **match** (green) | perfect, and covers the reference end to end |
+| **partial match** (gold) | perfect over the window it covers, but only part of the reference |
+| **mismatch** (red) | something differs |
+
+A Sanger read covers a window, so it can only ever reach **partial match**; only
+whole-plasmid sequencing turns the whole reference green. One wrong base is a mismatch
+whatever the coverage. Hover a read for its coverage, substitution and gap counts,
+identity, strand, and how far it was rotated to cross the origin.
 
 ### Installing MAFFT
 

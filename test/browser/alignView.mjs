@@ -166,9 +166,13 @@ export default async function run(page) {
    */
   out.afterAlign = await chips(page);
   const want = [
-    ['clean-read.ab1', 'match', 'rgb(15, 153, 96)'],       // green
-    ['gb-read.gb', 'partial match', 'rgb(191, 115, 38)'],  // gold
-    ['wrong-plasmid.ab1', 'mismatch', 'rgb(194, 48, 48)']  // red
+    // perfect and spans the whole reference
+    ['clean-read.ab1', 'match', 'rgb(15, 153, 96)'],           // green
+    // perfect, but only over its own window -- all a Sanger read can be
+    ['window-read.ab1', 'partial match', 'rgb(191, 115, 38)'], // gold
+    // three bases missing: a real difference, whatever the coverage
+    ['gb-read.gb', 'mismatch', 'rgb(194, 48, 48)'],            // red
+    ['wrong-plasmid.ab1', 'mismatch', 'rgb(194, 48, 48)']      // red
   ];
   for (const [name, label, colour] of want) {
     const c = out.afterAlign.find((x) => x.name === name);
@@ -178,6 +182,15 @@ export default async function run(page) {
   }
   if (out.afterAlign.some((c) => /\d+\s*mismatch/.test(c.stat || ''))) {
     fail.push('a raw mismatch count is still being shown');
+  }
+  // Coverage is the distinction the labels turn on, so it has to be readable.
+  out.coverageTooltip = await page.evaluate(() => {
+    const c = [...document.querySelectorAll('.ovealign-read')]
+      .find((x) => x.querySelector('.ovealign-readname').textContent === 'window-read.ab1');
+    return c ? c.querySelector('.ovealign-readstat').title : null;
+  });
+  if (!/covers \d+ of \d+ bp/.test(out.coverageTooltip || '')) {
+    fail.push('the tooltip does not say how much of the reference was covered');
   }
 
   /* --- the picker folds away once there is something to look at ----------- */
@@ -238,16 +251,21 @@ export default async function run(page) {
     canvases: document.querySelectorAll('#view canvas').length,
     names: [...document.querySelectorAll('#view [class*=Name], #view .alignmentTrackName')]
       .map((e) => e.textContent.trim()).filter(Boolean).slice(0, 8),
+    // Query the annotation itself rather than substring-matching the panel's
+    // text, which moves as soon as the reference gets longer.
+    featureLabels: [...document.querySelectorAll('#view svg text')]
+      .map((e) => e.textContent.trim()).filter((t) => t === 'demo feature').length,
     text: (document.getElementById('view').innerText || '').slice(0, 240)
   }));
 
   // One track per sequence: the reference plus two reads.
-  if (out.rendered.rowItems < 3) fail.push(`expected 3 tracks, saw ${out.rendered.rowItems}`);
-  // Exactly one read has trace data; the GenBank one must render without.
-  if (out.rendered.canvases !== 1) {
-    fail.push(`expected exactly 1 chromatogram canvas, saw ${out.rendered.canvases}`);
+  if (out.rendered.rowItems < 4) fail.push(`expected 4 tracks, saw ${out.rendered.rowItems}`);
+  // Two reads carry trace data; the GenBank one must render without, which is
+  // the case that has to keep working for non-trace formats.
+  if (out.rendered.canvases !== 2) {
+    fail.push(`expected exactly 2 chromatogram canvases, saw ${out.rendered.canvases}`);
   }
-  if (!/demo feature/.test(out.rendered.text)) {
+  if (!out.rendered.featureLabels) {
     fail.push('the reference annotations are not drawn along the top');
   }
 

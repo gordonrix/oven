@@ -29,11 +29,20 @@
         document.getElementById('posted').textContent = JSON.stringify(window.__posted);
       };
 
-      /* A short reference, one clean read with a trace, one with a deletion. */
-      const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(2);
+      /*
+       * A short reference and three reads, one per verdict:
+       *   CLEAN    spans the whole reference, no differences  -> match
+       *   WINDOW   perfect, but covers only the middle        -> partial match
+       *   DELETED  three bases missing                        -> mismatch
+       */
+      const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(10); // 300 bp
       const CLEAN = REF;
-      const DELETED = REF.slice(0, 30) + REF.slice(33);
-      const DELETED_ROW = REF.slice(0, 30) + '---' + REF.slice(33);
+      // A Sanger-sized window: comfortably over the 50 bp floor below which a
+      // perfect stretch is treated as luck rather than evidence.
+      const WINDOW = REF.slice(60, 200);
+      const WINDOW_ROW = '-'.repeat(60) + WINDOW + '-'.repeat(REF.length - 200);
+      const DELETED = REF.slice(0, 150) + REF.slice(153);
+      const DELETED_ROW = REF.slice(0, 150) + '---' + REF.slice(153);
 
       function fakeChrom(seq) {
         return {
@@ -69,6 +78,11 @@
             chromatogramData: fakeChrom(CLEAN)
           },
           {
+            sequenceData: { name: 'window-read', sequence: WINDOW, circular: false },
+            alignmentData: { sequence: WINDOW_ROW },
+            chromatogramData: fakeChrom(WINDOW)
+          },
+          {
             // No chromatogramData at all -- stands in for a GenBank read, which
             // must render without a trace rather than breaking the view.
             sequenceData: { name: 'gb-read', sequence: DELETED, circular: false },
@@ -81,8 +95,9 @@
         reference: { name: 'demo-reference', length: REF.length, circular: true },
         reads: [
           { id: 1, name: 'clean-read.ab1', path: '/demo/clean-read.ab1', length: CLEAN.length },
-          { id: 2, name: 'gb-read.gb', path: '/demo/gb-read.gb', length: DELETED.length },
-          { id: 3, name: 'wrong-plasmid.ab1', path: '/demo/wrong.ab1', length: 40 }
+          { id: 2, name: 'window-read.ab1', path: '/demo/window-read.ab1', length: WINDOW.length },
+          { id: 3, name: 'gb-read.gb', path: '/demo/gb-read.gb', length: DELETED.length },
+          { id: 4, name: 'wrong-plasmid.ab1', path: '/demo/wrong.ab1', length: 40 }
         ],
         alignment: null, status: '', error: '', busy: false,
         // Starts missing so the banner is exercised; __mafftFound flips it.
@@ -102,17 +117,22 @@
                 alignment: ALIGNMENT,
                 status: 'Aligned 2 reads in 12 ms',
                 reads: [
+                  // compared === REF.length only for the read that spans it all.
                   Object.assign({}, state.reads[0], {
                     mismatches: 0, substitutions: 0, gaps: 0, identity: 1,
-                    strand: 1, rotation: 0, anchored: true
+                    compared: REF.length, strand: 1, rotation: 0, anchored: true
                   }),
                   Object.assign({}, state.reads[1], {
-                    mismatches: 3, substitutions: 0, gaps: 3, identity: 0.95,
-                    strand: 1, rotation: 0, anchored: true
+                    mismatches: 0, substitutions: 0, gaps: 0, identity: 1,
+                    compared: WINDOW.length, strand: 1, rotation: 0, anchored: true
                   }),
                   Object.assign({}, state.reads[2], {
+                    mismatches: 3, substitutions: 0, gaps: 3, identity: 0.95,
+                    compared: DELETED.length, strand: 1, rotation: 0, anchored: true
+                  }),
+                  Object.assign({}, state.reads[3], {
                     mismatches: 31, substitutions: 31, gaps: 0, identity: 0.42,
-                    strand: 1, rotation: 0, anchored: false
+                    compared: 40, strand: 1, rotation: 0, anchored: false
                   })
                 ]
               });

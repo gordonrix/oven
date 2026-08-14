@@ -175,9 +175,13 @@ class AlignPanel {
           error: r.error || null,
           mismatches: r.mismatches, substitutions: r.substitutions, gaps: r.gaps,
           identity: r.identity, strand: r.strand, rotation: r.rotation,
-          // Drives the match / partial match / mismatch verdict in the panel:
-          // a read that never anchored is not a near miss, it is a different
-          // sequence.
+          /*
+           * Both drive the verdict shown in the panel. `compared` is how many
+           * reference positions the read actually spoke to, which is what
+           * separates a full match from a perfect window; `anchored` catches a
+           * read that is a different sequence rather than a near miss.
+           */
+          compared: r.compared,
           anchored: r.anchored
         })),
         alignment: this.alignment,
@@ -338,7 +342,7 @@ class AlignPanel {
     result.tracks.forEach((t, i) => Object.assign(usable[i], {
       mismatches: t.mismatches, substitutions: t.substitutions, gaps: t.gaps,
       identity: t.identity, strand: t.strand, rotation: t.rotation,
-      anchored: t.anchored
+      compared: t.compared, anchored: t.anchored
     }));
 
     this.alignment = this.toViewPayload(result, usable);
