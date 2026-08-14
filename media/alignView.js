@@ -179,9 +179,49 @@
     return chip;
   }
 
+  /**
+   * The MAFFT banner.
+   *
+   * Shown as soon as the panel opens rather than when Align is pressed, so a
+   * missing dependency is not discovered after choosing files and waiting --
+   * especially since fixing it can need a window reload.
+   */
+  function renderMafft(into) {
+    const m = state.mafft;
+    if (!m || m.ok) return; // still checking, or fine
+
+    const box = el('div', 'ovealign-banner');
+    box.appendChild(el('div', 'ovealign-bannertitle', 'MAFFT is required to align'));
+    box.appendChild(el('div', 'ovealign-bannertext', m.message || 'MAFFT was not found.'));
+
+    const cmds = el('div', 'ovealign-cmds');
+    cmds.appendChild(el('code', null, 'brew install mafft'));
+    cmds.appendChild(el('code', null, 'conda install -c bioconda mafft'));
+    box.appendChild(cmds);
+
+    const row = el('div', 'ovealign-bannerbtns');
+    const locate = el('button', 'ovealign-btn', 'Locate MAFFT…');
+    locate.title = 'Pick the mafft executable; its path is saved to settings';
+    locate.addEventListener('click', () => post('align/locateMafft'));
+    row.appendChild(locate);
+
+    const recheck = el('button', 'ovealign-btn secondary', 'Re-check');
+    recheck.title = 'Look again, after installing';
+    recheck.addEventListener('click', () => post('align/recheckMafft'));
+    row.appendChild(recheck);
+
+    const settings = el('button', 'ovealign-link', 'Open settings');
+    settings.addEventListener('click', () => post('align/openSettings'));
+    row.appendChild(settings);
+
+    box.appendChild(row);
+    into.appendChild(box);
+  }
+
   function renderSetup() {
     const setup = $('setup');
     setup.textContent = '';
+    renderMafft(setup);
     renderReference(setup);
 
     const zone = el('div', 'ovealign-drop');
@@ -202,7 +242,11 @@
 
     const actions = el('div', 'ovealign-actions');
     const run = el('button', 'ovealign-btn', state.busy ? 'Aligning…' : 'Align');
-    run.disabled = state.busy || !state.reads.length || !state.reference;
+    // Disabled while MAFFT is missing, so the button cannot lead to a failure
+    // the banner already explains. `null` means the check has not finished.
+    const mafftMissing = state.mafft ? !state.mafft.ok : false;
+    run.disabled = state.busy || mafftMissing || !state.reads.length || !state.reference;
+    if (mafftMissing) run.title = 'MAFFT is required — see above';
     run.addEventListener('click', () => post('align/run'));
     actions.appendChild(run);
     if (state.status) {

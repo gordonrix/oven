@@ -140,16 +140,37 @@ GenBank read aligns perfectly happily without a trace. Mismatches are highlighte
 rows and marked in the summary strip at the bottom, and each read reports its own mismatch
 count, identity and strand in the panel above.
 
-**MAFFT does the alignment and must be installed:**
+### Installing MAFFT
+
+MAFFT does the alignment and must be installed separately:
 
 ```bash
-brew install mafft            # or: conda install -c bioconda mafft
+brew install mafft                      # macOS
+conda install -c bioconda mafft         # any platform
 ```
 
-Point `oveCart.mafftPath` at the binary if it is not on your `PATH`, and use
-`oveCart.mafftArgs` (default `--auto`) to choose a strategy — `--localpair --maxiterate
-1000` for L-INS-i accuracy, say. `--adjustdirection` is always passed, so a read given in
-the wrong orientation is flipped rather than reported as garbage.
+The panel checks for it **when it opens**, not when you press Align, so you find out before
+choosing any files. If it is missing you get a banner with both commands, a **Locate
+MAFFT…** button that saves the path for you, and **Re-check**.
+
+You normally do not have to configure anything. The extension looks on your `PATH` first,
+then in the places Homebrew and conda actually install to — including **named conda
+environments**, which are never on VS Code's `PATH` and are the usual reason a working
+`mafft` in the terminal is invisible to the editor.
+
+Two things worth knowing if it is still not found:
+
+- **VS Code reads your `PATH` when it starts.** Installing MAFFT while the editor is open
+  leaves it invisible until you reload the window.
+- `conda install` into an environment other than `base` puts the binary somewhere the login
+  shell never sees. The search covers `~/miniforge3`, `~/miniconda3`, `~/anaconda3` and
+  `~/mambaforge` and their `envs/*`, but if yours lives elsewhere use **Locate MAFFT…** or
+  set `oveCart.mafftPath` by hand.
+
+Run **Primer Cart: Check MAFFT Installation** at any time to see which binary was found and
+what version it is. Use `oveCart.mafftArgs` (default `--auto`) to choose a strategy —
+`--localpair --maxiterate 1000` for L-INS-i accuracy, say. `--adjustdirection` is always
+passed, so a read given in the wrong orientation is flipped rather than reported as garbage.
 
 **Reads that cross the origin are handled.** MAFFT has no notion of circular topology, and
 a full-plasmid read starts wherever the assembler happened to break it. Each read is

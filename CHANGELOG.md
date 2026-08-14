@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.9.1
+
+- **MAFFT setup is now checked when the alignment panel opens**, rather than failing after
+  you have chosen files and waited. A banner offers the install commands, a **Locate
+  MAFFT…** button that writes the path to settings for you, and **Re-check**.
+- **Finds MAFFT without configuration in more places**: `PATH` first, then Homebrew,
+  MacPorts and conda locations — including **named conda environments**, which are never on
+  VS Code's `PATH` and are the usual reason a `mafft` that works in the terminal is
+  invisible to the editor.
+- The not-found message now mentions reloading the window, which is the second thing people
+  hit: VS Code reads `PATH` at startup, so a fresh install is invisible until it does.
+- Clearer failures for a misconfigured `oveCart.mafftPath`: a file that exists but is not
+  MAFFT, a directory, and a path that does not exist are now told apart and named, instead
+  of surfacing as "MAFFT returned 0 sequences". A configured path is never silently fallen
+  back from — being told it is wrong beats quietly aligning with a different binary.
+- New command **Primer Cart: Check MAFFT Installation**, reporting the resolved path and
+  version.
+
 ## 1.9.0
 
 - **Alignment tool.** Press **Align** in an open plasmid to check sequencing reads against

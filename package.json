@@ -2,7 +2,7 @@
   "name": "ove-vscode-primer-cart",
   "displayName": "Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "repository": {
@@ -114,6 +114,11 @@
       {
         "command": "oveCart.align",
         "title": "Open Vector Editor: New Alignment",
+        "category": "Primer Cart"
+      },
+      {
+        "command": "oveCart.checkMafft",
+        "title": "Check MAFFT Installation",
         "category": "Primer Cart"
       }
     ],
@@ -229,7 +234,7 @@
         "oveCart.mafftPath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Path to the `mafft` executable. Leave empty to use `mafft` from your `PATH`. MAFFT is required for the alignment tool: install it with `brew install mafft` or `conda install -c bioconda mafft`."
+          "markdownDescription": "Full path to the `mafft` executable. Leave empty to search your `PATH`, then the usual Homebrew and conda locations (including named conda environments, which are never on VS Code's `PATH`). Run **Primer Cart: Check MAFFT Installation** to see what was found. Install MAFFT with `brew install mafft` or `conda install -c bioconda mafft`."
         },
         "oveCart.mafftArgs": {
           "type": "string",

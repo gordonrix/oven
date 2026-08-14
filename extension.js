@@ -8,6 +8,7 @@ const { CartStore } = require('./src/cartStore');
 const { CartPanel } = require('./src/cartPanel');
 const { DNAViewerProvider, pickInventoryFile } = require('./src/editorProvider');
 const { AlignPanel } = require('./src/alignPanel');
+const mafft = require('./src/mafft');
 const { buildDemoHtml } = require('./src/editorHtml');
 
 function activate(context) {
@@ -53,7 +54,23 @@ function activate(context) {
     vscode.commands.registerCommand('oveCart.refreshInventory', () => cartPanel.refreshInventory()),
     vscode.commands.registerCommand('oveCart.pickInventoryFile', () => pickInventoryFile()),
     vscode.commands.registerCommand('oveCart.clear', () => cartPanel.clearCart()),
-    vscode.commands.registerCommand('oveCart.align', () => alignPanel.show())
+    vscode.commands.registerCommand('oveCart.align', () => alignPanel.show()),
+    vscode.commands.registerCommand('oveCart.checkMafft', async () => {
+      mafft.invalidate();
+      const found = await mafft.get(config.mafftPath());
+      if (found.ok) {
+        vscode.window.showInformationMessage(
+          `MAFFT ${found.version} — ${found.path}` +
+          (found.viaSetting ? ' (from oveCart.mafftPath)' : ''));
+        return;
+      }
+      const action = await vscode.window.showWarningMessage(
+        found.message, 'Locate MAFFT…', 'Open settings');
+      if (action === 'Locate MAFFT…') await alignPanel.locateMafft();
+      else if (action === 'Open settings') {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'oveCart.mafftPath');
+      }
+    })
   );
 }
 

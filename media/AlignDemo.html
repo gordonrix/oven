@@ -83,7 +83,9 @@
           { id: 1, name: 'clean-read.ab1', path: '/demo/clean-read.ab1', length: CLEAN.length },
           { id: 2, name: 'gb-read.gb', path: '/demo/gb-read.gb', length: DELETED.length }
         ],
-        alignment: null, status: '', error: '', busy: false
+        alignment: null, status: '', error: '', busy: false,
+        // Starts missing so the banner is exercised; __mafftFound flips it.
+        mafft: { ok: false, message: 'MAFFT was not found. Install it with "brew install mafft".' }
       };
 
       const send = () => window.postMessage({ type: 'align/state', state }, '*');
@@ -133,6 +135,12 @@
       }
 
       document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      document.addEventListener('__mafftFound', () => {
+        state = Object.assign({}, state, {
+          mafft: { ok: true, path: '/opt/homebrew/bin/mafft', version: 'v7.526' }
+        });
+        send();
+      });
     </script>
 
     <div class="ovealign-root">

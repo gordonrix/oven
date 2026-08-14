@@ -19,6 +19,7 @@ const path = require('path');
 const vscode = require('vscode');
 
 const config = require('./config');
+const mafft = require('./mafft');
 const { align } = require('./align');
 const { parseFile, trimByQuality, followAlignment, SEQUENCE_EXTENSIONS } = require('./alignTracks');
 
@@ -34,6 +35,53 @@ class AlignPanel {
     this.error = '';
     this.busy = false;
     this.nextId = 1;
+    this.mafft = null; // {ok, path, version, message} once checked
+
+    // A path change can turn a broken setup into a working one, so re-check
+    // rather than leaving a stale banner up.
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('oveCart.mafftPath')) {
+          mafft.invalidate();
+          this.checkMafft();
+        }
+      })
+    );
+  }
+
+  /**
+   * Look for MAFFT and remember what we found.
+   *
+   * Done when the panel opens rather than when Align is pressed: finding out
+   * that the one dependency is missing after choosing files and waiting is a
+   * waste of the user's time, and the fix may need a window reload.
+   */
+  async checkMafft() {
+    this.mafft = await mafft.get(config.mafftPath());
+    this.push(true);
+    return this.mafft;
+  }
+
+  /** Ask for the binary and write it to settings. */
+  async locateMafft() {
+    const picked = await vscode.window.showOpenDialog({
+      title: 'Locate the MAFFT executable',
+      openLabel: 'Use this MAFFT',
+      canSelectMany: false
+    });
+    if (!picked || !picked.length) return;
+
+    const chosen = picked[0].fsPath;
+    const res = await mafft.probe(chosen);
+    if (!res.ok) {
+      return this.fail(`That file ${res.reason}. MAFFT is usually at ` +
+        '/opt/homebrew/bin/mafft, or <conda>/envs/<name>/bin/mafft.');
+    }
+    await vscode.workspace.getConfiguration('oveCart')
+      .update('mafftPath', chosen, vscode.ConfigurationTarget.Global);
+    mafft.invalidate();
+    await this.checkMafft();
+    this.note(`Using MAFFT ${res.version} at ${chosen}.`);
   }
 
   /** Open the panel, optionally adopting a plasmid as the reference. */
@@ -62,7 +110,18 @@ class AlignPanel {
       if (!msg) return;
       try {
         switch (msg.type) {
-          case 'align/ready': this.push(true); break;
+          case 'align/ready': this.push(true); this.checkMafft(); break;
+          case 'align/locateMafft': await this.locateMafft(); break;
+          case 'align/recheckMafft':
+            mafft.invalidate();
+            await this.checkMafft();
+            this.note(this.mafft.ok
+              ? `Found MAFFT ${this.mafft.version}.`
+              : 'Still cannot find MAFFT.');
+            break;
+          case 'align/openSettings':
+            vscode.commands.executeCommand('workbench.action.openSettings', 'oveCart.mafftPath');
+            break;
           case 'align/browse': await this.browse(); break;
           case 'align/addUris': await this.addUris(msg.uris || []); break;
           case 'align/addBytes': await this.addBytes(msg.files || []); break;
@@ -118,6 +177,12 @@ class AlignPanel {
           identity: r.identity, strand: r.strand, rotation: r.rotation
         })),
         alignment: this.alignment,
+        mafft: this.mafft && {
+          ok: this.mafft.ok,
+          path: this.mafft.path || null,
+          version: this.mafft.version || null,
+          message: this.mafft.message || null
+        },
         status: this.status,
         error: this.error,
         busy: this.busy
@@ -251,10 +316,18 @@ class AlignPanel {
     this.note(`Aligning ${usable.length} read${usable.length === 1 ? '' : 's'}…`);
 
     const started = Date.now();
+    // Use the binary we actually verified, which may be somewhere PATH cannot
+    // reach -- a conda environment, typically.
+    const found = this.mafft && this.mafft.ok ? this.mafft : await this.checkMafft();
+    if (!found.ok) {
+      this.busy = false;
+      return this.fail(found.message);
+    }
+
     const result = await align(
       this.reference,
       usable.map((r) => ({ name: r.name, sequence: r.sequence })),
-      { mafftPath: config.mafftPath(), mafftArgs: config.mafftArgs() }
+      { mafftPath: found.path, mafftArgs: config.mafftArgs() }
     );
 
     // Carry each read's own numbers back onto its chip.

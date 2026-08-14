@@ -47,6 +47,48 @@ export default async function run(page) {
   await page.waitForSelector('body[data-ready="true"]', { timeout: 30000 });
   await page.waitForSelector('.ovealign-drop', { timeout: 10000 });
 
+  /* --- MAFFT missing: say so before any work is done ---------------------- */
+
+  // The harness starts with MAFFT missing, which is what a new user sees.
+  out.banner = await page.evaluate(() => {
+    const b = document.querySelector('.ovealign-banner');
+    if (!b) return null;
+    return {
+      title: (b.querySelector('.ovealign-bannertitle') || {}).textContent || '',
+      commands: [...b.querySelectorAll('.ovealign-cmds code')].map((c) => c.textContent),
+      buttons: [...b.querySelectorAll('button')].map((x) => x.textContent)
+    };
+  });
+  if (!out.banner) fail.push('MAFFT was missing but the panel said nothing');
+  else {
+    if (!out.banner.commands.some((c) => /brew install mafft/.test(c))) {
+      fail.push('the banner does not show an install command');
+    }
+    if (!out.banner.buttons.some((b) => /Locate/.test(b))) fail.push('no Locate MAFFT button');
+    if (!out.banner.buttons.some((b) => /Re-check/.test(b))) fail.push('no Re-check button');
+  }
+
+  // Align must be unavailable, or it just leads to a failure the banner explains.
+  out.alignDisabledWithoutMafft =
+    await page.locator('.ovealign-actions button', { hasText: 'Align' }).isDisabled();
+  if (!out.alignDisabledWithoutMafft) fail.push('Align was clickable with MAFFT missing');
+
+  await clearPosted(page);
+  await page.locator('.ovealign-banner button', { hasText: 'Locate' }).click();
+  await page.waitForTimeout(200);
+  if (!(await posted(page)).some((m) => m.type === 'align/locateMafft')) {
+    fail.push('Locate MAFFT did not reach the host');
+  }
+
+  // Once found, the banner goes and Align becomes available.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__mafftFound')));
+  await page.waitForTimeout(300);
+  out.bannerAfterFound = await page.locator('.ovealign-banner').count();
+  out.alignEnabledAfterFound =
+    await page.locator('.ovealign-actions button', { hasText: 'Align' }).isEnabled();
+  if (out.bannerAfterFound !== 0) fail.push('the banner stayed up after MAFFT was found');
+  if (!out.alignEnabledAfterFound) fail.push('Align stayed disabled after MAFFT was found');
+
   /* --- the empty state is the picker -------------------------------------- */
 
   out.initialChips = await chips(page);

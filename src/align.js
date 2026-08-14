@@ -147,9 +147,9 @@ function rotationFor(readLength, offset, refLength) {
 
 /* ------------------------------------------------------------------ MAFFT -- */
 
-const MISSING_MAFFT =
-  'MAFFT was not found. Install it with "brew install mafft" or ' +
-  '"conda install -c bioconda mafft", or set oveCart.mafftPath to its full path.';
+const { notFoundMessage } = require('./mafft');
+
+const MISSING_MAFFT = notFoundMessage();
 
 function toFasta(records) {
   return records.map((r) => `>${r.name}\n${r.sequence}\n`).join('');
@@ -190,6 +190,16 @@ function runMafft(records, opts = {}) {
         if (err) {
           if (err.code === 'ENOENT') return reject(new Error(MISSING_MAFFT));
           return reject(new Error(`MAFFT failed: ${(stderr || err.message).trim().slice(0, 500)}`));
+        }
+        /*
+         * A binary that exists but is not MAFFT gets this far and returns
+         * something that is not FASTA. "returned 0 sequences" reads like an
+         * alignment problem; it is almost always a misconfigured path.
+         */
+        if (!String(stdout || '').trimStart().startsWith('>')) {
+          return reject(new Error(
+            `"${bin}" ran but did not return an alignment, so it is probably not MAFFT. ` +
+            'Check oveCart.mafftPath.'));
         }
         const aligned = parseFasta(stdout);
         if (aligned.length !== records.length) {
