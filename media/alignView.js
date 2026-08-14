@@ -261,6 +261,23 @@
       toggle.title = 'Drop or browse for more reads to add to this alignment';
       toggle.addEventListener('click', () => { dropOpen = !dropOpen; renderSetup(); });
       row.appendChild(toggle);
+
+      // One trace-height control for every chromatogram, up here rather than a
+      // pair of buttons parked partway across each track.
+      if (state.alignment.tracks.some((t) => t.chromatogramData)) {
+        const group = el('div', 'ovealign-scale');
+        group.appendChild(el('span', 'ovealign-scalelabel', 'Trace height'));
+        const step = (label, title, fn) => {
+          const b = el('button', 'ovealign-scalebtn', label);
+          b.title = title;
+          b.addEventListener('click', fn);
+          group.appendChild(b);
+        };
+        step('−', 'Shorter peaks, in every chromatogram', () => window.OveChromScale.nudge(1 / 1.3));
+        step('+', 'Taller peaks, in every chromatogram', () => window.OveChromScale.nudge(1.3));
+        step('⤢', 'Fit the tallest peak to the track', () => window.OveChromScale.reset());
+        row.appendChild(group);
+      }
       setup.appendChild(row);
     }
 

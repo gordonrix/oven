@@ -4,6 +4,26 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.10.0
+
+- **A substitution inside a CDS now shows what it codes for.** The read gets a translation
+  over just that codon, so the amino acid displayed is derived from the read's own bases --
+  what the mutation actually makes, not what the reference said. Reading frame is taken from
+  the correct end for a reverse CDS, origin-spanning CDS features are handled, and a codon
+  broken by an indel is left alone rather than guessed. On the worked example: RFP
+  CTG(L)→ATG(M) in one read, AraC CCG(P)→CAG(Q) in another.
+- **The chromatogram track is shorter and the trace fills it.** It was a fixed 100 px with a
+  fixed starting scale, so a trace either crawled along the bottom or ran off the top
+  depending on the instrument. Now 58 px, with the scale seeded from the data so the tallest
+  peak just reaches the top. Read rows dropped from 169 px to 115 px.
+- **One trace-height control for every chromatogram**, in the panel chrome. Each track used
+  to carry its own pair of buttons at a sticky offset partway across it, each moving only
+  its own trace.
+- **Fixed the mismatch marks in the summary strip**, which were too thick and ragged along
+  the bottom. Widening them by stroking the path was wrong: those subpaths are never closed,
+  so a stroke draws an open polyline and grows the mark past its own lane. Widened in the
+  geometry instead — horizontally only, centred on the position.
+
 ## 1.9.5
 
 - **Translations now show on the reference.** `translations` only covers translations that

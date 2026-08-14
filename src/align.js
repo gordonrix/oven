@@ -273,6 +273,87 @@ function countDifferences(referenceRow, readRow) {
   };
 }
 
+/* --------------------------------------------------- mutated CDS codons -- */
+
+const mod = (v, n) => ((v % n) + n) % n;
+
+/** Does this feature cover reference position `pos`, origin wrap included? */
+function covers(feature, pos) {
+  const { start, end } = feature;
+  if (typeof start !== 'number' || typeof end !== 'number') return false;
+  return end >= start ? pos >= start && pos <= end : pos >= start || pos <= end;
+}
+
+/**
+ * The three reference positions of the codon containing `pos`, ascending.
+ *
+ * Reading frame runs from the CDS start for a forward feature and from its end
+ * for a reverse one, so which end you count from decides which bases share a
+ * codon -- getting it backwards silently reports the wrong amino acid.
+ */
+function codonPositions(feature, pos, length) {
+  const forward = feature.strand !== -1;
+  const offset = forward ? mod(pos - feature.start, length) : mod(feature.end - pos, length);
+  const first = offset - (offset % 3);
+  const steps = [0, 1, 2].map((i) => (forward
+    ? mod(feature.start + first + i, length)
+    : mod(feature.end - first - i, length)));
+  return steps.sort((a, b) => a - b);
+}
+
+/**
+ * Codons in a read that carry a substitution and lie inside a CDS.
+ *
+ * Returned in READ coordinates, because that is where the viewer needs them:
+ * handing OVE a translation over these positions makes it work out the amino
+ * acid from the read's own bases, which is the whole point -- what the mutation
+ * actually codes for, not what the reference said.
+ *
+ * A codon is skipped when its three bases are not contiguous in the read: an
+ * indel inside the codon means there is no single triplet to translate, and
+ * guessing one would be worse than saying nothing.
+ */
+function mutatedCodons(referenceRow, readRow, features, referenceLength) {
+  const refToRead = new Map();
+  const differing = [];
+  let refPos = -1;
+  let readPos = -1;
+
+  for (let i = 0; i < referenceRow.length; i++) {
+    const r = referenceRow[i];
+    const q = readRow[i];
+    if (r !== '-') refPos++;
+    if (q !== '-') readPos++;
+    if (r === '-' || q === '-') continue;
+    refToRead.set(refPos, readPos);
+    if (r.toUpperCase() !== q.toUpperCase()) differing.push(refPos);
+  }
+
+  const cdsFeatures = (features || []).filter((f) => /^cds$/i.test(String(f.type || '')));
+  const byCodon = new Map();
+
+  for (const at of differing) {
+    for (const feature of cdsFeatures) {
+      if (!covers(feature, at)) continue;
+      const positions = codonPositions(feature, at, referenceLength);
+      const reads = positions.map((p) => refToRead.get(p));
+      if (reads.some((v) => v === undefined)) continue;
+      const first = Math.min(...reads);
+      const last = Math.max(...reads);
+      if (last - first !== 2) continue; // an indel splits the codon
+      byCodon.set(`${feature.id || feature.name}:${positions[0]}`, {
+        start: first,
+        end: last,
+        strand: feature.strand === -1 ? -1 : 1,
+        forward: feature.strand !== -1,
+        cds: feature.name || feature.id || 'CDS',
+        referencePositions: positions
+      });
+    }
+  }
+  return [...byCodon.values()];
+}
+
 /* ------------------------------------------------------------ the pipeline -- */
 
 /**
@@ -369,5 +450,6 @@ async function align(reference, reads, opts = {}) {
 
 module.exports = {
   align, anchor, rotateString, rotationFor, splitPairs, countDifferences,
+  mutatedCodons, codonPositions,
   runMafft, parseFasta, toFasta, MISSING_MAFFT, DEFAULT_K
 };

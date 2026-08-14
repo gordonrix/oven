@@ -237,16 +237,12 @@ html, body { height: 100%; margin: 0; }
 .ovealign-view .minimapLane.lane-hovered .miniBluePath { fill: #c0c5ca !important; }
 
 /*
- * A single-base difference is one pixel wide at this scale -- invisible, which
- * defeats the point of the strip. Stroking the path in the same red widens it
- * by half the stroke on each side, so a lone mismatch is findable while a long
- * run keeps its true extent.
+ * Left unstroked deliberately. A single-base mark is widened in the path
+ * geometry instead (see patches/README.md) -- a stroke grows it vertically as
+ * well, past the lane it belongs to, and these subpaths are never closed so it
+ * also leaves the ends ragged.
  */
-.ovealign-view .miniRedPath {
-  fill: red;
-  stroke: red;
-  stroke-width: 5px;
-}
+.ovealign-view .miniRedPath { fill: red; }
 
 /*
  * The viewport indicator. Everything about it is inline-styled -- the wash and
@@ -260,3 +256,30 @@ html, body { height: 100%; margin: 0; }
   border-bottom: 2px solid rgba(24, 32, 38, .45) !important;
   box-sizing: border-box;
 }
+
+/* --- trace height ------------------------------------------------------- */
+
+/*
+ * Upstream puts a pair of scale buttons inside every chromatogram, stuck at a
+ * fixed offset partway across the track -- so with several reads there are
+ * several controls in odd places, each moving only its own trace. One control
+ * up in the panel chrome drives them all instead.
+ */
+.ovealign-view .scaleChromatogramButtonUp,
+.ovealign-view .scaleChromatogramButtonDown { display: none !important; }
+
+.ovealign-scale { display: inline-flex; align-items: center; gap: 3px; margin-left: 12px; }
+.ovealign-scalelabel { font-size: 11px; color: #5c7080; margin-right: 2px; }
+
+.ovealign-scalebtn {
+  min-width: 22px;
+  padding: 3px 6px;
+  font-size: 11px;
+  line-height: 1;
+  color: #394b59;
+  background: #f5f8fa;
+  border: 1px solid #d3dae0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ovealign-scalebtn:hover { background: #e8eef2; }

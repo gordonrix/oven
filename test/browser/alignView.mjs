@@ -269,6 +269,38 @@ export default async function run(page) {
     fail.push('the reference annotations are not drawn along the top');
   }
 
+  /* --- a mutated codon shows its amino acid on the read ------------------- */
+
+  out.readTranslations = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#view .veRowItem')];
+    return rows.map((r) => [...r.querySelectorAll('svg text')]
+      .map((t) => t.textContent.trim()).filter((t) => /^[A-Z*]$/.test(t)).join(''));
+  });
+  // Row 0 is the reference, which carries the CDS translation; a read shows an
+  // amino acid only where a substitution changed a codon.
+  if (!out.readTranslations[0]) fail.push('the reference lost its translation track');
+  if (!out.readTranslations.slice(1).some(Boolean)) {
+    fail.push('no read shows an amino acid for its mutated codon');
+  }
+
+  /* --- one trace-height control, driving every chromatogram ---------------- */
+
+  out.traceControl = await page.evaluate(() => ({
+    shared: document.querySelectorAll('.ovealign-scalebtn').length,
+    // Upstream puts a pair inside each chromatogram at a sticky offset.
+    perTrackVisible: [...document.querySelectorAll(
+      '#view .scaleChromatogramButtonUp, #view .scaleChromatogramButtonDown')]
+      .filter((b) => b.offsetParent !== null).length,
+    canvasHeights: [...document.querySelectorAll('#view canvas')].map((c) => c.height)
+  }));
+  if (out.traceControl.shared < 2) fail.push('no shared trace-height control');
+  if (out.traceControl.perTrackVisible) {
+    fail.push(`${out.traceControl.perTrackVisible} per-track scale button(s) still visible`);
+  }
+  if (out.traceControl.canvasHeights.some((h) => h > 70)) {
+    fail.push(`chromatogram track is ${out.traceControl.canvasHeights[0]}px, expected a shorter one`);
+  }
+
   /* --- the summary strip is grey, with red meaning one thing --------------- */
 
   out.minimap = await page.evaluate(() => {
@@ -289,15 +321,24 @@ export default async function run(page) {
         (cs.borderBottomWidth !== '0px' && yellowish(cs.borderBottomColor)) ||
         yellowish(cs.fill);
     }).length;
-    const red = mm.querySelector('.miniRedPath');
+    // Every lane has a red path; only lanes with a difference have any data in
+    // it, so take the first non-empty one.
+    const red = [...mm.querySelectorAll('.miniRedPath')].find((p) => p.getAttribute('d'));
     const redStyle = red ? getComputedStyle(red) : null;
     return {
       tracksBackground: getComputedStyle(mm.querySelector('.alignmentMinimapTracks')).backgroundColor,
       sequence: getComputedStyle(mm.querySelector('.miniBluePath')).fill,
       mismatch: redStyle && redStyle.fill,
-      // A single-base difference is one pixel wide, so it is stroked to stay
-      // findable. Without this it is drawn but effectively invisible.
-      mismatchStroke: redStyle && parseFloat(redStyle.strokeWidth) || 0,
+      // A single-base difference is a fraction of a pixel wide, so the mark is
+      // widened in the path geometry. Measuring the first subpath is the only
+      // way to see that -- and it must NOT be stroked, which would grow it
+      // vertically past its lane and leave the ends ragged.
+      mismatchWidth: (() => {
+        const d = red && red.getAttribute('d');
+        const m = d && /^M([\d.-]+),[\d.-]+ L([\d.-]+),/.exec(d);
+        return m ? Number(m[2]) - Number(m[1]) : 0;
+      })(),
+      mismatchStroke: redStyle && redStyle.stroke,
       stillYellow
     };
   });
@@ -330,8 +371,11 @@ export default async function run(page) {
     if (out.minimap.mismatch !== 'rgb(255, 0, 0)') {
       fail.push(`mismatches are ${out.minimap.mismatch}, want true red`);
     }
-    if (!(out.minimap.mismatchStroke >= 3)) {
-      fail.push(`the mismatch mark is not widened (stroke ${out.minimap.mismatchStroke})`);
+    if (!(out.minimap.mismatchWidth >= 3)) {
+      fail.push(`the mismatch mark is only ${out.minimap.mismatchWidth}px wide`);
+    }
+    if (out.minimap.mismatchStroke && out.minimap.mismatchStroke !== 'none') {
+      fail.push(`the mismatch mark is stroked (${out.minimap.mismatchStroke}), which makes it ragged`);
     }
   }
 

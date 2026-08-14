@@ -85,7 +85,13 @@
           {
             // No chromatogramData at all -- stands in for a GenBank read, which
             // must render without a trace rather than breaking the view.
-            sequenceData: { name: 'gb-read', sequence: DELETED, circular: false },
+            sequenceData: {
+              name: 'gb-read', sequence: DELETED, circular: false,
+              // What the host emits for a substitution inside a CDS: a
+              // translation over just that codon, in read coordinates, so the
+              // viewer derives the amino acid from the read's own bases.
+              translations: [{ id: 'mut-0-0', start: 60, end: 62, strand: 1, forward: true }]
+            },
             alignmentData: { sequence: DELETED_ROW }
           }
         ]

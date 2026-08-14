@@ -82,6 +82,41 @@ const scalePctQual = scaledHeight * 0.35 / qualMax;
 The 0.35 is the only tunable here. Note the bars can also be turned off entirely from the
 eye menu (`showChromQualScores`, persisted to localStorage, default on).
 
+## 3. A one-base difference was invisible in the summary strip (`Minimap.renderItem`)
+
+**Symptom.** A single substitution left no visible mark; stroking the path to widen it made
+the mark taller than its own lane and left ragged ends.
+
+**Cause.** Each mismatch is drawn at its true width, which at minimap scale is a fraction of
+a pixel for one base. The obvious CSS fix does not work: these subpaths are written as four
+points with no closing `Z`, so a stroke traces an open polyline -- no left edge, visible
+caps -- and expands vertically as well as horizontally.
+
+**Fix.** Widen in the geometry instead, horizontally only and centred on the position:
+
+```js
+const w = Math.max(width2, 3);
+const x = xStart - (w - width2) / 2;
+```
+
+## 4. Chromatogram height and scaling (`Chromatogram`)
+
+**Symptom.** Each chromatogram was 100px tall with its own pair of scale buttons parked at a
+sticky offset partway across the track, and started at a fixed scale of 0.05 regardless of
+how tall that file's peaks were -- so several reads meant several controls in odd places and
+traces that either crawled along the bottom or ran off the top.
+
+**Fix.** Three changes, all in `Chromatogram`:
+
+- the canvas is `OVE_CHROM_HEIGHT` (58) rather than a hardcoded `100`;
+- scale is held in one module-level store shared by every chromatogram in the view, seeded
+  by `oveFitScale` so the file's tallest peak just reaches the top of the track;
+- `window.OveChromScale` exposes `set` / `nudge` / `reset` for a single control in the panel
+  chrome. The per-track buttons still work -- they move all traces together now -- and are
+  hidden in `media/alignView.css`.
+
+An explicit `scalePct` prop still wins, so the linear editor keeps its own behaviour.
+
 ---
 
 # `media/bioparser2.umd.js`
@@ -91,7 +126,7 @@ difference between the alignment tool opening a trace file and not. Pinned by
 `test/unit/ab1.test.js` against generated fixtures — each patch has been checked to make
 that suite fail when reverted.
 
-## 3. Node input produced a zero-length DataView (`getArrayBufferFromFile`, `toArrayBuffer`)
+## 5. Node input produced a zero-length DataView (`getArrayBufferFromFile`, `toArrayBuffer`)
 
 **Symptom.** `ab1ToJson` threw `Offset is outside the bounds of the DataView` for *any*
 input under Node, before reading a single tag.
@@ -106,7 +141,7 @@ holds unrelated bytes either side of it.
 **Fix.** Take raw bytes directly in either environment, and make `toArrayBuffer` handle an
 `ArrayBuffer` and any typed-array view, honouring `byteOffset`/`byteLength`.
 
-## 4. Trace tags numbered 1 only (`getTraceData`)
+## 6. Trace tags numbered 1 only (`getTraceData`)
 
 **Symptom.** `Cannot read properties of undefined (reading '1')` inside
 `convertBasePosTraceToPerBpTrace`.
@@ -118,7 +153,7 @@ back `undefined` and the per-bp trace builder dereferenced it.
 **Fix.** Add `baseCalls1`/`peakLocations1`/`qualNums1` to `tagDict` and fall back to them:
 `this.getDataTag(tagDict.peakLocations) || this.getDataTag(tagDict.peakLocations1)`.
 
-## 5. Tags stored inline (`getDataTag`)
+## 7. Tags stored inline (`getDataTag`)
 
 **Symptom.** Latent rather than observed on the sample files, but the same out-of-bounds
 throw for any file with a small tag.

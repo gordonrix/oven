@@ -147876,6 +147876,70 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     component: ShowChromQualScoresMenu(),
     shouldDismissPopover: false
   };
+  /*
+   * ove-vscode patch: chromatogram height and scaling.
+   *
+   * Upstream gives every chromatogram its own scale, starting at a fixed 0.05
+   * regardless of how tall that file's peaks actually are, and its own pair of
+   * scale buttons parked at a sticky offset partway across the track. With
+   * several reads that is several independent controls in odd places, and a
+   * trace that either crawls along the bottom or runs off the top depending on
+   * the instrument.
+   *
+   * So: one shared scale for every chromatogram in the view, seeded from the
+   * data so the tallest peak just reaches the top of the track, and exposed on
+   * window for a single control in the panel chrome. The per-track buttons
+   * still work -- they now move all of them together -- and are hidden in CSS.
+   */
+  const OVE_CHROM_HEIGHT = 58;
+  const oveChromScale = { value: null, listeners: /* @__PURE__ */ new Set() };
+
+  function oveSetChromScale(v) {
+    oveChromScale.value = Math.max(0.002, v);
+    oveChromScale.listeners.forEach((fn) => fn());
+  }
+
+  /** Scale at which this file's tallest peak just fills the track. */
+  function oveFitScale(chromData) {
+    let peak = 0;
+    const traces = (chromData && chromData.baseTraces) || [];
+    // Sampled: a full read is tens of thousands of points and the tallest peak
+    // is not hiding in the ones we skip.
+    const step = Math.max(1, Math.floor(traces.length / 2000));
+    for (let i = 0; i < traces.length; i += step) {
+      const bp = traces[i];
+      if (!bp) continue;
+      for (const k of ["aTrace", "tTrace", "gTrace", "cTrace"]) {
+        const arr = bp[k] || [];
+        for (let j = 0; j < arr.length; j++) if (arr[j] > peak) peak = arr[j];
+      }
+    }
+    return peak > 0 ? OVE_CHROM_HEIGHT / peak : 0.05;
+  }
+
+  function useOveChromScale(chromData, propScale, propSetScale, props) {
+    const [, force] = reactExports.useState(0);
+    reactExports.useEffect(() => {
+      const fn = () => force((n) => n + 1);
+      oveChromScale.listeners.add(fn);
+      return () => oveChromScale.listeners.delete(fn);
+    }, []);
+    // An explicit prop still wins, so the linear editor keeps its own control.
+    if (props && props.scalePct) return [propScale, propSetScale];
+    if (oveChromScale.value === null) oveChromScale.value = oveFitScale(chromData);
+    return [oveChromScale.value, oveSetChromScale];
+  }
+
+  if (typeof window !== "undefined") {
+    window.OveChromScale = {
+      get: () => oveChromScale.value,
+      set: oveSetChromScale,
+      nudge: (factor) => oveSetChromScale((oveChromScale.value || 0.05) * factor),
+      fit: (chromData) => oveSetChromScale(oveFitScale(chromData)),
+      reset: () => { oveChromScale.value = null; oveChromScale.listeners.forEach((fn) => fn()); }
+    };
+  }
+
   function Chromatogram(props) {
     const { isRowView, chromatogramData, row, getGaps, charWidth: charWidth2 } = props;
     const [showChromQualScores] = useShowChromQualScores();
@@ -147886,6 +147950,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     if (props.setScalePct)
       setScalePct = props.setScalePct;
     const canvasRef = reactExports.useRef();
+    [scalePct, setScalePct] = useOveChromScale(chromatogramData, scalePct, setScalePct, props);
     const gapsBeforeRow = getGaps(row.start).gapsBefore;
     reactExports.useEffect(() => {
       if (!chromatogramData || !chromatogramData.baseTraces || !canvasRef.current) {
@@ -147989,7 +148054,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             display: "inline-block"
           }
         },
-        /* @__PURE__ */ React$2.createElement("canvas", { style: { marginLeft: marginLeft2 }, ref: canvasRef, height: "100" })
+        /* @__PURE__ */ React$2.createElement("canvas", { style: { marginLeft: marginLeft2 }, ref: canvasRef, height: OVE_CHROM_HEIGHT })
       )
     );
   }
@@ -155787,9 +155852,16 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             range2,
             charWidth2
           );
-          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
           if (!range2.isMatch) {
-            redPath += toAdd;
+            // ove-vscode patch: a one-base difference is a fraction of a pixel
+            // wide at minimap scale, so widen the mark -- horizontally only,
+            // and centred on the position it actually marks. Stroking the path
+            // instead also grows it vertically past its lane, and leaves ragged
+            // ends because these subpaths are never closed.
+            const minWidth = 3;
+            const w = Math.max(width2, minWidth);
+            const x = xStart - (w - width2) / 2;
+            redPath += `M${x},${y2} L${x + w},${y2} L${x + w},${y2 + height2} L${x},${y2 + height2}`;
           }
         });
         return /* @__PURE__ */ React$2.createElement(

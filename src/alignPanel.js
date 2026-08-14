@@ -20,7 +20,7 @@ const vscode = require('vscode');
 
 const config = require('./config');
 const mafft = require('./mafft');
-const { align } = require('./align');
+const { align, mutatedCodons } = require('./align');
 const { parseFile, trimByQuality, followAlignment, SEQUENCE_EXTENSIONS } = require('./alignTracks');
 
 class AlignPanel {
@@ -382,11 +382,25 @@ class AlignPanel {
     const readTracks = result.msa.rows.map((row, i) => {
       const read = usable[i];
       const track = result.tracks[i];
+      /*
+       * A substitution inside a CDS gets a translation over just that codon, in
+       * the read's own coordinates. The viewer works the amino acid out from the
+       * read's bases, so what appears is what the mutation actually codes for
+       * rather than what the reference said -- which is the question you are
+       * asking when you look at a mismatch in a coding region.
+       */
+      const translations = mutatedCodons(
+        track.referenceRow, track.readRow,
+        (this.reference.sequenceData && this.reference.sequenceData.features) || [],
+        this.reference.sequence.length
+      ).map((codon, n) => Object.assign({ id: `mut-${i}-${n}` }, codon));
+
       return {
         sequenceData: {
           name: read.name,
           sequence: track.sequence, // oriented and rotated, matching the row
-          circular: false
+          circular: false,
+          translations
         },
         alignmentData: { sequence: row.sequence },
         chromatogramData: followAlignment(read.chromatogramData, track) || undefined
