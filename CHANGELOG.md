@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.9.2
+
+- **The alignment now fills the panel.** It was collapsing to a short strip with dead space
+  underneath because the panel page never set a height on `html`/`body`, so the layout had
+  nothing to resolve `100%` against. It also tracks the panel as you resize it.
+- **Reads report a verdict, not a count**: **match** (green), **partial match** (gold) or
+  **mismatch** (red). A read that never anchored, or that falls below 80% identity, is a
+  different sequence rather than a near miss and is no longer coloured like one that differs
+  by three bases. The counts, identity, strand and rotation stay in the tooltip.
+- **The drop box folds away once there is an alignment**, behind an **Add sequences** button
+  that opens and closes it. It is still the whole empty state before the first alignment.
+- Dropped the invented "Sanger sequencing" label from the alignment header, and renamed
+  **Change…** to **Change reference**.
+- **Editor buttons restyled** to match OVE's own menu bar — 14 px, square, desaturated — and
+  moved up into the menu row. At 16 px bold they were wide enough to cover the toolbar icons
+  as soon as the editor was made narrow; they no longer overlap at any width that fits the
+  menu bar itself.
+
 ## 1.9.1
 
 - **MAFFT setup is now checked when the alignment panel opens**, rather than failing after

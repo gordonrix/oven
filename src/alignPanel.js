@@ -174,7 +174,11 @@ class AlignPanel {
           id: r.id, name: r.name, path: r.path, length: r.sequence ? r.sequence.length : 0,
           error: r.error || null,
           mismatches: r.mismatches, substitutions: r.substitutions, gaps: r.gaps,
-          identity: r.identity, strand: r.strand, rotation: r.rotation
+          identity: r.identity, strand: r.strand, rotation: r.rotation,
+          // Drives the match / partial match / mismatch verdict in the panel:
+          // a read that never anchored is not a near miss, it is a different
+          // sequence.
+          anchored: r.anchored
         })),
         alignment: this.alignment,
         mafft: this.mafft && {
@@ -333,7 +337,8 @@ class AlignPanel {
     // Carry each read's own numbers back onto its chip.
     result.tracks.forEach((t, i) => Object.assign(usable[i], {
       mismatches: t.mismatches, substitutions: t.substitutions, gaps: t.gaps,
-      identity: t.identity, strand: t.strand, rotation: t.rotation
+      identity: t.identity, strand: t.strand, rotation: t.rotation,
+      anchored: t.anchored
     }));
 
     this.alignment = this.toViewPayload(result, usable);

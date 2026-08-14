@@ -4,6 +4,14 @@
  * primerSearch.css.
  */
 
+/*
+ * The panel host sets no page height of its own, so without this the root's
+ * `height: 100%` resolves against an auto-height body and collapses to its
+ * content -- which is what made the alignment a short strip with dead space
+ * underneath instead of filling the tab.
+ */
+html, body { height: 100%; margin: 0; }
+
 .ovealign-root {
   display: flex;
   flex-direction: column;
@@ -87,7 +95,6 @@
   text-align: center;
   transition: border-color .12s, background .12s;
 }
-.ovealign-root.has-alignment .ovealign-drop { padding: 8px 12px; }
 .ovealign-drop.is-over {
   border-color: #7050b3;
   background: #f0ebfa;
@@ -143,8 +150,9 @@
   max-width: 220px;
 }
 .ovealign-readstat { color: #5c7080; font-variant-numeric: tabular-nums; }
-.ovealign-readstat.is-clean { color: #0f9960; font-weight: 600; }
-.ovealign-readstat.is-diff { color: #bf7326; font-weight: 600; }
+.ovealign-readstat.is-clean { color: #0f9960; font-weight: 600; }  /* match */
+.ovealign-readstat.is-diff  { color: #bf7326; font-weight: 600; }  /* partial match */
+.ovealign-readstat.is-bad   { color: #c23030; font-weight: 600; }  /* mismatch */
 .ovealign-readerr { color: #a82a2a; }
 
 .ovealign-x {
@@ -171,9 +179,13 @@
 
 .ovealign-view {
   flex: 1;
-  min-height: 0;
+  min-height: 240px;
   overflow: hidden;
 }
+
+/* OVE prints its alignment type beside the name, and ours would always be a
+ * guess -- the reference is already named in the strip above. */
+.ovealign-view .veAlignmentType { display: none; }
 
 .ovealign-empty {
   padding: 24px 16px;
@@ -181,3 +193,28 @@
   color: #5c7080;
   line-height: 1.6;
 }
+
+/* --- add-sequences toggle ----------------------------------------------- */
+
+/*
+ * The drop zone is the whole empty state to begin with, then folds away behind
+ * this once there is an alignment to look at -- which is the point of the
+ * panel, and should not be sharing space with a picker.
+ */
+.ovealign-addrow { display: flex; align-items: center; gap: 8px; }
+
+.ovealign-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #394b59;
+  background: #f5f8fa;
+  border: 1px solid #d3dae0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ovealign-toggle:hover { background: #e8eef2; }
+.ovealign-toggle .chev { font-size: 9px; color: #5c7080; }

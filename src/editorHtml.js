@@ -26,43 +26,45 @@ function panelsShown(viewTypeConfig) {
 }
 
 /*
- * The buttons used to be individually `position: fixed` with hand-tuned right
- * offsets, which does not survive a third button -- especially since the cart
- * button's label grows to "Add to Cart (12)" at runtime. One fixed flex row
- * instead, so widths take care of themselves.
+ * The buttons sit in one fixed flex row, sized and styled to match OVE's own
+ * menu bar (14px Arial, 5px/10px padding, 30px tall) rather than shouting over
+ * it. They used to be 16px bold pills 41px tall, which took enough width to
+ * cover the toolbar icons as soon as the editor was made narrow. Squared
+ * corners and desaturated fills keep them legible as actions without competing
+ * with the sequence.
+ *
+ * top: 5px lines them up with File/Edit/View, so they occupy the menu row --
+ * which is empty on the right -- instead of the icon row underneath it.
  */
 const BASE_STYLE = `
       html, body { width: 100%; height: 100%; }
       .ove-created-div { height: 100%; background-color: white; }
       .ove-toolbtns {
         position: fixed;
-        top: 10px;
-        right: 35px;
+        top: 5px;
+        right: 16px;
         z-index: 20000;
         display: flex;
-        gap: 8px;
+        gap: 3px;
       }
       .ove-toolbtns button {
-        padding: 10px;
+        height: 30px;
+        padding: 5px 10px;
         color: white;
-        border-radius: 4px;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 16px;
-        font-weight: 600;
         border: none;
+        border-radius: 0;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        font-weight: 400;
         cursor: pointer;
         white-space: nowrap;
       }
-      .ove-toolbtns button:hover { box-shadow: 0 4px 8px rgba(0,0,0,.2); }
-      .ove-toolbtns button:disabled { background-color: gray; cursor: not-allowed; opacity: .6; }
-      .save-button { background-color: #0078d4; }
-      .save-button:hover { background-color: #005a9e; }
-      .ove-cart-btn { background-color: #37903b; }
-      .ove-cart-btn:hover { background-color: #2a6f2d; }
-      .ove-search-btn { background-color: #7050b3; }
-      .ove-search-btn:hover { background-color: #5b3f96; }
-      .ove-align-btn { background-color: #b06f18; }
-      .ove-align-btn:hover { background-color: #8c5711; }
+      .ove-toolbtns button:hover { filter: brightness(1.12); }
+      .ove-toolbtns button:disabled { background-color: #9aa5ad; cursor: not-allowed; opacity: .6; }
+      .save-button { background-color: #3d7ea6; }
+      .ove-cart-btn { background-color: #4f8452; }
+      .ove-search-btn { background-color: #6f5f96; }
+      .ove-align-btn { background-color: #a07338; }
 `;
 
 /**

@@ -81,7 +81,8 @@
         reference: { name: 'demo-reference', length: REF.length, circular: true },
         reads: [
           { id: 1, name: 'clean-read.ab1', path: '/demo/clean-read.ab1', length: CLEAN.length },
-          { id: 2, name: 'gb-read.gb', path: '/demo/gb-read.gb', length: DELETED.length }
+          { id: 2, name: 'gb-read.gb', path: '/demo/gb-read.gb', length: DELETED.length },
+          { id: 3, name: 'wrong-plasmid.ab1', path: '/demo/wrong.ab1', length: 40 }
         ],
         alignment: null, status: '', error: '', busy: false,
         // Starts missing so the banner is exercised; __mafftFound flips it.
@@ -102,10 +103,16 @@
                 status: 'Aligned 2 reads in 12 ms',
                 reads: [
                   Object.assign({}, state.reads[0], {
-                    mismatches: 0, substitutions: 0, gaps: 0, identity: 1, strand: 1, rotation: 0
+                    mismatches: 0, substitutions: 0, gaps: 0, identity: 1,
+                    strand: 1, rotation: 0, anchored: true
                   }),
                   Object.assign({}, state.reads[1], {
-                    mismatches: 3, substitutions: 0, gaps: 3, identity: 1, strand: 1, rotation: 0
+                    mismatches: 3, substitutions: 0, gaps: 3, identity: 0.95,
+                    strand: 1, rotation: 0, anchored: true
+                  }),
+                  Object.assign({}, state.reads[2], {
+                    mismatches: 31, substitutions: 31, gaps: 0, identity: 0.42,
+                    strand: 1, rotation: 0, anchored: false
                   })
                 ]
               });

@@ -34,6 +34,34 @@
   };
   let view = null;      // the live createAlignmentView handle
   let renderedId = 0;   // bumped so a stale alignment is never re-shown
+  let lastPayload = null;
+  let dropOpen = true;  // the picker IS the empty state until there is an alignment
+
+  /*
+   * Below this, a read is not a variant of the reference -- it is a different
+   * sequence, or the wrong file. Calling that a "partial match" would suggest
+   * the differences are worth reading one by one.
+   */
+  const MIN_IDENTITY = 0.8;
+
+  /**
+   * One of three verdicts, rather than a raw count.
+   *
+   *   match          identical over the aligned span
+   *   partial match  aligns, but with differences worth looking at
+   *   mismatch       did not align well enough to be the same sequence
+   *
+   * The counts stay in the tooltip: the label answers "is this the construct?",
+   * the tooltip answers "how far off is it?".
+   */
+  function verdict(read) {
+    if (read.mismatches === undefined || read.mismatches === null) return null;
+    if (read.anchored === false || (read.identity || 0) < MIN_IDENTITY) {
+      return { label: 'mismatch', cls: 'is-bad' };
+    }
+    if (read.mismatches === 0) return { label: 'match', cls: 'is-clean' };
+    return { label: 'partial match', cls: 'is-diff' };
+  }
 
   const $ = (id) => document.getElementById(id);
 
@@ -143,7 +171,7 @@
     } else {
       row.appendChild(el('span', 'ovealign-refmeta', 'none chosen'));
     }
-    const change = el('button', 'ovealign-link', 'Change…');
+    const change = el('button', 'ovealign-link', 'Change reference');
     change.addEventListener('click', () => post('align/pickReference'));
     row.appendChild(change);
     into.appendChild(row);
@@ -155,17 +183,17 @@
     name.title = read.path || read.name;
     chip.appendChild(name);
 
+    const v = read.error ? null : verdict(read);
     if (read.error) {
       chip.appendChild(el('span', 'ovealign-readerr', read.error));
-    } else if (read.mismatches !== undefined && read.mismatches !== null) {
-      const clean = read.mismatches === 0;
-      const stat = el('span', 'ovealign-readstat ' + (clean ? 'is-clean' : 'is-diff'),
-        clean ? 'no mismatches' : `${read.mismatches} mismatch${read.mismatches === 1 ? '' : 'es'}`);
+    } else if (v) {
+      const stat = el('span', `ovealign-readstat ${v.cls}`, v.label);
       stat.title = [
         `${read.substitutions} substitution(s), ${read.gaps} gapped column(s)`,
         read.identity !== undefined ? `identity ${(read.identity * 100).toFixed(3)}%` : null,
         read.strand === -1 ? 'aligned reverse-complemented' : 'forward strand',
-        read.rotation ? `rotated ${read.rotation} bp to cross the origin` : null
+        read.rotation ? `rotated ${read.rotation} bp to cross the origin` : null,
+        read.anchored === false ? 'no anchor found on the reference' : null
       ].filter(Boolean).join('\n');
       chip.appendChild(stat);
     } else if (read.length) {
@@ -224,15 +252,33 @@
     renderMafft(setup);
     renderReference(setup);
 
-    const zone = el('div', 'ovealign-drop');
-    zone.appendChild(el('div', null, `Drop .${ACCEPT.slice(0, 4).join(', .')} or .fasta files here`));
-    const browse = el('button', 'ovealign-btn secondary', 'Browse…');
-    browse.addEventListener('click', () => post('align/browse'));
-    zone.appendChild(browse);
-    zone.appendChild(el('div', 'ovealign-drophint',
-      'from Finder, or from the Explorer on the left'));
-    wireDropZone(zone);
-    setup.appendChild(zone);
+    /*
+     * Once an alignment is on screen it is what the panel is for, so the picker
+     * folds away behind a button rather than keeping a large dashed box between
+     * the reference and the tracks.
+     */
+    if (state.alignment) {
+      const row = el('div', 'ovealign-addrow');
+      const toggle = el('button', 'ovealign-toggle');
+      toggle.appendChild(el('span', 'chev', dropOpen ? '▾' : '▸'));
+      toggle.appendChild(el('span', null, 'Add sequences'));
+      toggle.title = 'Drop or browse for more reads to add to this alignment';
+      toggle.addEventListener('click', () => { dropOpen = !dropOpen; renderSetup(); });
+      row.appendChild(toggle);
+      setup.appendChild(row);
+    }
+
+    if (dropOpen || !state.alignment) {
+      const zone = el('div', 'ovealign-drop');
+      zone.appendChild(el('div', null, `Drop .${ACCEPT.slice(0, 4).join(', .')} or .fasta files here`));
+      const browse = el('button', 'ovealign-btn secondary', 'Browse…');
+      browse.addEventListener('click', () => post('align/browse'));
+      zone.appendChild(browse);
+      zone.appendChild(el('div', 'ovealign-drophint',
+        'from Finder, or from the Explorer on the left'));
+      wireDropZone(zone);
+      setup.appendChild(zone);
+    }
 
     if (state.reads.length) {
       const list = el('div', 'ovealign-reads');
@@ -279,9 +325,11 @@
     host.appendChild(mount);
 
     const a = state.alignment;
-    view = window.createAlignmentView(mount, {
+    lastPayload = {
       id: `ove-align-${++renderedId}`,
-      alignmentType: a.alignmentType || 'Sanger sequencing',
+      // Left unset deliberately: OVE shows this next to the name, and anything
+      // we put here would be a guess about the user's data. The label itself is
+      // hidden in CSS, so its "Unknown Alignment Type" fallback never shows.
       alignmentTracks: a.tracks,
       // chromatogram and features are both off by default, and the setting is
       // persisted to localStorage -- so a stale value there can mask a change
@@ -291,8 +339,35 @@
         axis: true, axisNumbers: true, sequence: true
       },
       height: Math.max(320, host.clientHeight)
-    });
+    };
+    view = window.createAlignmentView(mount, lastPayload);
     window.__oveAlignment = view;
+    watchSize(host);
+  }
+
+  /**
+   * Keep the alignment's height in step with the panel.
+   *
+   * The reducer replaces an alignment's entry wholesale rather than merging, so
+   * a height update has to re-send the entire payload -- sending just {id,
+   * height} would drop the tracks. Still far cheaper than re-mounting React,
+   * and rAF-coalesced so a drag-resize does not dispatch per frame.
+   */
+  function watchSize(host) {
+    if (watchSize.observing === host) return;
+    watchSize.observing = host;
+    let queued = false;
+    new ResizeObserver(() => {
+      if (queued || !view || !lastPayload) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        const height = Math.max(320, host.clientHeight);
+        if (height === lastPayload.height) return;
+        lastPayload = Object.assign({}, lastPayload, { height });
+        view.updateAlignment(lastPayload);
+      });
+    }).observe(host);
   }
 
   function render() {
@@ -309,6 +384,10 @@
     if (msg.type !== 'align/state') return;
     const hadAlignment = state.alignment;
     state = Object.assign({}, state, msg.state);
+    // The first alignment folds the picker away; losing one (a read removed, a
+    // new reference) brings it back, since choosing files is the job again.
+    if (state.alignment && !hadAlignment) dropOpen = false;
+    if (!state.alignment) dropOpen = true;
     // Only rebuild the (expensive) alignment when it actually changed.
     if (state.alignment !== hadAlignment) render();
     else renderSetup();

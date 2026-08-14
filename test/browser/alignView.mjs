@@ -18,11 +18,16 @@ const clearPosted = (page) =>
   page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
 
 const chips = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('.ovealign-read')].map((c) => ({
-    name: c.querySelector('.ovealign-readname').textContent,
-    stat: (c.querySelector('.ovealign-readstat') || {}).textContent || null,
-    error: (c.querySelector('.ovealign-readerr') || {}).textContent || null
-  })));
+  [...document.querySelectorAll('.ovealign-read')].map((c) => {
+    const s = c.querySelector('.ovealign-readstat');
+    return {
+      name: c.querySelector('.ovealign-readname').textContent,
+      stat: s ? s.textContent : null,
+      // The colour carries as much meaning as the word, so check both.
+      colour: s ? getComputedStyle(s).color : null,
+      error: (c.querySelector('.ovealign-readerr') || {}).textContent || null
+    };
+  }));
 
 /** Synthesise a drop carrying either files or a uri-list. */
 const drop = (page, kind, payload) => page.evaluate(({ kind, payload }) => {
@@ -154,11 +159,79 @@ export default async function run(page) {
   await page.locator('.ovealign-actions button', { hasText: 'Align' }).click();
   await page.waitForTimeout(2500);
 
+  /*
+   * Three verdicts, not a count: match / partial match / mismatch. A read that
+   * never anchored is a different sequence, not a near miss, and must not be
+   * shown in the same colour as one that differs by three bases.
+   */
   out.afterAlign = await chips(page);
-  const clean = out.afterAlign.find((c) => c.name === 'clean-read.ab1');
-  const gb = out.afterAlign.find((c) => c.name === 'gb-read.gb');
-  if (!/no mismatches/.test(clean && clean.stat || '')) fail.push('a clean read did not report zero mismatches');
-  if (!/3 mismatches/.test(gb && gb.stat || '')) fail.push('the deleted read did not report its mismatches');
+  const want = [
+    ['clean-read.ab1', 'match', 'rgb(15, 153, 96)'],       // green
+    ['gb-read.gb', 'partial match', 'rgb(191, 115, 38)'],  // gold
+    ['wrong-plasmid.ab1', 'mismatch', 'rgb(194, 48, 48)']  // red
+  ];
+  for (const [name, label, colour] of want) {
+    const c = out.afterAlign.find((x) => x.name === name);
+    if (!c) { fail.push(`no chip for ${name}`); continue; }
+    if (c.stat !== label) fail.push(`${name} says "${c.stat}", want "${label}"`);
+    if (c.colour !== colour) fail.push(`${name} is ${c.colour}, want ${colour}`);
+  }
+  if (out.afterAlign.some((c) => /\d+\s*mismatch/.test(c.stat || ''))) {
+    fail.push('a raw mismatch count is still being shown');
+  }
+
+  /* --- the picker folds away once there is something to look at ----------- */
+
+  out.afterAlignPicker = await page.evaluate(() => ({
+    dropZones: document.querySelectorAll('.ovealign-drop').length,
+    toggle: (document.querySelector('.ovealign-toggle') || {}).textContent || null
+  }));
+  if (out.afterAlignPicker.dropZones !== 0) {
+    fail.push('the drop box is still taking space after aligning');
+  }
+  if (!/Add sequences/.test(out.afterAlignPicker.toggle || '')) {
+    fail.push('no Add sequences button after aligning');
+  }
+
+  await page.locator('.ovealign-toggle').click();
+  await page.waitForTimeout(200);
+  out.toggledOpen = await page.locator('.ovealign-drop').count();
+  await page.locator('.ovealign-toggle').click();
+  await page.waitForTimeout(200);
+  out.toggledShut = await page.locator('.ovealign-drop').count();
+  if (out.toggledOpen !== 1 || out.toggledShut !== 0) {
+    fail.push(`Add sequences did not toggle the box (open=${out.toggledOpen}, shut=${out.toggledShut})`);
+  }
+
+  /* --- OVE's alignment-type label must not show a guess -------------------- */
+
+  out.alignmentTypeVisible = await page.evaluate(() => {
+    const e = document.querySelector('.veAlignmentType');
+    return e ? getComputedStyle(e).display !== 'none' : false;
+  });
+  if (out.alignmentTypeVisible) fail.push('the alignment-type label is still visible');
+  if (/Sanger sequencing/.test(await page.locator('body').innerText())) {
+    fail.push('"Sanger sequencing" is still on screen');
+  }
+
+  /* --- the view fills the panel ------------------------------------------- */
+
+  out.fill = await page.evaluate(() => {
+    const view = document.querySelector('.ovealign-view');
+    const av = document.querySelector('.alignmentView');
+    return {
+      body: Math.round(document.body.getBoundingClientRect().height),
+      view: Math.round(view.getBoundingClientRect().height),
+      alignment: av ? Math.round(av.getBoundingClientRect().height) : 0
+    };
+  });
+  // The alignment should take what is left of the window, not a fixed strip.
+  if (out.fill.view < out.fill.body * 0.5) {
+    fail.push(`the alignment view is only ${out.fill.view}px of ${out.fill.body}px`);
+  }
+  if (Math.abs(out.fill.alignment - out.fill.view) > 4) {
+    fail.push(`OVE rendered ${out.fill.alignment}px inside a ${out.fill.view}px host`);
+  }
 
   out.rendered = await page.evaluate(() => ({
     rowItems: document.querySelectorAll('.veRowItem').length,
