@@ -294,7 +294,18 @@ class AlignPanel {
     });
   }
 
+  /*
+   * Reads are kept sorted by name so the chips and the alignment tracks are
+   * always in the same order, and that order is the one the filenames imply --
+   * numeric-aware, so read 2 comes before read 10.
+   */
+  sortReads() {
+    this.reads.sort((a, b) =>
+      String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: 'base' }));
+  }
+
   afterAdd(count) {
+    this.sortReads();
     const max = config.alignMaxReads();
     let dropped = 0;
     if (this.reads.length > max) {

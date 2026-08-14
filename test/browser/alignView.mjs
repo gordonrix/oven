@@ -289,31 +289,49 @@ export default async function run(page) {
         (cs.borderBottomWidth !== '0px' && yellowish(cs.borderBottomColor)) ||
         yellowish(cs.fill);
     }).length;
-    const path = (sel) => {
-      const e = mm.querySelector(sel);
-      return e ? getComputedStyle(e).fill : null;
-    };
+    const red = mm.querySelector('.miniRedPath');
+    const redStyle = red ? getComputedStyle(red) : null;
     return {
       tracksBackground: getComputedStyle(mm.querySelector('.alignmentMinimapTracks')).backgroundColor,
-      sequence: path('.miniBluePath'),
-      mismatch: path('.miniRedPath'),
+      sequence: getComputedStyle(mm.querySelector('.miniBluePath')).fill,
+      mismatch: redStyle && redStyle.fill,
+      // A single-base difference is one pixel wide, so it is stroked to stay
+      // findable. Without this it is drawn but effectively invisible.
+      mismatchStroke: redStyle && parseFloat(redStyle.strokeWidth) || 0,
       stillYellow
     };
   });
+
+  const rgb = (c) => (/rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '') || []).slice(1).map(Number);
+  // Neutral means no hue: the strip should carry no colour except the red.
+  const neutral = (c) => {
+    const [r, g, b] = rgb(c);
+    return r !== undefined && Math.max(r, g, b) - Math.min(r, g, b) <= 12;
+  };
+  const lightness = (c) => { const [r, g, b] = rgb(c); return (r + g + b) / 3; };
 
   if (!out.minimap) fail.push('no summary strip rendered');
   else {
     if (out.minimap.stillYellow) {
       fail.push(`${out.minimap.stillYellow} element(s) still tint the strip yellow`);
     }
-    if (out.minimap.sequence !== 'rgb(139, 144, 150)') {
-      fail.push(`sequences are ${out.minimap.sequence}, want medium grey`);
+    if (!neutral(out.minimap.sequence)) {
+      fail.push(`sequences are ${out.minimap.sequence}, which is not a neutral grey`);
     }
-    if (out.minimap.tracksBackground !== 'rgb(227, 229, 231)') {
-      fail.push(`the strip ground is ${out.minimap.tracksBackground}, want light grey`);
+    if (!neutral(out.minimap.tracksBackground)) {
+      fail.push(`the strip ground is ${out.minimap.tracksBackground}, which is not a neutral grey`);
+    }
+    // The bars have to read against the ground, and the ground has to be the
+    // lighter of the two so an uncovered region recedes.
+    const gap = lightness(out.minimap.tracksBackground) - lightness(out.minimap.sequence);
+    if (!(gap > 20)) {
+      fail.push(`sequence and ground are too close in tone (${gap.toFixed(0)})`);
     }
     if (out.minimap.mismatch !== 'rgb(255, 0, 0)') {
       fail.push(`mismatches are ${out.minimap.mismatch}, want true red`);
+    }
+    if (!(out.minimap.mismatchStroke >= 3)) {
+      fail.push(`the mismatch mark is not widened (stroke ${out.minimap.mismatchStroke})`);
     }
   }
 

@@ -58,6 +58,30 @@ so a genuine spliced join keeps rendering per exon. It is display-only and is un
 `restoreWrapLocations` before anything is written back to disk; see
 `test/unit/wrapLocations.test.js`.
 
+## 2. The chromatogram quality histogram filled the whole track (`drawQualityScoreHistogram`)
+
+**Symptom.** The pale bars behind a trace covered the full height of the chromatogram, so
+the peaks sat inside what looked like a solid grey slab rather than on a baseline.
+
+**Cause.** The histogram is normalised to the best base in the read:
+
+```js
+const scalePctQual = scaledHeight / qualMax;
+```
+
+Sanger quality is near-uniform across a good read -- the sample files here sit at 45-47
+almost end to end -- so nearly every bar is drawn at full height and the histogram stops
+being a histogram.
+
+**Fix.** Confine it to a band along the bottom, leaving the peaks above it:
+
+```js
+const scalePctQual = scaledHeight * 0.35 / qualMax;
+```
+
+The 0.35 is the only tunable here. Note the bars can also be turned off entirely from the
+eye menu (`showChromQualScores`, persisted to localStorage, default on).
+
 ---
 
 # `media/bioparser2.umd.js`
@@ -67,7 +91,7 @@ difference between the alignment tool opening a trace file and not. Pinned by
 `test/unit/ab1.test.js` against generated fixtures — each patch has been checked to make
 that suite fail when reverted.
 
-## 2. Node input produced a zero-length DataView (`getArrayBufferFromFile`, `toArrayBuffer`)
+## 3. Node input produced a zero-length DataView (`getArrayBufferFromFile`, `toArrayBuffer`)
 
 **Symptom.** `ab1ToJson` threw `Offset is outside the bounds of the DataView` for *any*
 input under Node, before reading a single tag.
@@ -82,7 +106,7 @@ holds unrelated bytes either side of it.
 **Fix.** Take raw bytes directly in either environment, and make `toArrayBuffer` handle an
 `ArrayBuffer` and any typed-array view, honouring `byteOffset`/`byteLength`.
 
-## 3. Trace tags numbered 1 only (`getTraceData`)
+## 4. Trace tags numbered 1 only (`getTraceData`)
 
 **Symptom.** `Cannot read properties of undefined (reading '1')` inside
 `convertBasePosTraceToPerBpTrace`.
@@ -94,7 +118,7 @@ back `undefined` and the per-bp trace builder dereferenced it.
 **Fix.** Add `baseCalls1`/`peakLocations1`/`qualNums1` to `tagDict` and fall back to them:
 `this.getDataTag(tagDict.peakLocations) || this.getDataTag(tagDict.peakLocations1)`.
 
-## 4. Tags stored inline (`getDataTag`)
+## 5. Tags stored inline (`getDataTag`)
 
 **Symptom.** Latent rather than observed on the sample files, but the same out-of-bounds
 throw for any file with a small tag.

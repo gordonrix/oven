@@ -148048,7 +148048,12 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       if (!traceData.qualNums || !showChromQualScores)
         return;
       const qualMax = Math.max(...traceData.qualNums);
-      const scalePctQual = scaledHeight / qualMax;
+      // ove-vscode patch: the histogram used the full canvas height, so the
+      // best base in the read filled the track top to bottom. Sanger quality is
+      // near-uniform across a good read, which turned it into a solid slab
+      // behind the peaks rather than a readable histogram. Confine it to a
+      // band along the bottom.
+      const scalePctQual = scaledHeight * 0.35 / qualMax;
       for (let baseIndex = startBp; baseIndex <= endBp; baseIndex++) {
         const gapsAt = getGaps(baseIndex).gapsBefore;
         const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;

@@ -232,10 +232,21 @@ html, body { height: 100%; margin: 0; }
  * viewport is shown with an outline instead of a colour wash. That leaves red
  * as the only colour in the strip, meaning exactly one thing.
  */
-.ovealign-view .alignmentMinimapTracks { background: #e3e5e7; }
-.ovealign-view .miniBluePath { fill: #8b9096; }
-.ovealign-view .minimapLane.lane-hovered .miniBluePath { fill: #a7acb2 !important; }
-.ovealign-view .miniRedPath { fill: red; }
+.ovealign-view .alignmentMinimapTracks { background: #eceef0; }
+.ovealign-view .miniBluePath { fill: #a9aeb4; }
+.ovealign-view .minimapLane.lane-hovered .miniBluePath { fill: #c0c5ca !important; }
+
+/*
+ * A single-base difference is one pixel wide at this scale -- invisible, which
+ * defeats the point of the strip. Stroking the path in the same red widens it
+ * by half the stroke on each side, so a lone mismatch is findable while a long
+ * run keeps its true extent.
+ */
+.ovealign-view .miniRedPath {
+  fill: red;
+  stroke: red;
+  stroke-width: 5px;
+}
 
 /*
  * The viewport indicator. Everything about it is inline-styled -- the wash and

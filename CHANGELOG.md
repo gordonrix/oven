@@ -4,6 +4,20 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.9.5
+
+- **Translations now show on the reference.** `translations` only covers translations that
+  exist as their own annotations; the amino-acid track under a CDS is a separate toggle
+  (`cdsFeatureTranslations`) and was still off, which is why a CDS showed no protein.
+- **The coverage bars behind a chromatogram are confined to a band along the bottom.** They
+  were normalised to the best base in the read, and Sanger quality is near-uniform across a
+  good read, so nearly every bar filled the track and the peaks sat inside a solid grey
+  slab. See [patches/README.md](patches/README.md); the trace itself is unchanged.
+- Summary strip: lighter grey for the sequences, and a mismatch mark is stroked so a
+  single-base difference is findable rather than one pixel wide.
+- Reads are sorted by name, numerically where the name contains digits — so `_2` comes
+  before `_10` instead of after `_1`.
+
 ## 1.9.4
 
 - **Recoloured the summary strip.** Sequences are medium grey on light grey, and a mismatch

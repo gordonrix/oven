@@ -331,8 +331,12 @@
       // persisted to localStorage -- so a stale value there can mask a change
       // while debugging.
       alignmentAnnotationVisibility: {
-        chromatogram: true, features: true, translations: true,
-        axis: true, axisNumbers: true, sequence: true
+        chromatogram: true, features: true, axis: true, axisNumbers: true, sequence: true,
+        // `translations` only shows translations that exist as their own
+        // annotations; the amino-acid track under a CDS is a separate toggle,
+        // and it is the one people mean when they ask why a CDS has no
+        // translation. Both default to off.
+        translations: true, cdsFeatureTranslations: true
       },
       height: Math.max(320, host.clientHeight)
     };
