@@ -5,8 +5,33 @@ bio-parsers) are prebuilt UMDs imported from the upstream VSIX — see the `vend
 tag, which records a sha256 per imported file. There is no build-from-source path in this
 repo, so the few fixes we need are applied to the bundles directly and recorded here.
 
-**If either bundle is ever re-vendored, re-apply everything below**, then re-run
-`node --test 'test/unit/*.test.js'` and the browser checks in `test/browser/`.
+## How these are managed
+
+The changes live in three places, which have to agree:
+
+| | |
+|---|---|
+| `media/*.umd.js` | the bundles, stored **already patched**, so a clone and `vsce package` both just work |
+| `patches/*.patch` | the same changes as unified diffs — 220 reviewable lines instead of 8 MB |
+| `patches/bundles.json` | sha256 of each patched bundle |
+
+`node scripts/patches.js check` verifies all three agree, and runs in `pretest` and
+`prepackage`. It reverse-applies each patch (proving the file contains exactly what the
+diff describes) and checks the hash (catching any edit outside the patched regions, which
+reverse-apply alone would wave through). Its three failure messages are distinct on
+purpose, because the fixes differ:
+
+- **checksum mismatch** — something changed the bundle outside the patches.
+- **"patches are NOT applied"** — a pristine bundle was dropped in. Run
+  `node scripts/patches.js apply`.
+- **"patched regions do not match"** — a newer bundle, or a stale patch. Needs a human.
+
+**After deliberately changing a patch**, run `node scripts/patches.js write` to regenerate
+the diffs and hashes from the `vendor-1.2.0` baseline, or the three will disagree.
+
+**After re-vendoring a bundle**, run `apply`, then re-run `node --test 'test/unit/*.test.js'`
+and the browser checks in `test/browser/`. Every patch below is covered by a test that fails
+if it goes missing — that is what turns a silent regression into a red suite.
 
 ---
 
@@ -58,31 +83,7 @@ so a genuine spliced join keeps rendering per exon. It is display-only and is un
 `restoreWrapLocations` before anything is written back to disk; see
 `test/unit/wrapLocations.test.js`.
 
-## 2. The chromatogram quality histogram filled the whole track (`drawQualityScoreHistogram`)
-
-**Symptom.** The pale bars behind a trace covered the full height of the chromatogram, so
-the peaks sat inside what looked like a solid grey slab rather than on a baseline.
-
-**Cause.** The histogram is normalised to the best base in the read:
-
-```js
-const scalePctQual = scaledHeight / qualMax;
-```
-
-Sanger quality is near-uniform across a good read -- the sample files here sit at 45-47
-almost end to end -- so nearly every bar is drawn at full height and the histogram stops
-being a histogram.
-
-**Fix.** Confine it to a band along the bottom, leaving the peaks above it:
-
-```js
-const scalePctQual = scaledHeight * 0.35 / qualMax;
-```
-
-The 0.35 is the only tunable here. Note the bars can also be turned off entirely from the
-eye menu (`showChromQualScores`, persisted to localStorage, default on).
-
-## 3. A one-base difference was invisible in the summary strip (`Minimap.renderItem`)
+## 2. A one-base difference was invisible in the summary strip (`Minimap.renderItem`)
 
 **Symptom.** A single substitution left no visible mark; stroking the path to widen it made
 the mark taller than its own lane and left ragged ends.
@@ -99,7 +100,7 @@ const w = Math.max(width2, 3);
 const x = xStart - (w - width2) / 2;
 ```
 
-## 4. Chromatogram height and scaling (`Chromatogram`)
+## 3. Chromatogram height and scaling (`Chromatogram`)
 
 **Symptom.** Each chromatogram was 100px tall with its own pair of scale buttons parked at a
 sticky offset partway across the track, and started at a fixed scale of 0.05 regardless of
@@ -119,6 +120,16 @@ An explicit `scalePct` prop still wins, so the linear editor keeps its own behav
 
 ---
 
+## Deliberately NOT patched
+
+**The chromatogram quality-score bars.** They filled the whole track, because the histogram
+is normalised to the best base in the read and Sanger quality is near-uniform. That was
+briefly patched to a 35% band, then dropped: the bars are simply switched off instead, from
+`media/alignView.js`, by seeding OVE's own `showChromQualScores` localStorage flag. A
+supported toggle beats a patch, and the eye menu can still turn them back on.
+
+---
+
 # `media/bioparser2.umd.js`
 
 Three fixes, all in the ABIF (`.ab1`) reader, all hard throws. Together they are the
@@ -126,7 +137,7 @@ difference between the alignment tool opening a trace file and not. Pinned by
 `test/unit/ab1.test.js` against generated fixtures — each patch has been checked to make
 that suite fail when reverted.
 
-## 5. Node input produced a zero-length DataView (`getArrayBufferFromFile`, `toArrayBuffer`)
+## 4. Node input produced a zero-length DataView (`getArrayBufferFromFile`, `toArrayBuffer`)
 
 **Symptom.** `ab1ToJson` threw `Offset is outside the bounds of the DataView` for *any*
 input under Node, before reading a single tag.
@@ -141,7 +152,7 @@ holds unrelated bytes either side of it.
 **Fix.** Take raw bytes directly in either environment, and make `toArrayBuffer` handle an
 `ArrayBuffer` and any typed-array view, honouring `byteOffset`/`byteLength`.
 
-## 6. Trace tags numbered 1 only (`getTraceData`)
+## 5. Trace tags numbered 1 only (`getTraceData`)
 
 **Symptom.** `Cannot read properties of undefined (reading '1')` inside
 `convertBasePosTraceToPerBpTrace`.
@@ -153,7 +164,7 @@ back `undefined` and the per-bp trace builder dereferenced it.
 **Fix.** Add `baseCalls1`/`peakLocations1`/`qualNums1` to `tagDict` and fall back to them:
 `this.getDataTag(tagDict.peakLocations) || this.getDataTag(tagDict.peakLocations1)`.
 
-## 7. Tags stored inline (`getDataTag`)
+## 6. Tags stored inline (`getDataTag`)
 
 **Symptom.** Latent rather than observed on the sample files, but the same out-of-bounds
 throw for any file with a small tag.

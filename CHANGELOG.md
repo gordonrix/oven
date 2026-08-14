@@ -4,6 +4,17 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.10.1
+
+- **Chromatogram quality-score bars removed.** They are switched off through OVE's own
+  `showChromQualScores` toggle rather than patched, so this also deletes a bundle patch. The
+  eye menu can turn them back on; the setting is seeded once, so doing that sticks.
+- **Vendored-bundle patches are now managed rather than hand-applied.** The changes are kept
+  as unified diffs in `patches/*.patch` — 220 reviewable lines instead of 8 MB — with a
+  sha256 per bundle, and `node scripts/patches.js check` verifies all three agree. It runs
+  in `pretest` and before packaging, so a re-vendored bundle now fails loudly instead of
+  silently reverting every fix. `apply` re-applies them, `write` regenerates them.
+
 ## 1.10.0
 
 - **A substitution inside a CDS now shows what it codes for.** The read gets a translation

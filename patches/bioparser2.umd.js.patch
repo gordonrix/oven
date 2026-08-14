@@ -1,0 +1,68 @@
+--- a/media/bioparser2.umd.js
++++ b/media/bioparser2.umd.js
+@@ -26269,6 +26269,13 @@
+   const buffer = /* @__PURE__ */ getDefaultExportFromCjs(buffer$1);
+   const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
+   function getArrayBufferFromFile(file) {
++    // ove-vscode patch: accept raw bytes in either environment. The original
++    // unwrapped a Buffer to file.buffer and handed that to toArrayBuffer, which
++    // reads .length -- undefined on an ArrayBuffer -- producing a zero-length
++    // result. It also ignored a pooled Buffer's byteOffset.
++    if (file instanceof ArrayBuffer || ArrayBuffer.isView(file)) {
++      return Promise.resolve(toArrayBuffer(file));
++    }
+     if (!isBrowser) {
+       return toArrayBuffer(buffer$1.Buffer.isBuffer(file) ? file : file.buffer || file);
+     }
+@@ -26288,6 +26295,15 @@
+   }
+   __name(getArrayBufferFromFile, "getArrayBufferFromFile");
+   function toArrayBuffer(buffer2) {
++    // ove-vscode patch: handle ArrayBuffer and typed-array views, honouring
++    // byteOffset so a pooled Node Buffer does not read its neighbours' bytes.
++    if (buffer2 instanceof ArrayBuffer) return buffer2;
++    if (ArrayBuffer.isView(buffer2)) {
++      return buffer2.buffer.slice(
++        buffer2.byteOffset,
++        buffer2.byteOffset + buffer2.byteLength
++      );
++    }
+     const ab = new ArrayBuffer(buffer2.length);
+     const view = new Uint8Array(ab);
+     for (let i2 = 0; i2 < buffer2.length; ++i2) {
+@@ -26538,7 +26554,7 @@
+         const tagNum = inputArrayBuffer.getInt32(curElem + 4);
+         if (currTagName == inTag.tagName && tagNum === inTag.tagNum) {
+           const numEntries = inputArrayBuffer.getInt32(curElem + 16);
+-          const entryOffset = inputArrayBuffer.getInt32(curElem + 20);
++          const entryOffset = numEntries <= 4 ? curElem + 20 : inputArrayBuffer.getInt32(curElem + 20);
+           output = this[inTag.typeToReturn](entryOffset, numEntries);
+         }
+         curElem += 28;
+@@ -26551,9 +26567,13 @@
+       traceData.tTrace = this.getDataTag(tagDict.colorDataT);
+       traceData.gTrace = this.getDataTag(tagDict.colorDataG);
+       traceData.cTrace = this.getDataTag(tagDict.colorDataC);
+-      traceData.basePos = this.getDataTag(tagDict.peakLocations);
+-      traceData.baseCalls = this.getDataTag(tagDict.baseCalls2);
+-      traceData.qualNums = this.getDataTag(tagDict.qualNums);
++      // ove-vscode patch: tag number 2 is the edited/annotated copy and is
++      // simply absent on instruments that only ever wrote the raw copy, which
++      // left basePos undefined and threw inside convertBasePosTraceToPerBpTrace.
++      // Fall back to number 1 for each of the three.
++      traceData.basePos = this.getDataTag(tagDict.peakLocations) || this.getDataTag(tagDict.peakLocations1);
++      traceData.baseCalls = this.getDataTag(tagDict.baseCalls2) || this.getDataTag(tagDict.baseCalls1);
++      traceData.qualNums = this.getDataTag(tagDict.qualNums) || this.getDataTag(tagDict.qualNums1);
+       if (traceData.qualNums) {
+         if (!traceData.qualNums.filter((q) => q !== 1 && q !== 0).length) {
+           delete traceData.qualNums;
+@@ -26578,7 +26598,9 @@
+     baseCalls1: { tagName: "PBAS", tagNum: 1, typeToReturn: "getChar" },
+     baseCalls2: { tagName: "PBAS", tagNum: 2, typeToReturn: "getChar" },
+     qualNums: { tagName: "PCON", tagNum: 2, typeToReturn: "getNumber" },
++    qualNums1: { tagName: "PCON", tagNum: 1, typeToReturn: "getNumber" },
+     peakLocations: { tagName: "PLOC", tagNum: 2, typeToReturn: "getShort" },
++    peakLocations1: { tagName: "PLOC", tagNum: 1, typeToReturn: "getShort" },
+     peakDev: { tagName: "P1RL", tagNum: 1, typeToReturn: "getShort" },
+     peakOneAmp: { tagName: "P1AM", tagNum: 1, typeToReturn: "getShort" },
+     colorDataA: { tagName: "DATA", tagNum: 10, typeToReturn: "getShort" },

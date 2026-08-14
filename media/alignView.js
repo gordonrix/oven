@@ -54,6 +54,25 @@
     return label ? { label, cls: VERDICT_CLASS[label] } : null;
   }
 
+  /*
+   * The quality-score bars behind a trace are not wanted here: they say little
+   * about a good read, whose scores are near-uniform, and they sit between you
+   * and the peaks. OVE keeps the toggle in localStorage rather than a prop, so
+   * this is the supported way to turn it off -- and it means no patch to the
+   * bundle for it.
+   *
+   * Set once, behind our own marker, so switching it back on from the eye menu
+   * sticks instead of being undone every time the panel opens.
+   */
+  try {
+    if (localStorage.getItem('oveAlignQualScoresSeeded') === null) {
+      localStorage.setItem('showChromQualScores', 'false'); // JSON, per use-local-storage-state
+      localStorage.setItem('oveAlignQualScoresSeeded', '1');
+    }
+  } catch (e) {
+    // A webview with storage blocked still works; the bars just stay on.
+  }
+
   const $ = (id) => document.getElementById(id);
 
   function el(tag, cls, text) {
