@@ -269,6 +269,54 @@ export default async function run(page) {
     fail.push('the reference annotations are not drawn along the top');
   }
 
+  /* --- the summary strip is grey, with red meaning one thing --------------- */
+
+  out.minimap = await page.evaluate(() => {
+    const yellowish = (c) => {
+      const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
+      if (!m) return false;
+      const [r, g, b] = [+m[1], +m[2], +m[3]];
+      return r > 150 && g > 150 && b < 120;
+    };
+    const mm = document.querySelector('.alignmentMinimap');
+    if (!mm) return null;
+    // Upstream washes the viewport in translucent yellow and rules it with
+    // 2px yellow borders, which turns a red mismatch orange.
+    const stillYellow = [...mm.querySelectorAll('*')].filter((e) => {
+      const cs = getComputedStyle(e);
+      return yellowish(cs.backgroundColor) ||
+        (cs.borderTopWidth !== '0px' && yellowish(cs.borderTopColor)) ||
+        (cs.borderBottomWidth !== '0px' && yellowish(cs.borderBottomColor)) ||
+        yellowish(cs.fill);
+    }).length;
+    const path = (sel) => {
+      const e = mm.querySelector(sel);
+      return e ? getComputedStyle(e).fill : null;
+    };
+    return {
+      tracksBackground: getComputedStyle(mm.querySelector('.alignmentMinimapTracks')).backgroundColor,
+      sequence: path('.miniBluePath'),
+      mismatch: path('.miniRedPath'),
+      stillYellow
+    };
+  });
+
+  if (!out.minimap) fail.push('no summary strip rendered');
+  else {
+    if (out.minimap.stillYellow) {
+      fail.push(`${out.minimap.stillYellow} element(s) still tint the strip yellow`);
+    }
+    if (out.minimap.sequence !== 'rgb(139, 144, 150)') {
+      fail.push(`sequences are ${out.minimap.sequence}, want medium grey`);
+    }
+    if (out.minimap.tracksBackground !== 'rgb(227, 229, 231)') {
+      fail.push(`the strip ground is ${out.minimap.tracksBackground}, want light grey`);
+    }
+    if (out.minimap.mismatch !== 'rgb(255, 0, 0)') {
+      fail.push(`mismatches are ${out.minimap.mismatch}, want true red`);
+    }
+  }
+
   /* --- removing a read invalidates the alignment --------------------------- */
 
   await page.locator('.ovealign-read .ovealign-x').first().click();

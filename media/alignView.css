@@ -218,3 +218,34 @@ html, body { height: 100%; margin: 0; }
 }
 .ovealign-toggle:hover { background: #e8eef2; }
 .ovealign-toggle .chev { font-size: 9px; color: #5c7080; }
+
+/* --- the summary strip -------------------------------------------------- */
+
+/*
+ * Upstream draws each sequence as a light-blue bar on a slate-blue ground and
+ * then washes the current viewport in translucent yellow. The wash sits on top,
+ * so it tints everything under it: light blue reads as olive, and a red
+ * mismatch reads as orange -- the one thing in the strip that has to be
+ * unambiguous.
+ *
+ * So the sequences become neutral grey on a lighter grey ground, and the
+ * viewport is shown with an outline instead of a colour wash. That leaves red
+ * as the only colour in the strip, meaning exactly one thing.
+ */
+.ovealign-view .alignmentMinimapTracks { background: #e3e5e7; }
+.ovealign-view .miniBluePath { fill: #8b9096; }
+.ovealign-view .minimapLane.lane-hovered .miniBluePath { fill: #a7acb2 !important; }
+.ovealign-view .miniRedPath { fill: red; }
+
+/*
+ * The viewport indicator. Everything about it is inline-styled -- the wash and
+ * a 2px yellow rule top and bottom -- so every property here needs !important
+ * to win. Neutral grey rules mark the same extent without recolouring the bars
+ * behind them.
+ */
+.ovealign-view .verticalScrollDisplay {
+  background: transparent !important;
+  border-top: 2px solid rgba(24, 32, 38, .45) !important;
+  border-bottom: 2px solid rgba(24, 32, 38, .45) !important;
+  box-sizing: border-box;
+}

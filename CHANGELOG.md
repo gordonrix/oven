@@ -4,6 +4,14 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.9.4
+
+- **Recoloured the summary strip.** Sequences are medium grey on light grey, and a mismatch
+  is true red. Upstream drew the sequences light blue and washed the current viewport in
+  translucent yellow with yellow rules top and bottom, which tinted everything beneath it --
+  a red mismatch came out orange and the bars came out olive. The viewport is now marked
+  with a neutral outline, so red is the only colour in the strip and means exactly one thing.
+
 ## 1.9.3
 
 - The read verdict rule moved into the shared module so it can be unit-tested. It was
