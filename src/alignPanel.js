@@ -408,6 +408,7 @@ class AlignPanel {
       <div id="view" class="ovealign-view"></div>
     </div>
     <script nonce="${nonce}" src="${uri('index.umd.js')}"></script>
+    <script nonce="${nonce}" src="${uri('cartShared.js')}"></script>
     <script nonce="${nonce}" src="${uri('alignView.js')}"></script>
   </body>
 </html>`;

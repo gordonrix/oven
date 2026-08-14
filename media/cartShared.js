@@ -72,6 +72,49 @@
     return String(seq || '').replace(/\s+/g, '').toUpperCase();
   }
 
+  /* ------------------------------------------------- alignment verdicts -- */
+
+  /*
+   * A perfect stretch shorter than this is not evidence of anything -- a few
+   * dozen bases will match somewhere by luck, and calling that a partial match
+   * would dress up noise as a result.
+   */
+  const MIN_COVERED_BP = 50;
+
+  /**
+   * Reduce an aligned read to one of three verdicts.
+   *
+   *   match          perfect, and covers the reference end to end
+   *   partial match  perfect over the window it covers
+   *   mismatch       any substitution, insertion or deletion at all
+   *
+   * The distinction that matters is between "verified" and "verified as far as
+   * it goes". A Sanger read covers a window, so it can only ever reach partial
+   * match; claiming a plain "match" would say the whole construct was checked.
+   * Only whole-plasmid sequencing turns the reference green. One wrong base is
+   * one wrong base whether the read spans 800 bp or the lot, so any real
+   * difference is a mismatch regardless of how much was covered.
+   *
+   * @param {{mismatches: number, compared: number}} read
+   *   `compared` is how many reference positions the read actually spoke to.
+   * @param {number} referenceLength
+   * @returns {'match'|'partial match'|'mismatch'|null} null when not yet aligned
+   */
+  function alignmentVerdict(read, referenceLength, minCovered) {
+    if (!read || read.mismatches === undefined || read.mismatches === null) return null;
+    const floor = minCovered === undefined ? MIN_COVERED_BP : minCovered;
+    const covered = read.compared || 0;
+
+    // Substitutions and gapped columns are both counted in `mismatches`, so
+    // this is the "any indel or mismatch" case in one test.
+    if (read.mismatches > 0) return 'mismatch';
+    if (covered < floor) return 'mismatch';
+    // An insertion or deletion would have failed the test above, so a read that
+    // reaches here and spans the reference has matched it exactly.
+    if (referenceLength && covered === referenceLength) return 'match';
+    return 'partial match';
+  }
+
   /* ---------------------------------------------- origin-spanning joins -- */
 
   /**
@@ -231,6 +274,7 @@
 
   return {
     revComp, deriveBases, wrapsOrigin, normalizeSeqKey, tmNebQ5, gcFraction,
-    locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations
+    locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations,
+    alignmentVerdict, MIN_COVERED_BP
   };
 });

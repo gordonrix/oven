@@ -4,6 +4,13 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.9.3
+
+- The read verdict rule moved into the shared module so it can be unit-tested. It was
+  living inside the webview script, where the most-read output in the panel had no coverage
+  beyond a handful of fixed cases in a browser test. Behaviour is unchanged; every edge of
+  it is now pinned, including the full-coverage boundary and the short-stretch floor.
+
 ## 1.9.2
 
 - **The alignment now fills the panel.** It was collapsing to a short strip with dead space

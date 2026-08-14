@@ -38,40 +38,20 @@
   let dropOpen = true;  // the picker IS the empty state until there is an alignment
 
   /*
-   * A perfect stretch shorter than this is not evidence of anything -- a few
-   * dozen bases will match somewhere by luck, and calling that a partial match
-   * would dress up noise as a result.
+   * The rule itself lives in cartShared so it can be unit-tested; this only
+   * maps its answer to a colour. The numbers stay in the tooltip: the label
+   * answers "is this the construct?", the tooltip answers "how much of it did
+   * we see, and how far off is it?".
    */
-  const MIN_COVERED_BP = 50;
+  const VERDICT_CLASS = {
+    match: 'is-clean',              // green
+    'partial match': 'is-diff',     // gold
+    mismatch: 'is-bad'              // red
+  };
 
-  /**
-   * One of three verdicts, rather than a raw count.
-   *
-   *   match          perfect, and covers the reference end to end
-   *   partial match  perfect over the window it covers, but only part of it
-   *   mismatch       something actually differs
-   *
-   * The distinction that matters is between "verified" and "verified as far as
-   * it goes": a Sanger read can only ever reach partial match, because it
-   * covers a window; only whole-plasmid sequencing can turn the whole reference
-   * green. Any real difference is a mismatch regardless of coverage -- one
-   * wrong base is one wrong base whether the read spans 800 bp or the lot.
-   *
-   * The numbers stay in the tooltip: the label answers "is this the construct?",
-   * the tooltip answers "how much of it did we see, and how far off is it?".
-   */
   function verdict(read, referenceLength) {
-    if (read.mismatches === undefined || read.mismatches === null) return null;
-    const covered = read.compared || 0;
-    if (read.anchored === false || read.mismatches > 0 || covered < MIN_COVERED_BP) {
-      return { label: 'mismatch', cls: 'is-bad' };
-    }
-    // `compared` counts reference positions the read actually spoke to, so it
-    // equals the reference length only when nothing was left out.
-    if (referenceLength && covered === referenceLength) {
-      return { label: 'match', cls: 'is-clean' };
-    }
-    return { label: 'partial match', cls: 'is-diff' };
+    const label = window.CartShared.alignmentVerdict(read, referenceLength);
+    return label ? { label, cls: VERDICT_CLASS[label] } : null;
   }
 
   const $ = (id) => document.getElementById(id);
