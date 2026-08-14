@@ -1,0 +1,73 @@
+diff --git a/packages/bio-parsers/src/ab1ToJson.js b/packages/bio-parsers/src/ab1ToJson.js
+index 8620de8..4eaa91f 100644
+--- a/packages/bio-parsers/src/ab1ToJson.js
++++ b/packages/bio-parsers/src/ab1ToJson.js
+@@ -65,7 +65,14 @@ function abConverter(inputArrayBuffer) {
+       // eslint-disable-next-line eqeqeq
+       if (currTagName == inTag.tagName && tagNum === inTag.tagNum) {
+         const numEntries = inputArrayBuffer.getInt32(curElem + 16);
+-        const entryOffset = inputArrayBuffer.getInt32(curElem + 20);
++        // ABIF stores a value of 4 bytes or fewer in the offset field itself
++        // rather than elsewhere in the file. FWO_ is always inline, and on a
++        // very short read PBAS/PCON are too; dereferencing that field as an
++        // offset reads far outside the file.
++        const entryOffset =
++          numEntries <= 4
++            ? curElem + 20
++            : inputArrayBuffer.getInt32(curElem + 20);
+         output = this[inTag.typeToReturn](entryOffset, numEntries);
+       }
+       curElem += 28;
+@@ -84,7 +91,13 @@ function abConverter(inputArrayBuffer) {
+       traceData.basePos = this.getDataTag(tagDict.peakLocationsUser);
+     }
+     traceData.baseCalls = this.getDataTag(tagDict.baseCalls2);
++    if (traceData.baseCalls === undefined) {
++      traceData.baseCalls = this.getDataTag(tagDict.baseCalls1);
++    }
+     traceData.qualNums = this.getDataTag(tagDict.qualNums);
++    if (traceData.qualNums === undefined) {
++      traceData.qualNums = this.getDataTag(tagDict.qualNumsUser);
++    }
+     if (traceData.qualNums) {
+       //tnr if we're only getting 1's and 0's as qualNums, that means that there weren't actual qual nums attached to the file
+       if (!traceData.qualNums.filter(q => q !== 1 && q !== 0).length) {
+@@ -111,6 +124,7 @@ const tagDict = {
+   baseCalls1: { tagName: "PBAS", tagNum: 1, typeToReturn: "getChar" },
+   baseCalls2: { tagName: "PBAS", tagNum: 2, typeToReturn: "getChar" },
+   qualNums: { tagName: "PCON", tagNum: 2, typeToReturn: "getNumber" },
++  qualNumsUser: { tagName: "PCON", tagNum: 1, typeToReturn: "getNumber" },
+   peakLocations: { tagName: "PLOC", tagNum: 2, typeToReturn: "getShort" },
+   peakLocationsUser: { tagName: "PLOC", tagNum: 1, typeToReturn: "getShort" },
+   peakDev: { tagName: "P1RL", tagNum: 1, typeToReturn: "getShort" },
+diff --git a/packages/bio-parsers/src/utils/getArrayBufferFromFile.js b/packages/bio-parsers/src/utils/getArrayBufferFromFile.js
+index 82c2aa1..9b1874b 100644
+--- a/packages/bio-parsers/src/utils/getArrayBufferFromFile.js
++++ b/packages/bio-parsers/src/utils/getArrayBufferFromFile.js
+@@ -2,6 +2,12 @@ import { Buffer } from "buffer";
+ import isBrowser from "./isBrowser";
+ 
+ export default function getArrayBufferFromFile(file) {
++  // Raw bytes are already what we want, in either environment. Handling them
++  // here also avoids the `file.buffer` unwrap below, which discards a typed
++  // array's byteOffset and so reads the whole of a pooled Node Buffer's pool.
++  if (file instanceof ArrayBuffer || ArrayBuffer.isView(file)) {
++    return Promise.resolve(toArrayBuffer(file));
++  }
+   if (!isBrowser) {
+     //node environment
+     return toArrayBuffer(Buffer.isBuffer(file) ? file : file.buffer || file);
+@@ -23,6 +29,13 @@ export default function getArrayBufferFromFile(file) {
+ }
+ 
+ function toArrayBuffer(buffer) {
++  if (buffer instanceof ArrayBuffer) return buffer;
++  if (ArrayBuffer.isView(buffer)) {
++    return buffer.buffer.slice(
++      buffer.byteOffset,
++      buffer.byteOffset + buffer.byteLength
++    );
++  }
+   const ab = new ArrayBuffer(buffer.length);
+   const view = new Uint8Array(ab);
+   for (let i = 0; i < buffer.length; ++i) {
