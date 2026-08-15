@@ -73,11 +73,40 @@ function tryGitApply(args) {
   }
 }
 
+/**
+ * Does the bundle still parse as JavaScript?
+ *
+ * Every patch here is a hand edit to a 7 MB minified-ish file, and the way that
+ * goes wrong is a comment closed in the wrong place or a brace off by one --
+ * which does not fail loudly. The bundle just stops publishing its exports, and
+ * what you see is a demo page rendering nothing, several steps from the cause.
+ * `new Function` compiles without running, which is all that is needed.
+ *
+ * @returns an error message, or null if it parses.
+ */
+function syntaxError(file) {
+  try {
+    new Function(fs.readFileSync(file, 'utf8'));
+    return null;
+  } catch (e) {
+    return e && e.message ? e.message : String(e);
+  }
+}
+
 function check() {
   let bad = 0;
   const sums = readSums();
   for (const bundle of BUNDLES) {
     const patch = patchFor(bundle);
+    const file = path.join(ROOT, 'media', bundle);
+
+    const broken = syntaxError(file);
+    if (broken) {
+      console.error(`✖ ${bundle}: does not parse as JavaScript — ${broken}`);
+      bad++;
+      continue;
+    }
+
     const actual = sha(path.join(ROOT, 'media', bundle));
     const expected = sums[bundle];
     if (expected && expected !== actual) {
