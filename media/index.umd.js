@@ -146231,6 +146231,26 @@ double click --> edit`}`;
     }
     charWN = arrowPointiness * charWN;
     const widthMinusOne = width - charWN;
+    /*
+     * A primer's arrowhead is drawn *past* its last base rather than carved out
+     * of it.
+     *
+     * Upstream puts the tip at `width` and the arrowhead's base at
+     * `width - charWN`, so the point is taken out of the annotation's own
+     * width. On a feature that is fine -- it is wide and unlabelled at the tip.
+     * On a primer it means the last nucleotide or two sit inside the taper with
+     * no background behind them, which looks like the primer stops short of the
+     * bases it actually covers. The sharper the point, the worse it reads.
+     *
+     * So for primers the full-height box runs the whole width and the point is
+     * added on. Nothing clips it: the positioner svg has no viewBox and
+     * `.veRowItem svg:not(:root)` is `overflow: visible` (ove.css:11310). On a
+     * reverse primer the mirror transform maps the tip to a negative x, which
+     * sticks out to the left exactly as it should.
+     */
+    const isPrimer = type2 === "primer";
+    const arrowBase = isPrimer ? width : widthMinusOne;
+    const arrowTip = isPrimer ? width + charWN : width;
     let path2;
     let hasAPoint = false;
     const endLine = annotation.overlapsSelf ? `L 0,${height2 / 2}
@@ -146263,10 +146283,10 @@ double click --> edit`}`;
       hasAPoint = true;
       path2 = `
         ${startLines}
-        L ${widthMinusOne},0
-        L ${width},${height2 / 2}
+        L ${arrowBase},0
+        L ${arrowTip},${height2 / 2}
         ${arrowLine}
-        L ${widthMinusOne},${height2}
+        L ${arrowBase},${height2}
         ${bottomLine}
         ${endLine}
         z`;
@@ -146274,10 +146294,10 @@ double click --> edit`}`;
       hasAPoint = true;
       path2 = `
       ${startLines}
-      L ${widthMinusOne},0
-      L ${width},${height2 / 2}
+      L ${arrowBase},0
+      L ${arrowTip},${height2 / 2}
       ${arrowLine}
-      L ${widthMinusOne},${height2}
+      L ${arrowBase},${height2}
       ${bottomLine}
       Q ${pointiness},${height2 / 2} ${0},${0}
       z`;
@@ -146812,7 +146832,18 @@ double click --> edit`}`;
                 annotation,
                 annotation.forward
               )
-            }, annotation.bases && { pointiness: 3, arrowPointiness: 0.2 }), {
+            /*
+             * A primer's arrowhead, sharpened.
+             *
+             * Upstream gives a primer carrying its bases arrowPointiness 0.2 --
+             * so blunt it reads as a plain box, and the direction is easy to
+             * miss. arrowPointiness scales how far back from the tip the
+             * arrowhead's base sits, so a larger value is a longer, sharper
+             * point. Features use the default of 1; this sits between the two,
+             * pointed enough to read at a glance without turning the primer
+             * into the same shape as a feature.
+             */
+            }, annotation.bases && { pointiness: 3, arrowPointiness: 0.55 }), {
               height: annotationRange.containsLocations && !disregardLocations ? anotationHeightNoSpace / 8 : anotationHeightNoSpace,
               hideName: type2 === "primer" && annotation.bases || annotationRange.containsLocations && !disregardLocations,
               name: annotation.name
@@ -147932,8 +147963,17 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
    * same peak height at every base (spread 1.00x, against 2.81x for real
    * files), so no statistic computed from the data can place those anywhere
    * but the ceiling; only headroom keeps them off it.
+   *
+   * The percentile is the upper quartile rather than p95, measured over 157
+   * real Genewiz reads. p95 still leaves a failed read unreadable: where the
+   * called-peak spread is 12x-23x, the tail it tracks is dye front and the
+   * sequence is drawn at 1.6-3.2px of 58. p75 sits below that tail. It draws
+   * the typical peak at 24.5px against 16.1px, leaves no file under 5px
+   * (p95 leaves five), and costs 4.3% of peaks clipping at the top of the
+   * track against 0.4% -- which is what a chromatogram is supposed to look
+   * like, and cheap next to a flat line.
    */
-  const OVE_FIT_PERCENTILE = 0.95;
+  const OVE_FIT_PERCENTILE = 0.75;
   const OVE_FIT_HEADROOM = 1.6;
 
   function oveFitScale(chromData) {
@@ -170391,8 +170431,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           {
             label: "Choose Tm Type:",
             options: [
-              { value: "default", label: "Default Tm (Breslauer)" },
-              { value: "neb_tm", label: "NEB Tm (SantaLucia)" }
+              { value: "default", label: "Breslauer" },
+              { value: "neb_tm", label: "SantaLucia" }
             ],
             onChange: (e2) => setTmType(e2.target.value),
             selectedValue: tmType
