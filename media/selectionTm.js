@@ -4,7 +4,7 @@
  *
  * OVE already has "Melting Temp of Selection" and "Percent GC Content of
  * Selection" items (View menu, both off by default). The Tm it shows is not
- * the one gibson_planner.py designs against though -- OVE calculates at 500 nM
+ * the one the primer-design pipeline targets though -- OVE calculates at 500 nM
  * primer with no Mg correction, and defaults to Breslauer rather than
  * SantaLucia. So rather than add a competing readout, this turns those items
  * on and substitutes the number in the existing one.
@@ -160,7 +160,7 @@
       : n < S().MIN_TM_BP
       ? `Nearest-neighbour Tm is a two-state duplex model; under ${S().MIN_TM_BP} bp it breaks down.`
       : 'NEB Q5 nearest-neighbour Tm (SantaLucia 1998), 50 mM Na⁺, 1.5 mM Mg²⁺, 200 nM primer '
-        + '— the same calculation gibson_planner.py designs against.';
+        + '— the same calculation the primer-design pipeline targets.';
     if (host.title !== tip) host.title = tip;
   }
 

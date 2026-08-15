@@ -50,10 +50,21 @@ see [CHANGELOG.md](CHANGELOG.md) for the detail.
 
 ### Editing
 
-- **Change Amino Acid** — right-click a residue in a translation to pick any codon from the
-  genetic code, with codon usage for *S. cerevisiae*, *E. coli*, *H. sapiens* or
-  *M. musculus* shown alongside. The edit is written in the opposite case to its
-  neighbours so it can be found again.
+- **Change Amino Acid, with a built-in codon usage table** — right-click a residue in a
+  translation and pick any codon from the whole genetic code, not just that residue's
+  synonyms, so the residue itself can be mutated and not only its codon swapped.
+
+  The table is laid out the way a codon table is printed — first base down the side, second
+  across the top, third within each block — and every codon carries its **fraction** (its share
+  of that amino acid's codons) and **frequency** (per thousand codons), for
+  *S. cerevisiae*, *E. coli*, *H. sapiens* and *M. musculus*. The organism and the
+  three-letter/single-letter notation are remembered between sessions, and each organism links
+  back to the table it came from: the Codon Usage Database (Nakamura et al. 2000), embedded
+  because a webview's content-security policy blocks the network.
+
+  Choosing a codon rewrites those three bases and nothing else, on either strand and across the
+  origin, and the edit is written in the opposite case to its neighbours so it can be found
+  again. It lands on the undo stack like any other edit.
 - **The editor is no longer read-only by default.** Upstream never overrode OVE's `readOnly`
   default of `true`, which hid every item in the **Create** menu — so "Create → New Primer"
   appeared as an empty popup.
@@ -261,7 +272,7 @@ Selection** status-bar items, both off by default. `oveCart.showSelectionStatsBy
 **View** menu afterwards always wins.
 
 `oveCart.useDesignTmCalculation` (on) substitutes the number in that melting-temp item
-with the NEB Q5 nearest-neighbour Tm `gibson_planner.py` designs against — 200 nM primer
+with the NEB Q5 nearest-neighbour Tm a primer-design pipeline targets — 200 nM primer
 with a 1.5 mM Mg²⁺ correction — instead of OVE's own figure at 500 nM with no Mg. The
 difference is small but real; on a 22 bp region OVE reports 64.6 where your pipeline
 says 64.5. Turn it off to get OVE's stock behaviour back.

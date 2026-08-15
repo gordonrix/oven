@@ -209,7 +209,7 @@
 
   /*
    * NEB Q5 nearest-neighbour melting temperature (SantaLucia 1998), ported
-   * from tm_neb_q5() in the user's gibson_planner.py so the extension agrees
+   * from the reference implementation the primer-design pipeline uses, so the extension agrees
    * with the pipeline their existing primers were designed against.
    *
    * It lives here, in the dual-use module, because both sides need it: the

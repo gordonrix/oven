@@ -14,13 +14,13 @@ test skips itself when the file is absent.
 
 ### Regenerating `fixtures/tm-oracle.json`
 
-`src/tm.js` is a port of `tm_neb_q5()` from `gibson_planner.py`, and the oracle
+`src/tm.js` is a port of the primer-design pipeline's nearest-neighbour Tm, and the oracle
 pins it to that function's output. If the Python ever changes, regenerate with:
 
 ```sh
 python3 - > test/fixtures/tm-oracle.json <<'PY'
 import json, math, random
-# ... paste _NN_R, _NN_TERM_DS/DH, _NN_DS/DH and tm_neb_q5 from gibson_planner.py ...
+# ... paste the nearest-neighbour constants and Tm function from the reference ...
 random.seed(20260811)
 cases = [{'seq': s, 'tm': tm_neb_q5(s)} for s in
          ['AT','GC','ATGC','GGGGCCCC','ATATATATAT'] +

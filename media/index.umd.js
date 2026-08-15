@@ -170418,15 +170418,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       Popover,
       {
         modifiers: popoverOverflowModifiers,
-        content: /* @__PURE__ */ React$2.createElement("div", { style: { maxWidth: 300, padding: 20 } }, "Using Tm calculations based on these", " ", /* @__PURE__ */ React$2.createElement(
-          "a",
-          {
-            rel: "noopener noreferrer",
-            target: "_blank",
-            href: "https://github.com/TeselaGen/tg-oss/blob/master/packages/sequence-utils/src/calculateNebTm.js"
-          },
-          "algorithms"
-        ), /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement(
+        content: /* @__PURE__ */ React$2.createElement("div", { style: { maxWidth: 300, padding: 20 } }, /* @__PURE__ */ React$2.createElement(
           RadioGroup,
           {
             label: "Choose Tm Type:",
