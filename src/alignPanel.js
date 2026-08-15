@@ -1,8 +1,12 @@
 /*
  * The Alignment panel.
  *
- * A singleton webview panel opened from the Align button in a plasmid editor,
- * modelled on cartPanel.js -- including its two hard-won habits: register the
+ * One webview panel per reference sequence, opened from the Align button in a
+ * plasmid editor and handed out by `AlignPanels`. Keying on the reference is
+ * what lets two references be compared side by side, and it stops Align on a
+ * new plasmid from landing in a window still holding the last one's reads.
+ *
+ * The panel is modelled on cartPanel.js -- including its two hard-won habits: register the
  * message handler *before* assigning html, because assigning html runs the
  * client script synchronously and it asks for state immediately; and treat
  * postMessage to a hidden webview as discarded, so defer while hidden and flush
@@ -24,7 +28,7 @@ const { align, mutatedCodons } = require('./align');
 const { parseFile, trimByQuality, followAlignment, SEQUENCE_EXTENSIONS } = require('./alignTracks');
 
 class AlignPanel {
-  constructor(context) {
+  constructor(context, opts) {
     this.context = context;
     this.panel = null;
     this.pending = false;
@@ -36,17 +40,7 @@ class AlignPanel {
     this.busy = false;
     this.nextId = 1;
     this.mafft = null; // {ok, path, version, message} once checked
-
-    // A path change can turn a broken setup into a working one, so re-check
-    // rather than leaving a stale banner up.
-    context.subscriptions.push(
-      vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('oveCart.mafftPath')) {
-          mafft.invalidate();
-          this.checkMafft();
-        }
-      })
-    );
+    this.onDispose = (opts && opts.onDispose) || null;
   }
 
   /**
@@ -96,7 +90,7 @@ class AlignPanel {
 
     const panel = vscode.window.createWebviewPanel(
       'oveCart.alignment',
-      'Alignment',
+      panelTitle(this.reference),
       { viewColumn: column || vscode.ViewColumn.Beside, preserveFocus: false },
       {
         enableScripts: true,
@@ -139,7 +133,9 @@ class AlignPanel {
       if (panel.visible && this.pending) this.push();
     });
     panel.onDidDispose(() => {
-      if (this.panel === panel) this.panel = null;
+      if (this.panel !== panel) return;
+      this.panel = null;
+      if (this.onDispose) this.onDispose();
     });
 
     panel.webview.html = this.html(panel.webview);
@@ -147,10 +143,14 @@ class AlignPanel {
   }
 
   setReference(ref) {
+    // Pressing Align again on the same plasmid must not throw away the results
+    // already on screen -- only a genuinely different reference invalidates them.
+    if (this.reference && sameReference(this.reference, ref)) return;
     this.reference = ref;
     // The old alignment was against a different sequence, so it is now a lie.
     this.alignment = null;
     this.reads.forEach((r) => { delete r.mismatches; });
+    if (this.panel) this.panel.title = panelTitle(ref);
   }
 
   /* ------------------------------------------------------------ messaging -- */
@@ -445,4 +445,70 @@ function shortError(e) {
   return m.length > 90 ? `${m.slice(0, 87)}…` : m;
 }
 
-module.exports = { AlignPanel };
+/* --------------------------------------------------------- one per reference -- */
+
+/**
+ * Identity of a reference, for deciding which panel it belongs to.
+ *
+ * The file path when there is one, since two plasmids can share a name; the
+ * name otherwise, for a reference picked out of a multi-record file. An
+ * empty key is the panel opened from the command palette with nothing loaded.
+ */
+function referenceKey(ref) {
+  if (!ref) return '';
+  return ref.path ? `path:${ref.path}` : `name:${ref.name || ''}`;
+}
+
+function sameReference(a, b) {
+  return Boolean(b) && referenceKey(a) === referenceKey(b);
+}
+
+function panelTitle(ref) {
+  const name = ref && ref.name;
+  return name ? `Alignment · ${name}` : 'Alignment';
+}
+
+/** Hands out one AlignPanel per reference, and keeps them off each other's state. */
+class AlignPanels {
+  constructor(context) {
+    this.context = context;
+    this.byKey = new Map();
+
+    // A path change can turn a broken setup into a working one, so re-check
+    // rather than leaving a stale banner up -- in every open panel, since they
+    // all share the one MAFFT.
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (!e.affectsConfiguration('oveCart.mafftPath')) return;
+        mafft.invalidate();
+        for (const panel of this.byKey.values()) panel.checkMafft();
+      })
+    );
+  }
+
+  /** The panel for this reference, opening one if it is not already up. */
+  show(reference, column) {
+    const key = referenceKey(reference);
+    let panel = this.byKey.get(key);
+    if (!panel) {
+      panel = new AlignPanel(this.context, { onDispose: () => this.byKey.delete(key) });
+      this.byKey.set(key, panel);
+    }
+    return panel.show(reference, column);
+  }
+
+  /**
+   * Locate MAFFT and tell every open panel about it.
+   *
+   * Reached from the notification action, which belongs to no panel in
+   * particular, so it needs one that exists -- any of them will do the lookup.
+   */
+  async locateMafft() {
+    const panels = [...this.byKey.values()];
+    const first = panels[0] || new AlignPanel(this.context);
+    await first.locateMafft();
+    await Promise.all(panels.slice(1).map((p) => p.checkMafft()));
+  }
+}
+
+module.exports = { AlignPanel, AlignPanels, referenceKey, panelTitle };

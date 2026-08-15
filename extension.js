@@ -7,14 +7,14 @@ const config = require('./src/config');
 const { CartStore } = require('./src/cartStore');
 const { CartPanel } = require('./src/cartPanel');
 const { DNAViewerProvider, pickInventoryFile } = require('./src/editorProvider');
-const { AlignPanel } = require('./src/alignPanel');
+const { AlignPanels } = require('./src/alignPanel');
 const mafft = require('./src/mafft');
 const { buildDemoHtml } = require('./src/editorHtml');
 
 function activate(context) {
   const cart = new CartStore(context);
   const cartPanel = new CartPanel(context, cart);
-  const alignPanel = new AlignPanel(context);
+  const alignPanel = new AlignPanels(context);
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(

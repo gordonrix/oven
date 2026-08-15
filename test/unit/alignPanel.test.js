@@ -21,7 +21,7 @@ Module._load = function (request, ...rest) {
   return realLoad.call(this, request, ...rest);
 };
 
-const { AlignPanel } = require('../../src/alignPanel');
+const { AlignPanel, AlignPanels, referenceKey, panelTitle } = require('../../src/alignPanel');
 
 const panelWith = (names) => {
   const panel = new AlignPanel({ subscriptions: [], extensionPath: '/x' });
@@ -60,4 +60,54 @@ test('sorting is stable enough to leave an already-ordered list alone', () => {
   const panel = panelWith(names);
   panel.sortReads();
   assert.deepStrictEqual(panel.reads.map((r) => r.name), names);
+});
+
+/* ------------------------------------------------------ one panel per reference -- */
+
+const REF_A = { name: 'pBT0-150', sequence: 'ACGT', path: '/plasmids/a.gb' };
+const REF_B = { name: 'pGR-004', sequence: 'ACGT', path: '/plasmids/b.gb' };
+
+test('a reference is identified by its path, not its name', () => {
+  assert.notEqual(referenceKey(REF_A), referenceKey(REF_B));
+  // Two files can legitimately hold a plasmid of the same name.
+  assert.notEqual(
+    referenceKey({ name: 'same', path: '/one.gb' }),
+    referenceKey({ name: 'same', path: '/two.gb' })
+  );
+  assert.equal(referenceKey(null), '');
+});
+
+test('the window title carries the reference name', () => {
+  assert.equal(panelTitle(REF_A), 'Alignment · pBT0-150');
+  assert.equal(panelTitle(null), 'Alignment', 'nothing loaded yet');
+});
+
+test('each reference gets its own panel, and the same one on reopening', () => {
+  const panels = new AlignPanels({ subscriptions: [], extensionPath: '/x' });
+  const opened = [];
+  // show() would build a real webview, so stop at the point the panel is chosen.
+  AlignPanel.prototype.show = function (ref) { opened.push(this); this.reference = ref; };
+
+  panels.show(REF_A);
+  panels.show(REF_B);
+  panels.show(REF_A);
+
+  assert.equal(panels.byKey.size, 2, 'two references, two windows');
+  assert.equal(opened[0], opened[2], 'reopening a reference reuses its window');
+  assert.notEqual(opened[0], opened[1]);
+});
+
+test('re-aligning the same reference keeps the results already on screen', () => {
+  const panel = new AlignPanel({ subscriptions: [], extensionPath: '/x' });
+  panel.setReference(REF_A);
+  panel.alignment = { msa: ['ACGT'] };
+  panel.reads = [{ id: 1, name: 'r1.ab1', mismatches: 3 }];
+
+  panel.setReference({ ...REF_A });          // Align pressed again on the same plasmid
+  assert.ok(panel.alignment, 'the alignment survives');
+  assert.equal(panel.reads[0].mismatches, 3);
+
+  panel.setReference(REF_B);                 // a different plasmid does invalidate it
+  assert.equal(panel.alignment, null);
+  assert.equal(panel.reads[0].mismatches, undefined);
 });

@@ -268,6 +268,31 @@ html, body { height: 100%; margin: 0; }
 .ovealign-view .scaleChromatogramButtonUp,
 .ovealign-view .scaleChromatogramButtonDown { display: none !important; }
 
+/*
+ * The pinned reference row.
+ *
+ * OVE marks its template track with a red rule above and below (as an inset
+ * box-shadow) and a red underline on the name. Red is the mismatch colour
+ * everywhere else in this panel, so on the reference -- the one track that
+ * cannot mismatch -- it reads as an error. A plain divider instead.
+ */
+/* !important because OVE sets both of these as inline styles on the element. */
+.ovealign-view .alignmentTrackFixedToTop .alignmentViewTrackContainer {
+  box-shadow: inset 0 -1px 0 #d3dae0 !important;
+}
+.ovealign-view .alignmentTrackFixedToTop .alignmentTrackName {
+  border-bottom-color: transparent !important;
+}
+
+/*
+ * A literal <br> sits above every trace in OVE's chromatogram markup, clearing
+ * the two scale buttons. Those are hidden here -- the amplitude control in the
+ * top bar drives every track at once instead -- so the line box it leaves is
+ * 19px of white above each read, and with a dozen reads on screen that is more
+ * space than the traces themselves.
+ */
+.ovealign-view .chromatogram > br { display: none; }
+
 .ovealign-scale { display: inline-flex; align-items: center; gap: 3px; margin-left: 12px; }
 .ovealign-scalelabel { font-size: 11px; color: #5c7080; margin-right: 2px; }
 
@@ -283,23 +308,6 @@ html, body { height: 100%; margin: 0; }
   cursor: pointer;
 }
 .ovealign-scalebtn:hover { background: #e8eef2; }
-
-/* --- the reference stays put -------------------------------------------- */
-
-/*
- * Pinned while the reads scroll under it. Only `top` is stuck, so the reference
- * still moves sideways in step with the reads -- a reference frozen in both axes
- * would line its bases up against the wrong columns.
- *
- * The background is load-bearing: without it the reads show through.
- */
-.ovealign-view .ove-ref-track {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  background: #fff;
-  box-shadow: 0 1px 0 #d3dae0;
-}
 
 /* --- controls injected into OVE's top bar -------------------------------- */
 

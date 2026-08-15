@@ -33,6 +33,7 @@
     alignment: null
   };
   let view = null;      // the live createAlignmentView handle
+
   let renderedId = 0;   // bumped so a stale alignment is never re-shown
   let lastPayload = null;
   let dropOpen = true;  // the picker IS the empty state until there is an alignment
@@ -484,7 +485,7 @@
     }
 
     host.textContent = '';
-    const mount = el('div');
+    const mount = el('div', 'ovealign-main');
     mount.style.height = '100%';
     host.appendChild(mount);
 
@@ -507,6 +508,21 @@
         translations: true, cdsFeatureTranslations: true
       },
       height: Math.max(320, host.clientHeight),
+      /*
+       * Pins the first track -- our reference -- above the scroller.
+       *
+       * This is OVE's own mechanism, added for the template row in pairwise
+       * mode but written generally: it renders track 0 into
+       * `.alignmentTrackFixedToTop` with its own scroll holder, keeps that
+       * holder's scrollLeft in step with the main one, and offsets the
+       * virtualised list's indices by one so nothing is drawn twice.
+       *
+       * We rendered a second one-track alignment view for this before. It
+       * looked right but had its own redux store, so it had its own selection
+       * -- highlighting in one did nothing to the other. Same view, same store,
+       * one selection.
+       */
+      hasTemplate: true,
       // Injected into OVE's own top bar. `additionalTopEl` renders after the
       // visibility and sort controls, i.e. beside the eye; the `...LeftEl`
       // variant lands at the far left, before the alignment name.
@@ -515,35 +531,7 @@
     view = window.createAlignmentView(mount, lastPayload);
     window.__oveAlignment = view;
     watchSize(host);
-    decorateAlignment(host);
-  }
-
-  /*
-   * Two behaviours that have to be attached to OVE's own DOM after it renders,
-   * and re-attached when it re-renders.
-   *
-   * The reference is pinned by marking its track container and letting CSS do
-   * the rest. `position: sticky` genuinely holds here -- the vertical scroller
-   * is `.alignmentHolder` and nothing between it and the tracks clips overflow
-   * -- and sticking only the top means the reference still scrolls sideways in
-   * step with the reads, which is the whole point of keeping it visible.
-   *
-   * All the track containers share one class, and CSS has no "first of class",
-   * so the marker goes on in JS.
-   */
-  function decorateAlignment(host) {
-    const mark = () => {
-      const tracks = host.querySelectorAll('.alignmentViewTrackContainer');
-      tracks.forEach((t, i) => t.classList.toggle('ove-ref-track', i === 0));
-    };
-    mark();
-    if (decorateAlignment.observing !== host) {
-      decorateAlignment.observing = host;
-      // OVE rebuilds tracks on scroll and on any payload change, which drops
-      // the marker; re-apply rather than assume it survives.
-      new MutationObserver(() => mark()).observe(host, { childList: true, subtree: true });
-      wireShiftScroll(host);
-    }
+    wireShiftScroll(host);
   }
 
   /**
@@ -551,10 +539,16 @@
    *
    * The browser only translates shift+wheel to horizontal scrolling for the
    * document scroller, so inside OVE's own overflow container it does nothing
-   * -- which is why a wide alignment is currently only navigable by dragging
+   * -- which is why a wide alignment was otherwise only navigable by dragging
    * the scrollbar or the minimap.
+   *
+   * Bound to the host rather than to a holder, once: the holders are replaced
+   * on every render, and there are two of them now that OVE pins the reference.
+   * Whichever one the pointer is over is found from the event.
    */
   function wireShiftScroll(host) {
+    if (wireShiftScroll.wired === host) return;
+    wireShiftScroll.wired = host;
     host.addEventListener('wheel', (e) => {
       if (!e.shiftKey) return;
       const holder = e.target.closest && e.target.closest('.alignmentHolder');

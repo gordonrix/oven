@@ -38,6 +38,64 @@ const COMPLEMENT_CHANNEL = {
 const TRIM_WINDOW = 10;
 const TRIM_MIN_GOOD = 0.8;
 
+/* ------------------------------------------------------------- smoothing -- */
+
+/*
+ * Some writers emit very few samples per base, with square shoulders -- one
+ * file here has four samples per base and every value is either 0 or the peak
+ * height. Drawn as straight lines between those points that is a flat-topped
+ * rectangle, which is what "pure vertical spikes" looks like on screen. Other
+ * viewers interpolate, which is why the same file reads as peaks there.
+ *
+ * Anything with enough samples to describe its own shape is left alone: this
+ * is for rescuing coarse traces, not for reshaping good ones.
+ */
+const SMOOTH_BELOW = 8;   // samples per base under which a trace is coarse
+const SMOOTH_TARGET = 16; // samples per base to resample up to
+
+/** Cosine interpolation: smooth through the samples, no overshoot past them. */
+function resample(points, target) {
+  if (points.length < 2) return points.slice();
+  const out = new Array(target);
+  const last = points.length - 1;
+  for (let i = 0; i < target; i++) {
+    const at = (i / (target - 1)) * last;
+    const lo = Math.floor(at);
+    const hi = Math.min(last, lo + 1);
+    const f = at - lo;
+    // (1 - cos(pi*f)) / 2 eases in and out, so square shoulders become peaks
+    // without ringing above the original maximum the way a spline can.
+    const w = (1 - Math.cos(Math.PI * f)) / 2;
+    out[i] = Math.round(points[lo] * (1 - w) + points[hi] * w);
+  }
+  return out;
+}
+
+/**
+ * Smooth a per-bp chromatogram whose sample density is too low to draw.
+ *
+ * @returns the chromatogram, resampled only if it is coarse.
+ */
+function smoothChromatogram(chrom) {
+  const traces = chrom && chrom.baseTraces;
+  if (!traces || !traces.length) return chrom;
+
+  // Judge on the median, so a couple of odd-sized windows at the ends do not
+  // decide it for the whole read.
+  const lengths = traces.map((bp) => (bp.aTrace || []).length).sort((a, b) => a - b);
+  const median = lengths[Math.floor(lengths.length / 2)];
+  if (!median || median >= SMOOTH_BELOW) return chrom;
+
+  return Object.assign({}, chrom, {
+    baseTraces: traces.map((bp) => {
+      const out = {};
+      for (const channel of TRACE_CHANNELS) out[channel] = resample(bp[channel] || [], SMOOTH_TARGET);
+      return out;
+    }),
+    smoothedFrom: median
+  });
+}
+
 /* ---------------------------------------------------------------- parsing -- */
 
 const SEQUENCE_EXTENSIONS = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'dna'];
@@ -71,7 +129,7 @@ async function parseFile(content, fileName) {
         sequence: String(seq.sequence || '').toUpperCase(),
         circular: Boolean(seq.circular),
         sequenceData: seq,
-        chromatogramData: seq.chromatogramData || null
+        chromatogramData: seq.chromatogramData ? smoothChromatogram(seq.chromatogramData) : null
       };
     });
 }
@@ -187,6 +245,7 @@ function followAlignment(chrom, { strand, rotation }) {
 
 module.exports = {
   parseFile, isSupported, SEQUENCE_EXTENSIONS,
+  smoothChromatogram, resample, SMOOTH_BELOW, SMOOTH_TARGET,
   trimByQuality, qualitySpan, sliceTrack,
   reverseComplementChromatogram, rotateChromatogram, followAlignment
 };

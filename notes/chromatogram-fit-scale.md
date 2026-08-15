@@ -182,3 +182,36 @@ python notes/ove_render.py path/to/file.ab1 --start 300 --end 339 -o out.png
 first therefore sets the scale for the whole alignment, so the view depends on track order.
 With the percentile fix that matters much less, since files land in a similar range — but if
 tracks should be independently scaled, that is a separate change.
+
+---
+
+## Measured after shipping: p95 is not low enough (1.11.2)
+
+The rule above went in, and was then measured against **157** real Genewiz reads rather than
+the ten this report was written from — using the shipping code path (`media/bioparser2.umd.js`
+→ the bundled `oveFitScale`) instead of the Python reimplementation, so there is no second
+implementation to keep in step.
+
+Median called peak, drawn in a 58px track:
+
+| rule | mean | files under 5px | range |
+|---|---|---|---|
+| `58 / max` (original) | 12.5 px | **15** | 0.7 – 30.1 |
+| `58 / (p95 × 1.6)` | 16.1 px | **5** | 1.6 – 24.3 |
+| `58 / (p75 × 1.6)` | **24.5 px** | **0** | 5.8 – 31.0 |
+
+p95 fixes the two saturating files this report singled out (0.7 → 15.9 px, 0.9 → 17.2 px) but
+leaves a second, different failure untouched. Four `SP-LacZ-cl*-M13F*` reads have a called-peak
+spread (p95 ÷ median) of **11.5× – 23.4×**, against 1.6× – 3.1× for the rest. At that spread
+p95 is *itself* inside the dye front, so the sequence is still drawn at 1.6 – 3.2 px. The
+percentile has to sit below the tail, not at the top of it.
+
+The cost is clipping, and it is small: **4.3 %** of called peaks are drawn past the top of the
+track on average (10 % in the worst file), against 0.4 % under p95. Peaks clipping at the top
+of a chromatogram is what one is supposed to look like — a flat line is not.
+
+A floor (`max(fitted, 14 / median)`) was measured too and also removes every unreadable file,
+but it is a second rule patching over the first; changing the one constant does the same job.
+
+The synthetic case is unaffected. A consensus trace has p75 = median = p95, so it still draws
+at `58 / 1.6` = 36 px with nothing clipped, and the headroom factor is still what puts it there.

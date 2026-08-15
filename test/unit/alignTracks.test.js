@@ -15,6 +15,7 @@ const path = require('path');
 
 const {
   parseFile, isSupported, trimByQuality, qualitySpan,
+  smoothChromatogram, SMOOTH_TARGET,
   reverseComplementChromatogram, rotateChromatogram, followAlignment
 } = require('../../src/alignTracks');
 const { revComp } = require('../../media/cartShared');
@@ -166,4 +167,19 @@ test('followAlignment applies the flip before the rotation, as the aligner does'
 
 test('a track with no trace survives the whole transform', () => {
   assert.strictEqual(followAlignment(null, { strand: -1, rotation: 5 }), null);
+});
+
+test('coarse traces are smoothed, dense ones are left alone', () => {
+  const bp = (pts) => ({ aTrace: pts, tTrace: pts, gTrace: pts, cTrace: pts });
+  // Four samples per base with square shoulders: too coarse to draw as a peak.
+  const coarse = { baseTraces: Array.from({ length: 20 }, () => bp([0, 900, 900, 0])) };
+  const out = smoothChromatogram(coarse);
+  assert.equal(out.baseTraces[0].aTrace.length, SMOOTH_TARGET);
+  assert.equal(out.smoothedFrom, 4);
+  // Interpolation must not invent signal above what the file actually contains.
+  assert.ok(Math.max(...out.baseTraces[0].aTrace) <= 900);
+  assert.equal(out.baseTraces[0].aTrace[0], 0);
+
+  const dense = { baseTraces: Array.from({ length: 20 }, () => bp(new Array(12).fill(500))) };
+  assert.equal(smoothChromatogram(dense), dense, 'a dense trace is returned untouched');
 });

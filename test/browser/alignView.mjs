@@ -232,16 +232,19 @@ export default async function run(page) {
   out.fill = await page.evaluate(() => {
     const view = document.querySelector('.ovealign-view');
     const av = document.querySelector('.alignmentView');
+    const pin = document.querySelector('.alignmentTrackFixedToTop');
     return {
       body: Math.round(document.body.getBoundingClientRect().height),
       view: Math.round(view.getBoundingClientRect().height),
-      alignment: av ? Math.round(av.getBoundingClientRect().height) : 0
+      alignment: av ? Math.round(av.getBoundingClientRect().height) : 0,
+      pin: pin ? Math.round(pin.getBoundingClientRect().height) : 0
     };
   });
   // The alignment should take what is left of the window, not a fixed strip.
   if (out.fill.view < out.fill.body * 0.5) {
     fail.push(`the alignment view is only ${out.fill.view}px of ${out.fill.body}px`);
   }
+  if (!out.fill.pin) fail.push('the pinned reference did not render');
   if (Math.abs(out.fill.alignment - out.fill.view) > 4) {
     fail.push(`OVE rendered ${out.fill.alignment}px inside a ${out.fill.view}px host`);
   }
@@ -330,32 +333,124 @@ export default async function run(page) {
   /* --- the reference stays put while the reads scroll ---------------------- */
 
   out.frozenReference = await page.evaluate(async () => {
-    const holder = document.querySelector('.alignmentHolder');
-    const tops = () => [...document.querySelectorAll('.veRowItem')]
-      .map((r) => Math.round(r.getBoundingClientRect().top));
-    const marked = document.querySelectorAll('.ove-ref-track').length;
-    const before = tops();
-    holder.scrollTop = 150;
-    await new Promise((r) => setTimeout(r, 250));
-    const after = tops();
-    return { marked, scrolled: holder.scrollTop > 0, before, after };
+    // Two holders once the reference is pinned: OVE renders the template into
+    // its own, and keeps its scrollLeft in step with the main one.
+    const holders = [...document.querySelectorAll('.alignmentHolder')];
+    const pinned = document.querySelector('.alignmentTrackFixedToTop .alignmentHolder');
+    const main = holders.find((h) => h !== pinned);
+    const top = (sel) => {
+      const e = document.querySelector(sel);
+      return e ? Math.round(e.getBoundingClientRect().top) : null;
+    };
+    const before = {
+      pin: top('.alignmentTrackFixedToTop .veRowItem'),
+      read: top('.alignmentHolder:not(.alignmentTrackFixedToTop .alignmentHolder) .veRowItem')
+    };
+
+    main.scrollTop = 150;
+    main.scrollLeft = 400;
+    main.dispatchEvent(new Event('scroll'));
+    await new Promise((r) => setTimeout(r, 300));
+
+    return {
+      holders: holders.length,
+      // Exactly one track pinned, and the scroller must not draw it again --
+      // OVE offsets the virtualised indices by one to make sure of that.
+      pinTracks: document.querySelectorAll('.alignmentTrackFixedToTop .veRowItem').length,
+      pinName: (document.querySelector('.alignmentTrackFixedToTop .alignmentTrackName') || {}).textContent,
+      pinShadow: getComputedStyle(
+        document.querySelector('.alignmentTrackFixedToTop .alignmentViewTrackContainer')).boxShadow,
+      before,
+      after: {
+        pin: top('.alignmentTrackFixedToTop .veRowItem'),
+        read: top('.alignmentHolder:not(.alignmentTrackFixedToTop .alignmentHolder) .veRowItem')
+      },
+      scrolled: main.scrollTop > 0,
+      pinnedLeft: pinned.scrollLeft,
+      mainLeft: main.scrollLeft
+    };
   });
-  if (out.frozenReference.marked !== 1) {
-    fail.push(`expected exactly one pinned reference track, got ${out.frozenReference.marked}`);
+  const fr = out.frozenReference;
+  if (fr.holders !== 2) fail.push(`expected a pinned holder and a main one, saw ${fr.holders}`);
+  // OVE marks its template track in red, which is the mismatch colour used
+  // everywhere else here -- on the one track that cannot mismatch.
+  if (/rgb\(255, *0, *0\)/.test(fr.pinShadow)) {
+    fail.push(`the pinned reference is still ruled in red (${fr.pinShadow})`);
   }
-  if (out.frozenReference.scrolled) {
-    if (out.frozenReference.before[0] !== out.frozenReference.after[0]) {
-      fail.push('the reference scrolled away with the reads');
-    }
-    if (out.frozenReference.before[1] === out.frozenReference.after[1]) {
+  if (fr.pinTracks !== 1) fail.push(`the pinned row holds ${fr.pinTracks} tracks, want 1`);
+  if (fr.scrolled) {
+    if (fr.before.pin !== fr.after.pin) fail.push('the pinned reference scrolled away');
+    if (fr.before.read === fr.after.read) {
       fail.push('the reads did not scroll, so the pin proves nothing');
+    }
+  }
+  // Vertically frozen but horizontally in step -- otherwise the pinned bases sit
+  // above the wrong columns, which is worse than not pinning at all.
+  if (fr.pinnedLeft !== fr.mainLeft) {
+    fail.push(`the pinned reference is at column ${fr.pinnedLeft}, the reads at ${fr.mainLeft}`);
+  }
+
+  /* --- one selection, shared with the pinned reference --------------------- */
+
+  /*
+   * The reason the reference is pinned by OVE rather than by a second view of
+   * our own: a second view carries its own redux store, so it had its own
+   * selection and highlighting in one did nothing to the other.
+   */
+  out.sharedSelection = await page.evaluate(async () => {
+    const row = document.querySelector(
+      '.alignmentHolder:not(.alignmentTrackFixedToTop .alignmentHolder) .veRowItem');
+    const r = row.getBoundingClientRect();
+    const fire = (type, x) => row.dispatchEvent(
+      new MouseEvent(type, { clientX: x, clientY: r.top + 8, bubbles: true, buttons: 1 }));
+    fire('mousedown', r.left + 60);
+    fire('mousemove', r.left + 300);
+    fire('mouseup', r.left + 300);
+    await new Promise((res) => setTimeout(res, 400));
+
+    const wide = (root) => [...root.querySelectorAll('.veSelectionLayer')]
+      .some((e) => e.getBoundingClientRect().width > 4);
+    return {
+      onPinned: wide(document.querySelector('.alignmentTrackFixedToTop')),
+      anywhere: wide(document)
+    };
+  });
+  if (out.sharedSelection.anywhere && !out.sharedSelection.onPinned) {
+    fail.push('a selection in the reads does not show on the pinned reference');
+  }
+
+  /* --- the chromatogram rows carry no dead space --------------------------- */
+
+  out.chromRow = await page.evaluate(() => {
+    const cv = document.querySelector('.alignmentHolder canvas');
+    if (!cv) return null;
+    const chrom = cv.closest('.chromatogram');
+    return {
+      row: Math.round(chrom.getBoundingClientRect().height),
+      trace: Math.round(chrom.querySelector('.chromatogram-trace').getBoundingClientRect().height),
+      brs: [...chrom.children].filter((e) => e.tagName === 'BR' &&
+        e.getBoundingClientRect().height > 0).length
+    };
+  });
+  if (out.chromRow) {
+    // OVE leaves a <br> above each trace to clear scale buttons we hide; the
+    // line box it leaves was 19px of white per read.
+    if (out.chromRow.brs) fail.push(`${out.chromRow.brs} <br> still takes space above the trace`);
+    if (out.chromRow.row - out.chromRow.trace > 4) {
+      fail.push(`the chromatogram row is ${out.chromRow.row}px around a ${out.chromRow.trace}px trace`);
     }
   }
 
   /* --- shift+wheel scrolls sideways, not down ------------------------------ */
 
   out.shiftScroll = await page.evaluate(async () => {
-    const h = document.querySelector('.alignmentHolder');
+    const h = document.querySelector(
+      '.alignmentHolder:not(.alignmentTrackFixedToTop .alignmentHolder)');
+    // Back to the left edge first: the frozen-reference check above leaves this
+    // scrolled, and possibly already at its maximum, where a wheel event has
+    // nowhere to move it and this would fail for the wrong reason.
+    h.scrollLeft = 0;
+    await new Promise((r) => setTimeout(r, 150));
     const at = () => ({ left: h.scrollLeft, top: h.scrollTop });
     const before = at();
     (h.querySelector('.veRowItem') || h).dispatchEvent(
