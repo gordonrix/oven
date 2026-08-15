@@ -1,0 +1,184 @@
+/*
+ * Change Amino Acid. Literal colours rather than VS Code theme tokens: this
+ * overlays the OVE editor, which is a white page whatever the theme -- same
+ * reasoning as primerSearch.css.
+ */
+
+.oveaa-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(16, 22, 26, .4);
+}
+
+.oveaa-panel {
+  display: flex;
+  flex-direction: column;
+  max-width: 900px;
+  max-height: 100%;
+  background: #fff;
+  border-radius: 5px;
+  box-shadow: 0 4px 24px rgba(16, 22, 26, .35);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #182026;
+}
+
+.oveaa-head {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e1e8ed;
+}
+.oveaa-title { flex: 1; font-size: 16px; font-weight: 600; }
+.oveaa-close {
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #5c7080;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.oveaa-close:hover { color: #182026; }
+
+.oveaa-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  font-size: 12px;
+}
+.oveaa-orglabel { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.oveaa-select {
+  font-size: 12px;
+  font-weight: 400;
+  padding: 5px 7px;
+  min-width: 240px;
+  border: 1px solid #c7cdd4;
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* Which residue is being changed. Pushed to the right of the organism picker
+ * and left of the notation radios, so the two controls stay at the edges. */
+.oveaa-current { flex: 1; color: #5c7080; }
+
+.oveaa-notation { display: flex; gap: 14px; }
+.oveaa-radio { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+.oveaa-body { overflow: auto; padding: 0 18px; }
+.oveaa-body .oveaa-cellgrid { font-variant-numeric: tabular-nums; }
+
+/*
+ * The genetic code as it is conventionally printed: first base down the side,
+ * second across the top, third within each cell. The axis captions sit outside
+ * the table so they can be rotated without disturbing its layout.
+ */
+.oveaa-grid { display: flex; align-items: stretch; gap: 6px; padding: 4px 0 10px; }
+
+.oveaa-axis-left,
+.oveaa-axis-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #5c7080;
+  writing-mode: vertical-rl;
+}
+.oveaa-axis-left { transform: rotate(180deg); } /* reads bottom-to-top */
+
+.oveaa-code { border-collapse: collapse; font-size: 12px; }
+.oveaa-axis {
+  padding-bottom: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #5c7080;
+}
+.oveaa-corner { border: none; }
+
+/* The base letters on both axes, on the blue ground the printed table uses. */
+.oveaa-base,
+.oveaa-first,
+.oveaa-third {
+  padding: 3px 7px;
+  font-weight: 600;
+  color: #1c3559;
+  background: #8ba6cd;
+  border: 1px solid #fff;
+  text-align: center;
+}
+.oveaa-third { font-weight: 400; }
+
+/*
+ * The block rules, 2px, carried through the axis headers as well as the cells
+ * so the divisions line up with the letters that name them.
+ */
+.oveaa-base + .oveaa-base { border-left: 2px solid #9aa3ab; }
+.oveaa-coderow.is-block-start .oveaa-first { border-top: 2px solid #9aa3ab; }
+
+/*
+ * One codon: a single cell to click and highlight, whose four fields are laid
+ * out on fixed tracks so the numbers line up down a column.
+ *
+ * The grid goes on a div inside the cell rather than on the cell -- display:
+ * grid on a <td> takes it out of the table's layout and the four columns
+ * collapse into one.
+ */
+.oveaa-cell {
+  padding: 0;
+  background: #f4f5f6;
+  border: 1px solid #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/*
+ * A 2px rule around each block of four, matching the divisions in the axis
+ * headers -- between second-base columns, and between first-base blocks.
+ */
+.oveaa-cell + .oveaa-cell { border-left: 2px solid #9aa3ab; }
+.oveaa-coderow.is-block-start .oveaa-cell { border-top: 2px solid #9aa3ab; }
+.oveaa-cellgrid {
+  display: grid;
+  grid-template-columns: 3.4em 2.8em 2.4em 2.8em;
+  align-items: baseline;
+  gap: 0 4px;
+  padding: 2px 8px;
+}
+.oveaa-codon { font-family: Menlo, Consolas, monospace; letter-spacing: .05em; }
+.oveaa-aa { color: #394b59; }
+.oveaa-num { font-family: Menlo, Consolas, monospace; color: #5c7080; text-align: right; }
+
+.oveaa-cell:hover { background: #e7eaed; }
+/* The codon in use. Marked, not disabled: clicking it is simply a no-op. */
+.oveaa-cell.is-current { background: #a8e6d8; }
+.oveaa-cell.is-current:hover { background: #93ddcc; }
+
+/* The field names, under the leftmost block only -- the columns repeat. */
+.oveaa-legend {
+  padding: 0;
+  border: none;
+  font-size: 11px;
+  color: #5c7080;
+}
+.oveaa-legend .oveaa-cellgrid { padding: 3px 8px 0; }
+.oveaa-legend span {
+  font-family: inherit;
+  color: inherit;
+  /* Centred over the track rather than following the alignment of the values
+   * under them, which is left for the codon and right for the numbers. */
+  text-align: center;
+}
+
+.oveaa-foot {
+  padding: 12px 18px 14px;
+  border-top: 1px solid #e1e8ed;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #394b59;
+}
+.oveaa-link { color: #2b6cb0; word-break: break-all; }
