@@ -50,7 +50,7 @@ function resolvePath(raw) {
 module.exports = {
   viewType,
   readOnly: () => cfg().get('readOnly', false),
-  allowSequenceEditing: () => cfg().get('allowSequenceEditing', false),
+  allowSequenceEditing: () => cfg().get('allowSequenceEditing', true),
   autoAddCreatedPrimers: () => cfg().get('autoAddCreatedPrimers', true),
   showSelectionStatsByDefault: () => cfg().get('showSelectionStatsByDefault', true),
   useDesignTmCalculation: () => cfg().get('useDesignTmCalculation', true),

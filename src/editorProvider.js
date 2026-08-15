@@ -15,6 +15,12 @@ const shared = require('../media/cartShared.js');
 const { buildEditorHtml } = require('./editorHtml');
 
 const SEARCH_COLS_KEY = 'oveCart.searchColumnWidths';
+/*
+ * The Filter Cut Sites selection. globalState rather than workspaceState: which
+ * enzymes someone works with follows them between projects, the same reasoning
+ * as the cart.
+ */
+const CUT_SITES_KEY = 'oveCart.cutSiteFilter';
 
 /**
  * Ask for an inventory file and store it in user settings.
@@ -145,6 +151,13 @@ class DNAViewerProvider {
         return;
       }
 
+      if (message.type === 'cart/openPanel') {
+        // Beside the editor, and without stealing focus -- the picker the user
+        // just opened is the thing they are working in.
+        this.cartPanel.show();
+        return;
+      }
+
       if (message.type === 'cart/requestState') {
         pushCartState();
         return;
@@ -200,6 +213,11 @@ class DNAViewerProvider {
         return;
       }
 
+      if (message.type === 'cutsites/save') {
+        await this.context.globalState.update(CUT_SITES_KEY, message.filter || null);
+        return;
+      }
+
       if (message.type === 'search/pickInventory') {
         await pickInventoryFile();
         webview.postMessage({ type: 'search/inventoryChanged', inventory: inventory.load().status });
@@ -250,6 +268,14 @@ class DNAViewerProvider {
       searchUri: this.mediaUri(webview, 'primerSearch.js'),
       selTmUri: this.mediaUri(webview, 'selectionTm.js'),
       strandUri: this.mediaUri(webview, 'strandBar.js'),
+      toolBtnsUri: this.mediaUri(webview, 'toolButtons.js'),
+      cutSitesUri: this.mediaUri(webview, 'cutSites.js'),
+      codonUsageUri: this.mediaUri(webview, 'codonUsage.js'),
+      codonEditUri: this.mediaUri(webview, 'codonEdit.js'),
+      aminoAcidUri: this.mediaUri(webview, 'aminoAcid.js'),
+      aminoAcidCssUri: this.mediaUri(webview, 'aminoAcid.css'),
+      rowViewCssUri: this.mediaUri(webview, 'rowView.css'),
+      cutSiteFilter: this.context.globalState.get(CUT_SITES_KEY, null),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
       viewType: config.viewType(),
       readOnly: config.readOnly(),

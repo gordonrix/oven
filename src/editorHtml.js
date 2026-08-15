@@ -26,15 +26,19 @@ function panelsShown(viewTypeConfig) {
 }
 
 /*
- * The buttons sit in one fixed flex row, sized and styled to match OVE's own
- * menu bar (14px Arial, 5px/10px padding, 30px tall) rather than shouting over
- * it. They used to be 16px bold pills 41px tall, which took enough width to
- * cover the toolbar icons as soon as the editor was made narrow. Squared
- * corners and desaturated fills keep them legible as actions without competing
- * with the sequence.
+ * Save is not among them: OVE's own File > Save, and its mod+s hotkey, are
+ * wired up in bootScript instead, which also greys the item out when nothing
+ * has changed. A second Save that could not know that was worse than none.
+ *
+ * The buttons are OVE menu-bar items that happen to be ours: same 14px Arial,
+ * same 5px/10px padding in a 30px box, no background, and Blueprint's own text
+ * colour and hover wash. They were coloured pills, which read as a separate
+ * toolbar bolted on top of the editor rather than as part of it.
  *
  * top: 5px lines them up with File/Edit/View, so they occupy the menu row --
  * which is empty on the right -- instead of the icon row underneath it.
+ *
+ * `right` is set at runtime, not here: see media/toolButtons.js.
  */
 const BASE_STYLE = `
       html, body { width: 100%; height: 100%; }
@@ -42,29 +46,27 @@ const BASE_STYLE = `
       .ove-toolbtns {
         position: fixed;
         top: 5px;
-        right: 16px;
+        right: 16px; /* a starting point; placeToolButtons measures the real one */
         z-index: 20000;
         display: flex;
-        gap: 3px;
+        gap: 4px; /* matches .tg-menu-bar-item's 2px margin either side */
       }
       .ove-toolbtns button {
         height: 30px;
         padding: 5px 10px;
-        color: white;
+        color: #182026;
+        background: none;
         border: none;
-        border-radius: 0;
+        border-radius: 3px;
         font-family: Arial, sans-serif;
         font-size: 14px;
         font-weight: 400;
         cursor: pointer;
         white-space: nowrap;
       }
-      .ove-toolbtns button:hover { filter: brightness(1.12); }
-      .ove-toolbtns button:disabled { background-color: #9aa5ad; cursor: not-allowed; opacity: .6; }
-      .save-button { background-color: #3d7ea6; }
-      .ove-cart-btn { background-color: #4f8452; }
-      .ove-search-btn { background-color: #6f5f96; }
-      .ove-align-btn { background-color: #a07338; }
+      .ove-toolbtns button:hover { background-color: rgba(167, 182, 194, .3); }
+      .ove-toolbtns button:active { background-color: rgba(115, 134, 148, .3); }
+      .ove-toolbtns button:disabled { color: rgba(92, 112, 128, .6); cursor: not-allowed; }
 `;
 
 /**
@@ -84,7 +86,7 @@ const BASE_STYLE = `
  * Create menu or silently unlocks base editing.
  */
 function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers,
-  showSelectionStats, withCart }) {
+  showSelectionStats, withCart, cutSiteFilter }) {
   return `
       const editor = window.createVectorEditor("createDomNodeForMe", {
         withPreviewMode: false,
@@ -97,6 +99,23 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
         panelMap: window.OveSearch.panelMap,
         onSelectionOrCaretChanged: function () { window.OveSelectionTm.refresh(); },` : ''}
+        /*
+         * Lights up OVE's own File > Save and its mod+s hotkey.
+         *
+         * OVE hides that menu item unless an onSave prop is passed, and
+         * upstream never passed one -- which is why saving needed a button of
+         * our own bolted to the toolbar. OVE also tracks whether anything has
+         * changed (sequenceData.stateTrackingId against lastSavedId), so with
+         * this wired the item greys itself out when there is nothing to save.
+         *
+         * The state is read back from the editor rather than taken from the
+         * tidied copy OVE passes in, so the bytes written are exactly what the
+         * old Save button wrote. onSuccessfulSave marks the editor clean.
+         */
+        onSave: function (opts, tidiedData, props, onSuccessfulSave) {
+          postSave();
+          if (onSuccessfulSave) onSuccessfulSave();
+        },
         beforeAnnotationCreate: function (info) {
           try {
             if (${Boolean(withCart && autoAddCreatedPrimers)} && info &&
@@ -114,15 +133,21 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
       editor.updateEditor({
         sequenceData: ${sequenceJson},
         panelsShown: ${panelsShown(viewType)},
-        readOnly: ${Boolean(readOnly)}
+        readOnly: ${Boolean(readOnly)}${cutSiteFilter ? `,
+        // Restored from globalState. Applied here rather than after mounting so
+        // the filter is right on the first render instead of flickering through
+        // OVE's "Single cutters" default.
+        restrictionEnzymes: ${JSON.stringify(cutSiteFilter)}` : ''}
       });`;
 }
 
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, pickerUri,
-    searchUri, selTmUri, strandUri, sequenceJson, viewType, readOnly, disableBpEditing,
-    autoAddCreatedPrimers, showSelectionStats, useDesignTm } = opts;
+    searchUri, selTmUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
+    aminoAcidUri, aminoAcidCssUri, rowViewCssUri, sequenceJson, viewType, readOnly,
+    disableBpEditing, autoAddCreatedPrimers, showSelectionStats, useDesignTm,
+    cutSiteFilter } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -131,6 +156,8 @@ function buildEditorHtml(opts) {
     <link rel="stylesheet" href="${cartCssUri}" />
     <link rel="stylesheet" href="${searchCssUri}" />
     <link rel="stylesheet" href="${strandCssUri}" />
+    <link rel="stylesheet" href="${aminoAcidCssUri}" />
+    <link rel="stylesheet" href="${rowViewCssUri}" />
     <style>${BASE_STYLE}</style>
   </head>
   <body>
@@ -146,8 +173,7 @@ function buildEditorHtml(opts) {
       <button id="ove-search-button" class="ove-search-btn"
               onclick="window.OveSearch.open({scoped:true})">Primer Search</button>
       <button id="ove-cart-button" class="ove-cart-btn"
-              onclick="window.OveCart.openPicker()">Add to Cart</button>
-      <button id="save-button" class="save-button" onclick="postSave()">Save</button>
+              onclick="window.OveCart.openCart()">Primer Cart</button>
     </div>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
@@ -155,12 +181,19 @@ function buildEditorHtml(opts) {
     <script src="${searchUri}"></script>
     <script src="${selTmUri}"></script>
     <script src="${strandUri}"></script>
+    <script src="${toolBtnsUri}"></script>
+    <script src="${cutSitesUri}"></script>
+    <script src="${codonUsageUri}"></script>
+    <script src="${codonEditUri}"></script>
+    <script src="${aminoAcidUri}"></script>
     <script>
-${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true })}
+${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
       window.OveSelectionTm.init(editor, { useDesignTm: ${Boolean(useDesignTm)} });
       window.OveStrandBar.init();
+      window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
+      window.OveAminoAcid.init(vscode, editor);
     </script>
   </body>
 </html>`;

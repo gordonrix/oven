@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OVE editor demo</title>
+    <link rel="stylesheet" href="ove.css" />
+    <link rel="stylesheet" href="aminoAcid.css" />
+    <!--
+      A real createVectorEditor mount, standing in for the custom editor tab.
+
+      The other demo pages exercise our own panels against a stubbed host. This
+      one exists for what only appears once OVE's own editor is on screen: its
+      menu bar, its right-click menus, and the redux state behind Filter Cut
+      Sites. The script order and the button row mirror src/editorHtml.js, and
+      have to keep mirroring it for this to be worth anything.
+    -->
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; }
+      .ove-created-div { height: 100%; background-color: white; }
+      .ove-toolbtns {
+        position: fixed; top: 5px; right: 16px; z-index: 20000; display: flex; gap: 4px;
+      }
+      .ove-toolbtns button {
+        height: 30px; padding: 5px 10px; color: #182026; background: none; border: none;
+        border-radius: 3px; font-family: Arial, sans-serif; font-size: 14px; font-weight: 400;
+        cursor: pointer; white-space: nowrap;
+      }
+      .ove-toolbtns button:hover { background-color: rgba(167, 182, 194, .3); }
+      .ove-toolbtns button:active { background-color: rgba(115, 134, 148, .3); }
+      .ove-toolbtns button:disabled { color: rgba(92, 112, 128, .6); cursor: not-allowed; }
+
+      /* Stands in for the gutter the real webview leaves down its right side,
+       * which is what the button row has to be measured against. */
+      body { padding-right: 46px; box-sizing: border-box; background: #1e1e1e; }
+    </style>
+  </head>
+  <body>
+    <div class="ove-toolbtns">
+      <button id="ove-align-button" class="ove-align-btn">Align</button>
+      <button id="ove-search-button" class="ove-search-btn">Primer Search</button>
+      <button id="ove-cart-button" class="ove-cart-btn">Add to Cart</button>
+      <button id="save-button" class="save-button">Save</button>
+    </div>
+    <script>
+      const posted = [];
+      window.acquireVsCodeApi = () => ({
+        postMessage: (m) => {
+          posted.push(m);
+          document.getElementById('posted').textContent = JSON.stringify(posted);
+        },
+        getState: () => ({}), setState: () => {}
+      });
+    </script>
+    <script src="index.umd.js"></script>
+    <script>
+      /*
+       * Stands in for primerSearch.js's override, which is what carries the
+       * Change Amino Acid entry in the real page. Resolved at click time, so
+       * aminoAcid.js loading further down is fine.
+       */
+      window.OveSearchStub = {
+        translationRightClicked: (items, opts, props) => {
+          // Kept so a test can open the dialog without driving the popover.
+          window.__lastTranslation = opts;
+          window.__lastProps = props;
+          return [...items,
+            ...(window.OveAminoAcid ? window.OveAminoAcid.menuItems(opts, props) : [])];
+        }
+      };
+      document.addEventListener('__openAA', (e) => {
+        const opts = window.__lastTranslation;
+        if (!opts) return;
+        try {
+          window.OveAminoAcid.open(opts.annotation, e.detail.index,
+            (window.__lastProps || {}).updateSequenceData);
+        } catch (err) {
+          document.getElementById('aaError').textContent = String(err && err.stack || err);
+        }
+      });
+    </script>
+    <script>
+      const SEQ = ('GAATTCGGATCCAAGCTTGCGGCCGCTCTAGAGTCGACCTGCAGGCATGCAAGCTTGGCACTGGCCGTCGTTTTAC' +
+        'AACGTCGTGACTGGGAAAACCCTGGCGTTACCCAACTTAATCGCCTTGCAGCACATCCCCCTTTCGCCAGCTGGCGTAATAGCG').repeat(3);
+      const editor = window.createVectorEditor('createDomNodeForMe', {
+        withPreviewMode: false, editorName: 'VectorEditor', showMenuBar: true,
+        showReadOnly: true, disableSetReadOnly: false, disableBpEditing: false,
+        rightClickOverrides: window.OveSearchStub || {},
+        // Mirrors src/editorHtml.js: this is what makes OVE's File > Save and
+        // its mod+s hotkey available at all.
+        onSave: function (opts, tidiedData, props, onSuccessfulSave) {
+          document.getElementById('saved').textContent =
+            String(Number(document.getElementById('saved').textContent || 0) + 1);
+          if (onSuccessfulSave) onSuccessfulSave();
+        }
+      });
+      window.__oveEditor = editor;
+      editor.updateEditor({
+        sequenceData: {
+          name: 'demo-plasmid', circular: true, sequence: SEQ,
+          features: [
+            { id: 'f1', name: 'demo CDS', start: 12, end: 110, forward: true, type: 'CDS' },
+            { id: 'f2', name: 'rev CDS', start: 150, end: 248, forward: false, type: 'CDS' }
+          ]
+        },
+        panelsShown: [[
+          { id: 'sequence', name: 'Sequence Map', active: true },
+          { id: 'circular', name: 'Circular Map', active: false },
+          { id: 'properties', name: 'Properties', active: false }
+        ]],
+        readOnly: false,
+        annotationVisibility: { translations: true, cdsFeatureTranslations: true }
+      });
+    </script>
+    <!--
+      A DOM bridge. The browser harness evaluates in an isolated world, so it
+      can read the DOM but not page globals like the editor handle -- state has
+      to be published into an element for a test to see it.
+    -->
+    <script id="editorState" type="application/json">{}</script>
+    <script id="posted" type="application/json">[]</script>
+    <script id="rightClick" type="application/json">{}</script>
+    <span id="saved" hidden>0</span>
+    <pre id="aaError" style="display:none"></pre>
+    <script>
+      const publish = () => {
+        document.getElementById('editorState').textContent = JSON.stringify({
+          restrictionEnzymes: editor.getState().restrictionEnzymes,
+          sequence: editor.getState().sequenceData.sequence
+        });
+      };
+      publish();
+      // Drives the editor from a test: detail is an updateEditor payload.
+      document.addEventListener('__updateEditor', (e) => {
+        editor.updateEditor(e.detail);
+        setTimeout(publish, 50);
+      });
+      document.addEventListener('__publish', publish);
+    </script>
+    <script src="toolButtons.js"></script>
+    <script src="cutSites.js"></script>
+    <script src="cartShared.js"></script>
+    <script src="codonUsage.js"></script>
+    <script src="codonEdit.js"></script>
+    <script src="aminoAcid.js"></script>
+    <script>
+      window.OveCutSites.init(acquireVsCodeApi(), editor, null);
+      window.OveAminoAcid.init(acquireVsCodeApi(), editor);
+    </script>
+  </body>
+</html>

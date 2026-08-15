@@ -1,0 +1,35 @@
+/*
+ * Row-view spacing that OVE does not offer a prop for.
+ *
+ * The gaps around the sequence letters come from a hard-coded table in the
+ * bundle (`rowHeights` in index.umd.js), written out as inline `margin-top` on
+ * each annotation track. There is no stylesheet rule to override and no prop
+ * that reaches it, so the adjustment is made here instead.
+ */
+
+/*
+ * Breathing room between the letters and the reverse-strand primers.
+ *
+ * Both primer tracks carry the same class and get the same 5px margin, but the
+ * forward one also has a labels container above it, so the bottom reads as much
+ * tighter than the top. The two are told apart by position: the forward track is
+ * always rendered before the letters, the reverse track always after.
+ *
+ * The margin goes on the track, deliberately, and not as padding on the letters.
+ * media/strandBar.js derives the reverse strand-indicator bar's position from
+ * `.veRowItemSequenceContainer`'s offsetHeight -- padding there would push the
+ * bar off the letters it is supposed to be hugging. Margin on a later sibling
+ * changes neither that offsetHeight nor its offsetTop.
+ *
+ * `!important` is required: the 5px is an inline style written by React, and an
+ * inline style beats any stylesheet rule without it.
+ *
+ * Safe against the virtualised row list: ReactList measures each rendered row's
+ * real offsetHeight and overwrites its arithmetic estimate, and rows are
+ * block-flow siblings, so nothing can overlap. Only the estimate for rows never
+ * yet scrolled to is short by this much, which is a scrollbar nicety and already
+ * inexact upstream.
+ */
+.veRowItem .veRowItemSequenceContainer ~ .veRowViewPrimersContainer {
+  margin-top: 9px !important;
+}
