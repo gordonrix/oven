@@ -141,3 +141,7 @@ media/test.js
 
 # packaged builds
 *.vsix
+
+# Design sources live here but are not tracked -- large binaries, and the
+# shipped icon is an exported PNG.
+*.ai

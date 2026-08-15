@@ -19,3 +19,8 @@ media/AlignDemo.html
 scripts/**
 patches/**
 upstream/**
+
+# Design sources. The shipped icon is a PNG; the editable original is
+# tracked for future work but has no business in the package.
+*.ai
+*.svg
