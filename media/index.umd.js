@@ -147891,30 +147891,74 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
    * window for a single control in the panel chrome. The per-track buttons
    * still work -- they now move all of them together -- and are hidden in CSS.
    */
-  const OVE_CHROM_HEIGHT = 58;
+  const OVE_CHROM_HEIGHT_DEFAULT = 58;
+  const oveChromHeight = { value: OVE_CHROM_HEIGHT_DEFAULT };
   const oveChromScale = { value: null, listeners: /* @__PURE__ */ new Set() };
 
-  function oveSetChromScale(v) {
-    oveChromScale.value = Math.max(0.002, v);
+  function oveNotifyChrom() {
     oveChromScale.listeners.forEach((fn) => fn());
   }
 
-  /** Scale at which this file's tallest peak just fills the track. */
+  /*
+   * Track height is adjustable at runtime, so the traces have to be re-fitted
+   * when it changes -- otherwise a taller window just gets more empty space
+   * above the same small peaks.
+   */
+  function oveSetChromHeight(px) {
+    oveChromHeight.value = Math.max(24, Math.min(400, Math.round(px)));
+    oveChromScale.value = null;
+    oveNotifyChrom();
+  }
+
+  function oveSetChromScale(v) {
+    oveChromScale.value = Math.max(0.002, v);
+    oveNotifyChrom();
+  }
+
+  /*
+   * Scale at which a typical called base sits comfortably inside the track.
+   *
+   * Deliberately NOT the tallest sample in the trace: in a real Sanger file
+   * that is the dye front in the lead-in, not a base. Measured over ten Genewiz
+   * files it runs 3.4x-80x the median called peak, and on two that saturate the
+   * detector it drew the sequence at under 1px of 58 -- a flat line.
+   *
+   * Taking the peak of the *called* base at each position and reading a high
+   * percentile discards the artifact, because the inflated positions land in
+   * the tail. A max over called peaks would not: the dye front overlaps real
+   * base windows rather than sitting before them.
+   *
+   * The headroom factor is a deliberate constant. A consensus trace has the
+   * same peak height at every base (spread 1.00x, against 2.81x for real
+   * files), so no statistic computed from the data can place those anywhere
+   * but the ceiling; only headroom keeps them off it.
+   */
+  const OVE_FIT_PERCENTILE = 0.95;
+  const OVE_FIT_HEADROOM = 1.6;
+
   function oveFitScale(chromData) {
-    let peak = 0;
     const traces = (chromData && chromData.baseTraces) || [];
-    // Sampled: a full read is tens of thousands of points and the tallest peak
-    // is not hiding in the ones we skip.
+    const calls = (chromData && chromData.baseCalls) || [];
+    const channel = { A: "aTrace", T: "tTrace", G: "gTrace", C: "cTrace" };
+    // Sampled: a full read is tens of thousands of points, and a percentile
+    // does not need all of them.
     const step = Math.max(1, Math.floor(traces.length / 2000));
+    const heights = [];
     for (let i = 0; i < traces.length; i += step) {
       const bp = traces[i];
-      if (!bp) continue;
-      for (const k of ["aTrace", "tTrace", "gTrace", "cTrace"]) {
-        const arr = bp[k] || [];
-        for (let j = 0; j < arr.length; j++) if (arr[j] > peak) peak = arr[j];
-      }
+      const key = channel[String(calls[i] || "").toUpperCase()];
+      // Ambiguity codes have no single channel carrying the height; skipping
+      // them is right, since those are not clean peaks anyway.
+      if (!bp || !key || !bp[key] || !bp[key].length) continue;
+      let m = 0;
+      for (let j = 0; j < bp[key].length; j++) if (bp[key][j] > m) m = bp[key][j];
+      if (m > 0) heights.push(m);
     }
-    return peak > 0 ? OVE_CHROM_HEIGHT / peak : 0.05;
+    if (heights.length < 10) return 0.05;
+    heights.sort((a, b) => a - b);
+    const at = Math.min(heights.length - 1, Math.floor(heights.length * OVE_FIT_PERCENTILE));
+    const p = heights[at];
+    return p > 0 ? oveChromHeight.value / (p * OVE_FIT_HEADROOM) : 0.05;
   }
 
   function useOveChromScale(chromData, propScale, propSetScale, props) {
@@ -147936,6 +147980,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       set: oveSetChromScale,
       nudge: (factor) => oveSetChromScale((oveChromScale.value || 0.05) * factor),
       fit: (chromData) => oveSetChromScale(oveFitScale(chromData)),
+      height: () => oveChromHeight.value,
+      setHeight: oveSetChromHeight,
       reset: () => { oveChromScale.value = null; oveChromScale.listeners.forEach((fn) => fn()); }
     };
   }
@@ -148054,7 +148100,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             display: "inline-block"
           }
         },
-        /* @__PURE__ */ React$2.createElement("canvas", { style: { marginLeft: marginLeft2 }, ref: canvasRef, height: OVE_CHROM_HEIGHT })
+        /* @__PURE__ */ React$2.createElement("canvas", { style: { marginLeft: marginLeft2 }, ref: canvasRef, height: oveChromHeight.value })
       )
     );
   }

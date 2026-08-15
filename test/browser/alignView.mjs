@@ -197,7 +197,7 @@ export default async function run(page) {
 
   out.afterAlignPicker = await page.evaluate(() => ({
     dropZones: document.querySelectorAll('.ovealign-drop').length,
-    toggle: (document.querySelector('.ovealign-toggle') || {}).textContent || null
+    toggle: (document.querySelector('.ovealign-addtoggle') || {}).textContent || null
   }));
   if (out.afterAlignPicker.dropZones !== 0) {
     fail.push('the drop box is still taking space after aligning');
@@ -206,10 +206,10 @@ export default async function run(page) {
     fail.push('no Add sequences button after aligning');
   }
 
-  await page.locator('.ovealign-toggle').click();
+  await page.locator('.ovealign-addtoggle').click();
   await page.waitForTimeout(200);
   out.toggledOpen = await page.locator('.ovealign-drop').count();
-  await page.locator('.ovealign-toggle').click();
+  await page.locator('.ovealign-addtoggle').click();
   await page.waitForTimeout(200);
   out.toggledShut = await page.locator('.ovealign-drop').count();
   if (out.toggledOpen !== 1 || out.toggledShut !== 0) {
@@ -285,21 +285,105 @@ export default async function run(page) {
 
   /* --- one trace-height control, driving every chromatogram ---------------- */
 
-  out.traceControl = await page.evaluate(() => ({
-    shared: document.querySelectorAll('.ovealign-scalebtn').length,
-    // Upstream puts a pair inside each chromatogram at a sticky offset.
-    perTrackVisible: [...document.querySelectorAll(
-      '#view .scaleChromatogramButtonUp, #view .scaleChromatogramButtonDown')]
-      .filter((b) => b.offsetParent !== null).length,
-    canvasHeights: [...document.querySelectorAll('#view canvas')].map((c) => c.height)
-  }));
-  if (out.traceControl.shared < 2) fail.push('no shared trace-height control');
+  out.traceControl = await page.evaluate(() => {
+    const ctl = document.querySelector('.ovealign-topctl');
+    return {
+      // The controls belong in OVE's own top bar, beside the eye -- not
+      // stranded above the view in our chrome.
+      inTopBar: Boolean(ctl && ctl.closest('.ve-alignment-top-bar')),
+      groups: ctl ? ctl.querySelectorAll('.ovealign-ctlgroup').length : 0,
+      heightSlider: Boolean(ctl && ctl.querySelector('.ovealign-ctlslider')),
+      amplitudeButtons: ctl ? ctl.querySelectorAll('.ovealign-ctlbtn').length : 0,
+      icons: ctl ? ctl.querySelectorAll('svg.ovealign-ctlicon').length : 0,
+      // Upstream puts a pair inside each chromatogram at a sticky offset.
+      perTrackVisible: [...document.querySelectorAll(
+        '#view .scaleChromatogramButtonUp, #view .scaleChromatogramButtonDown')]
+        .filter((b) => b.offsetParent !== null).length,
+      canvasHeights: [...document.querySelectorAll('#view canvas')].map((c) => c.height)
+    };
+  });
+  if (!out.traceControl.inTopBar) fail.push('the chromatogram controls are not in OVE\'s top bar');
+  if (out.traceControl.groups !== 2) fail.push('expected a window-height and an amplitude group');
+  if (!out.traceControl.heightSlider) fail.push('no window-height slider');
+  if (out.traceControl.amplitudeButtons < 3) fail.push('amplitude control is missing buttons');
+  if (out.traceControl.icons < 3) fail.push('the controls have no icons to say what they do');
   if (out.traceControl.perTrackVisible) {
     fail.push(`${out.traceControl.perTrackVisible} per-track scale button(s) still visible`);
   }
-  if (out.traceControl.canvasHeights.some((h) => h > 70)) {
-    fail.push(`chromatogram track is ${out.traceControl.canvasHeights[0]}px, expected a shorter one`);
+
+  /* --- window height drives every canvas ----------------------------------- */
+
+  const canvasHeights = () => page.evaluate(() =>
+    [...document.querySelectorAll('#view canvas')].map((c) => c.height));
+  out.heightBefore = await canvasHeights();
+  await page.evaluate(() => {
+    const s = document.querySelector('.ovealign-ctlslider');
+    s.value = '140';
+    s.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(600);
+  out.heightAfter = await canvasHeights();
+  if (!out.heightAfter.length || out.heightAfter.some((h) => h !== 140)) {
+    fail.push(`the height slider did not resize every canvas: ${out.heightAfter.join()}`);
   }
+
+  /* --- the reference stays put while the reads scroll ---------------------- */
+
+  out.frozenReference = await page.evaluate(async () => {
+    const holder = document.querySelector('.alignmentHolder');
+    const tops = () => [...document.querySelectorAll('.veRowItem')]
+      .map((r) => Math.round(r.getBoundingClientRect().top));
+    const marked = document.querySelectorAll('.ove-ref-track').length;
+    const before = tops();
+    holder.scrollTop = 150;
+    await new Promise((r) => setTimeout(r, 250));
+    const after = tops();
+    return { marked, scrolled: holder.scrollTop > 0, before, after };
+  });
+  if (out.frozenReference.marked !== 1) {
+    fail.push(`expected exactly one pinned reference track, got ${out.frozenReference.marked}`);
+  }
+  if (out.frozenReference.scrolled) {
+    if (out.frozenReference.before[0] !== out.frozenReference.after[0]) {
+      fail.push('the reference scrolled away with the reads');
+    }
+    if (out.frozenReference.before[1] === out.frozenReference.after[1]) {
+      fail.push('the reads did not scroll, so the pin proves nothing');
+    }
+  }
+
+  /* --- shift+wheel scrolls sideways, not down ------------------------------ */
+
+  out.shiftScroll = await page.evaluate(async () => {
+    const h = document.querySelector('.alignmentHolder');
+    const at = () => ({ left: h.scrollLeft, top: h.scrollTop });
+    const before = at();
+    (h.querySelector('.veRowItem') || h).dispatchEvent(
+      new WheelEvent('wheel', { deltaY: 240, shiftKey: true, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 250));
+    return { before, after: at() };
+  });
+  if (!(out.shiftScroll.after.left > out.shiftScroll.before.left)) {
+    fail.push('shift+wheel did not scroll the alignment sideways');
+  }
+  if (out.shiftScroll.after.top !== out.shiftScroll.before.top) {
+    fail.push('shift+wheel scrolled vertically as well');
+  }
+
+  /* --- the sequence list collapses, and starts open ------------------------ */
+
+  out.readList = await page.evaluate(() => ({
+    label: (document.querySelector('.ovealign-readstoggle') || {}).textContent || null,
+    chips: document.querySelectorAll('.ovealign-read').length
+  }));
+  if (!out.readList.chips) fail.push('the sequence list did not start open');
+  await page.locator('.ovealign-readstoggle').click();
+  await page.waitForTimeout(250);
+  out.readListCollapsed = await page.evaluate(() =>
+    document.querySelectorAll('.ovealign-read').length);
+  if (out.readListCollapsed !== 0) fail.push('the sequence list did not collapse');
+  await page.locator('.ovealign-readstoggle').click();
+  await page.waitForTimeout(250);
 
   /* --- the summary strip is grey, with red meaning one thing --------------- */
 

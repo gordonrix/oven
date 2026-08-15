@@ -4,6 +4,22 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.11.0
+
+Alignment viewer, from using it:
+
+- **The reference stays pinned** while you scroll through reads. Only the top is pinned, so
+  it still scrolls sideways in step with them — a reference frozen in both axes would line
+  its bases up against the wrong columns.
+- **Two controls in OVE's own top bar, beside the eye.** A slider for the height of every
+  chromatogram window, with an icon each side, and up/down/fit for peak amplitude next to a
+  trace icon. Changing the window height re-fits the traces so they keep filling it. These
+  replace the trace-height control that used to sit above the view.
+- **Shift+scroll scrolls the alignment sideways.** The browser only does this for the
+  document scroller, so inside OVE's own overflow container it did nothing.
+- **The sequence list collapses**, showing "N sequences". It starts open, unlike the
+  Add sequences picker.
+
 ## 1.10.1
 
 - **Chromatogram quality-score bars removed.** They are switched off through OVE's own

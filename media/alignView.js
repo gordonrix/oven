@@ -36,6 +36,7 @@
   let renderedId = 0;   // bumped so a stale alignment is never re-shown
   let lastPayload = null;
   let dropOpen = true;  // the picker IS the empty state until there is an alignment
+  let readsOpen = true; // the chips are useful until there are twenty of them
 
   /*
    * The rule itself lives in cartShared so it can be unit-tested; this only
@@ -71,6 +72,136 @@
     }
   } catch (e) {
     // A webview with storage blocked still works; the bars just stay on.
+  }
+
+  /* ------------------------------------------------ top-bar controls -- */
+
+  /*
+   * OVE's alignment view takes `additionalTopEl` / `additionalTopLeftEl`, which
+   * put our own controls in its top bar beside the eye and the zoom slider --
+   * where they belong, rather than stranded above the view in our own chrome.
+   *
+   * Those props want React elements, and the bundle does not export React. It
+   * does not need to: an element is a plain object tagged with the global
+   * Symbol.for('react.element'), so one can be hand-built. Each is a single div
+   * with a STABLE ref callback -- an inline arrow would be a new ref every
+   * render, and React would tear the node down and rebuild it each time,
+   * throwing away the DOM we put inside.
+   */
+  const REACT_ELEMENT = Symbol.for('react.element');
+
+  function reactEl(type, props) {
+    return {
+      $$typeof: REACT_ELEMENT, type, key: null,
+      ref: (props && props.ref) || null,
+      props: Object.assign({}, props), _owner: null, _store: {}
+    };
+  }
+
+  let topBarRoot = null;
+
+  const topBarRef = (node) => {
+    if (!node) return; // unmounting
+    topBarRoot = node;
+    renderTopControls();
+  };
+
+  /*
+   * Little inline SVGs rather than unicode glyphs. The text characters that
+   * come closest -- a heavy bar, a caret -- render at wildly different sizes
+   * across fonts, and the one for "short" was indistinguishable from the minus
+   * on OVE's zoom slider sitting right next to it.
+   */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function svgIcon(title, draw) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('class', 'ovealign-ctlicon');
+    svg.setAttribute('aria-hidden', 'true');
+    const t = document.createElementNS(SVG_NS, 'title');
+    t.textContent = title;
+    svg.appendChild(t);
+    draw(svg);
+    return svg;
+  }
+
+  const line = (svg, x1, y1, x2, y2, w) => {
+    const l = document.createElementNS(SVG_NS, 'line');
+    l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+    l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+    l.setAttribute('stroke-width', w || 1.6);
+    l.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(l);
+  };
+
+  /** Two rules close together / far apart: a short window and a tall one. */
+  const gapIcon = (gap) => (title) => svgIcon(title, (svg) => {
+    line(svg, 3, 8 - gap, 13, 8 - gap);
+    line(svg, 3, 8 + gap, 13, 8 + gap);
+  });
+
+  /** A trace with two peaks -- amplitude, as distinct from window height. */
+  const traceIcon = (title) => svgIcon(title, (svg) => {
+    const p = document.createElementNS(SVG_NS, 'polyline');
+    p.setAttribute('points', '2,13 4,13 6,3 8,13 10,13 11,6 12,13 14,13');
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke-width', '1.5');
+    p.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(p);
+  });
+
+  /** A small labelled button, sized to sit with OVE's own toolbar items. */
+  function ctlButton(glyph, title, onClick) {
+    const b = el('button', 'ovealign-ctlbtn', glyph);
+    b.title = title;
+    b.addEventListener('click', (e) => { e.preventDefault(); onClick(); });
+    return b;
+  }
+
+  const AMPLITUDE_STEP = 1.3;
+
+  function renderTopControls() {
+    if (!topBarRoot || !window.OveChromScale) return;
+    topBarRoot.textContent = '';
+    topBarRoot.className = 'ovealign-topctl';
+
+    /*
+     * Track height: how tall each chromatogram window is. Shaped like OVE's
+     * zoom slider next to it -- an icon each side saying which way is bigger --
+     * because it does the same kind of job.
+     */
+    const height = el('div', 'ovealign-ctlgroup');
+    height.title = 'Height of every chromatogram window';
+    height.appendChild(gapIcon(2)('Shorter windows'));
+    const slider = el('input', 'ovealign-ctlslider');
+    slider.type = 'range';
+    slider.min = '24';
+    slider.max = '220';
+    slider.step = '2';
+    slider.value = String(window.OveChromScale.height());
+    slider.addEventListener('input', () => {
+      window.OveChromScale.setHeight(Number(slider.value));
+    });
+    height.appendChild(slider);
+    height.appendChild(gapIcon(5)('Taller windows'));
+    topBarRoot.appendChild(height);
+
+    /*
+     * Trace amplitude: how tall the peaks are drawn inside that window. A
+     * separate concern from the window height, and the one you reach for when a
+     * particular file came off the instrument hot or faint.
+     */
+    const amp = el('div', 'ovealign-ctlgroup');
+    amp.title = 'Peak height within each chromatogram';
+    amp.appendChild(traceIcon('Peak height'));
+    amp.appendChild(ctlButton('▲', 'Taller peaks',
+      () => window.OveChromScale.nudge(AMPLITUDE_STEP)));
+    amp.appendChild(ctlButton('▼', 'Shorter peaks',
+      () => window.OveChromScale.nudge(1 / AMPLITUDE_STEP)));
+    amp.appendChild(ctlButton('⤢', 'Fit peaks to the window',
+      () => window.OveChromScale.reset()));
+    topBarRoot.appendChild(amp);
   }
 
   const $ = (id) => document.getElementById(id);
@@ -274,29 +405,13 @@
      */
     if (state.alignment) {
       const row = el('div', 'ovealign-addrow');
-      const toggle = el('button', 'ovealign-toggle');
+      const toggle = el('button', 'ovealign-toggle ovealign-addtoggle');
       toggle.appendChild(el('span', 'chev', dropOpen ? '▾' : '▸'));
       toggle.appendChild(el('span', null, 'Add sequences'));
       toggle.title = 'Drop or browse for more reads to add to this alignment';
       toggle.addEventListener('click', () => { dropOpen = !dropOpen; renderSetup(); });
       row.appendChild(toggle);
 
-      // One trace-height control for every chromatogram, up here rather than a
-      // pair of buttons parked partway across each track.
-      if (state.alignment.tracks.some((t) => t.chromatogramData)) {
-        const group = el('div', 'ovealign-scale');
-        group.appendChild(el('span', 'ovealign-scalelabel', 'Trace height'));
-        const step = (label, title, fn) => {
-          const b = el('button', 'ovealign-scalebtn', label);
-          b.title = title;
-          b.addEventListener('click', fn);
-          group.appendChild(b);
-        };
-        step('−', 'Shorter peaks, in every chromatogram', () => window.OveChromScale.nudge(1 / 1.3));
-        step('+', 'Taller peaks, in every chromatogram', () => window.OveChromScale.nudge(1.3));
-        step('⤢', 'Fit the tallest peak to the track', () => window.OveChromScale.reset());
-        row.appendChild(group);
-      }
       setup.appendChild(row);
     }
 
@@ -313,9 +428,26 @@
     }
 
     if (state.reads.length) {
-      const list = el('div', 'ovealign-reads');
-      state.reads.forEach((r) => list.appendChild(renderRead(r)));
-      setup.appendChild(list);
+      /*
+       * Collapsible, because a long read list eats the vertical space the
+       * alignment itself needs. Starts open -- unlike the picker -- since the
+       * per-read verdicts are the reason to look at this panel at all.
+       */
+      const bar = el('div', 'ovealign-addrow');
+      const toggle = el('button', 'ovealign-toggle ovealign-readstoggle');
+      toggle.appendChild(el('span', 'chev', readsOpen ? '▾' : '▸'));
+      toggle.appendChild(el('span', null,
+        `${state.reads.length} sequence${state.reads.length === 1 ? '' : 's'}`));
+      toggle.title = readsOpen ? 'Hide the sequence list' : 'Show the sequence list';
+      toggle.addEventListener('click', () => { readsOpen = !readsOpen; renderSetup(); });
+      bar.appendChild(toggle);
+      setup.appendChild(bar);
+
+      if (readsOpen) {
+        const list = el('div', 'ovealign-reads');
+        state.reads.forEach((r) => list.appendChild(renderRead(r)));
+        setup.appendChild(list);
+      }
     }
 
     const actions = el('div', 'ovealign-actions');
@@ -374,11 +506,66 @@
         // translation. Both default to off.
         translations: true, cdsFeatureTranslations: true
       },
-      height: Math.max(320, host.clientHeight)
+      height: Math.max(320, host.clientHeight),
+      // Injected into OVE's own top bar. `additionalTopEl` renders after the
+      // visibility and sort controls, i.e. beside the eye; the `...LeftEl`
+      // variant lands at the far left, before the alignment name.
+      additionalTopEl: reactEl('div', { ref: topBarRef })
     };
     view = window.createAlignmentView(mount, lastPayload);
     window.__oveAlignment = view;
     watchSize(host);
+    decorateAlignment(host);
+  }
+
+  /*
+   * Two behaviours that have to be attached to OVE's own DOM after it renders,
+   * and re-attached when it re-renders.
+   *
+   * The reference is pinned by marking its track container and letting CSS do
+   * the rest. `position: sticky` genuinely holds here -- the vertical scroller
+   * is `.alignmentHolder` and nothing between it and the tracks clips overflow
+   * -- and sticking only the top means the reference still scrolls sideways in
+   * step with the reads, which is the whole point of keeping it visible.
+   *
+   * All the track containers share one class, and CSS has no "first of class",
+   * so the marker goes on in JS.
+   */
+  function decorateAlignment(host) {
+    const mark = () => {
+      const tracks = host.querySelectorAll('.alignmentViewTrackContainer');
+      tracks.forEach((t, i) => t.classList.toggle('ove-ref-track', i === 0));
+    };
+    mark();
+    if (decorateAlignment.observing !== host) {
+      decorateAlignment.observing = host;
+      // OVE rebuilds tracks on scroll and on any payload change, which drops
+      // the marker; re-apply rather than assume it survives.
+      new MutationObserver(() => mark()).observe(host, { childList: true, subtree: true });
+      wireShiftScroll(host);
+    }
+  }
+
+  /**
+   * Shift+wheel scrolls the alignment sideways.
+   *
+   * The browser only translates shift+wheel to horizontal scrolling for the
+   * document scroller, so inside OVE's own overflow container it does nothing
+   * -- which is why a wide alignment is currently only navigable by dragging
+   * the scrollbar or the minimap.
+   */
+  function wireShiftScroll(host) {
+    host.addEventListener('wheel', (e) => {
+      if (!e.shiftKey) return;
+      const holder = e.target.closest && e.target.closest('.alignmentHolder');
+      if (!holder) return;
+      // deltaX is already horizontal on a trackpad two-finger swipe; only the
+      // vertical component needs redirecting.
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (!delta) return;
+      holder.scrollLeft += delta;
+      e.preventDefault();
+    }, { passive: false });
   }
 
   /**

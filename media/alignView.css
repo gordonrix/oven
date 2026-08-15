@@ -283,3 +283,60 @@ html, body { height: 100%; margin: 0; }
   cursor: pointer;
 }
 .ovealign-scalebtn:hover { background: #e8eef2; }
+
+/* --- the reference stays put -------------------------------------------- */
+
+/*
+ * Pinned while the reads scroll under it. Only `top` is stuck, so the reference
+ * still moves sideways in step with the reads -- a reference frozen in both axes
+ * would line its bases up against the wrong columns.
+ *
+ * The background is load-bearing: without it the reads show through.
+ */
+.ovealign-view .ove-ref-track {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #fff;
+  box-shadow: 0 1px 0 #d3dae0;
+}
+
+/* --- controls injected into OVE's top bar -------------------------------- */
+
+/*
+ * These sit beside OVE's own zoom slider and eye, so they borrow its metrics
+ * rather than our panel's -- 14px Arial, same row height.
+ */
+.ovealign-topctl {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: 12px;
+  font-family: Arial, sans-serif;
+}
+
+.ovealign-ctlgroup { display: flex; align-items: center; gap: 4px; }
+
+/* Sized to sit with OVE's own toolbar icons, which are 16px. */
+.ovealign-ctlicon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: #5c7080;
+  fill: none;
+}
+
+.ovealign-ctlslider { width: 88px; accent-color: #7050b3; cursor: pointer; }
+
+.ovealign-ctlbtn {
+  min-width: 20px;
+  padding: 2px 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: #394b59;
+  background: #f5f8fa;
+  border: 1px solid #d3dae0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ovealign-ctlbtn:hover { background: #e8eef2; }
