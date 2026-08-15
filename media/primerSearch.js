@@ -125,6 +125,26 @@
     editor.updateEditor({ panelsShown: groups });
   }
 
+  /**
+   * Take the panel back off screen.
+   *
+   * OVE has no close affordance on a panel it did not put there, so this
+   * removes it from `panelsShown` -- and drops the group with it if it was the
+   * only thing in it, which un-splits the view rather than leaving an empty
+   * half beside the sequence.
+   */
+  function hidePanel() {
+    const groups = (seqState().panelsShown || [])
+      .map((g) => (g || []).filter((p) => p.id !== PANEL_ID).map((p) => Object.assign({}, p)))
+      .filter((g) => g.length);
+
+    // Something has to stay active in each group, or the group renders blank.
+    for (const group of groups) {
+      if (!group.some((p) => p.active)) group[0].active = true;
+    }
+    editor.updateEditor({ panelsShown: groups });
+  }
+
   /* --------------------------------------------------------- searching -- */
 
   function run(scoped) {
@@ -316,6 +336,11 @@
     scope.appendChild(tab('Whole plasmid', false, false));
     controls.appendChild(scope);
 
+    const close = el('button', 'ovesearch-close', '\u00d7');
+    close.title = 'Close primer search';
+    close.addEventListener('click', hidePanel);
+    controls.appendChild(close);
+
     const check = el('label', 'ovesearch-check');
     const cb = el('input');
     cb.type = 'checkbox';
@@ -462,13 +487,16 @@
    * should search the plasmid -- keying it off the menu instead got this wrong
    * both ways.
    */
-  function withSearch(items) {
+  function withSearch(items, opts, props) {
     const scoped = Boolean(currentSelection());
     const out = [...items, '--', {
       text: scoped ? 'Search primers in selection' : 'Search primers in plasmid',
       className: 'ove-search-menu-item',
       onClick: () => open({ scoped })
-    }];
+    },
+    // Only ever appends on a translation, and only when the click can be tied
+    // to one residue -- it returns nothing otherwise.
+    ...(window.OveAminoAcid ? window.OveAminoAcid.menuItems(opts, props) : [])];
     // backgroundRightClicked hangs the originating event off the array itself;
     // a rebuilt array loses the menu's anchor without this.
     out._event = items._event;
@@ -516,5 +544,5 @@
     });
   }
 
-  window.OveSearch = { init, open, showPanel, panelMap, rightClickOverrides, attach, PANEL_ID };
+  window.OveSearch = { init, open, showPanel, hidePanel, panelMap, rightClickOverrides, attach, PANEL_ID };
 })();

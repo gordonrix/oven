@@ -92,8 +92,13 @@
 .veRowView .veSearchLayer.veRowViewSelectionLayer.notCaret {
   background: rgba(255, 215, 0, .3) !important;   /* gold */
 }
+/*
+ * The active match. Upstream paints it green, which on a plasmid reads as an
+ * annotation colour rather than as "you are here" -- grey says the same thing
+ * without competing with the features underneath it.
+ */
 .veRowView .veSearchLayerActive.veRowViewSelectionLayer.notCaret {
-  background: rgba(0, 128, 0, .3) !important;     /* green, the active match */
+  background: rgba(120, 120, 120, .3) !important;
 }
 
 /* Our own reveal follows OVE's selection colours: grey unfocused, blue focused. */

@@ -206,3 +206,20 @@ body.ovesearch-resizing * { cursor: col-resize !important; user-select: none !im
  * column is draggable and a narrow pane scrolls sideways instead, so what is
  * visible is always the user's choice.
  */
+
+/*
+ * Close the panel. OVE gives no affordance for dismissing a panel it did not
+ * add, so the search panel carries its own -- pushed to the right of the scope
+ * tabs, where a close control is expected.
+ */
+.ovesearch-close {
+  margin-left: auto;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--vscode-descriptionForeground, #8b949e);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ovesearch-close:hover { color: var(--vscode-foreground, #ddd); }

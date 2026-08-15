@@ -150,3 +150,15 @@
 .ovecart-primary:hover { background: #2a6f2d; }
 .ovecart-secondary { background: #f5f8fa; color: #182026; border-color: #d3dae0; }
 .ovecart-secondary:hover { background: #ebf1f5; }
+
+/* Select-all, as a tick box so it clears the selection as well as making it. */
+.ovecart-selectall {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  user-select: none;
+}
+.ovecart-selectall input { cursor: pointer; }

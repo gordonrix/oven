@@ -162,14 +162,14 @@ class CartPanel {
     vscode.window.showInformationMessage(`Exported ${items.length} primers to ${path.basename(target.fsPath)}.`);
   }
 
+  /*
+   * No confirmation. Taking a primer out of the cart destroys nothing -- the
+   * primer is still on the sequence, and can be added again from the same file
+   * -- so a modal for it is friction without a payoff. Clearing a whole session
+   * still asks, since that is not one click to undo.
+   */
   async remove(ids) {
     if (!ids.length) return;
-    const answer = await vscode.window.showWarningMessage(
-      `Remove ${ids.length} primer${ids.length === 1 ? '' : 's'} from the cart?`,
-      { modal: true },
-      'Remove'
-    );
-    if (answer !== 'Remove') return;
     await this.cart.remove(ids);
   }
 

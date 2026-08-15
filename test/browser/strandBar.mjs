@@ -214,6 +214,43 @@ export default async function run(page) {
     fail.push(`${stale.length} row(s) kept a stale offset after reflow: ${JSON.stringify(stale[0])}`);
   }
 
+  /* --- reverse primers are spaced off the letters -------------------------- */
+
+  /*
+   * Both primer tracks carry the same class and the same inline 5px margin; the
+   * reverse one is told apart by sitting after the letters, and is given more
+   * room in media/rowView.css. Checked here rather than in its own suite
+   * because the bar and the margin are the two things that read the letters'
+   * geometry, and the trap is doing it with padding -- which would push
+   * --ovestrand-bottom off the letters and is what the assertions above catch.
+   */
+  out.reverseTrack = await page.evaluate(() => {
+    for (const row of document.querySelectorAll('.veRowItem')) {
+      const seq = row.querySelector('.veRowItemSequenceContainer');
+      if (!seq) continue;
+      const after = [...row.querySelectorAll('.veRowViewPrimersContainer')].filter(
+        (t) => seq.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING);
+      if (!after.length) continue;
+      return {
+        margin: parseFloat(getComputedStyle(after[0]).marginTop),
+        gap: Math.round(after[0].getBoundingClientRect().top - seq.getBoundingClientRect().bottom)
+      };
+    }
+    return null;
+  });
+  if (!out.reverseTrack) {
+    fail.push('no reverse primer track on screen to measure');
+  } else {
+    // Upstream's inline value is 5px; anything at or below it means the rule
+    // lost to the inline style -- which it does without !important.
+    if (!(out.reverseTrack.margin > 5)) {
+      fail.push(`the reverse primer track is at ${out.reverseTrack.margin}px, not spaced off the letters`);
+    }
+    if (out.reverseTrack.gap !== out.reverseTrack.margin) {
+      fail.push(`margin ${out.reverseTrack.margin}px but the drawn gap is ${out.reverseTrack.gap}px`);
+    }
+  }
+
   out.failures = fail;
   out.ok = fail.length === 0;
   return out;

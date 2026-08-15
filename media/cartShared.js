@@ -264,6 +264,18 @@
     return (1000 * dh) / (ds + NN_R * Math.log(primerTotal / 2)) - 273.15;
   }
 
+  /*
+   * Shortest oligo the nearest-neighbour model is meaningful for.
+   *
+   * A guide for callers, not a limit applied here: this function is a faithful
+   * port of the reference implementation the primer pipeline designs against,
+   * and it stays that way down to a dinucleotide so the two can be compared.
+   * The model is two-state, though, and below this length the initiation terms
+   * swamp the stacking terms -- it reads -0.5 C at 6 nt and -161 C at 2. Any UI
+   * showing a Tm should decline rather than print that.
+   */
+  const MIN_TM_BP = 8;
+
   /** @returns {number|null} GC fraction 0..1, or null when there is nothing to count. */
   function gcFraction(seq) {
     const s = String(seq || '');
@@ -273,7 +285,7 @@
   }
 
   return {
-    revComp, deriveBases, wrapsOrigin, normalizeSeqKey, tmNebQ5, gcFraction,
+    revComp, deriveBases, wrapsOrigin, normalizeSeqKey, tmNebQ5, gcFraction, MIN_TM_BP,
     locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations,
     alignmentVerdict, MIN_COVERED_BP
   };

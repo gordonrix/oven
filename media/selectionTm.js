@@ -26,6 +26,10 @@
 
   let editor = null;
   let useDesignTm = true;
+
+  /* OVE's own key, so its radio and its persistence are the single source. */
+  const TM_TYPE_KEY = 'tmType';
+  const SEEDED_KEY = 'oveCart.tmTypeSeeded';
   let observer = null;
 
   const S = () => window.CartShared;
@@ -82,8 +86,50 @@
     return null;
   }
 
+  /*
+   * Which Tm the status bar should show.
+   *
+   * OVE's Tm has a popover with a "Choose Tm Type" radio -- Breslauer or
+   * SantaLucia -- and persists the choice in localStorage under `tmType`. This
+   * module used to rewrite the number on every render regardless, so the radio
+   * changed the underlying value and nothing on screen ever moved: it looked
+   * broken because it effectively was.
+   *
+   * The two now line up honestly. Our figure IS SantaLucia -- NEB Q5, with the
+   * Mg2+ and primer concentrations the design pipeline uses -- so it stands in
+   * for that option, and Breslauer is left to OVE. The radio therefore moves
+   * the number both ways, and because OVE stores the choice itself it survives
+   * reloads and sessions with no bookkeeping here.
+   */
+  const TM_SANTALUCIA = 'neb_tm';
+
+  function tmType() {
+    try {
+      return String(localStorage.getItem(TM_TYPE_KEY) || '').replace(/^"|"$/g, '');
+    } catch (e) {
+      return '';   // storage blocked
+    }
+  }
+
+  /*
+   * Point the radio at SantaLucia the first time, so the design Tm is what you
+   * get out of the box -- the setting that turns this on says as much.
+   *
+   * Seeded once and remembered, because OVE writes `tmType: "default"` eagerly
+   * on first render: "a value is present" cannot distinguish an untouched
+   * editor from someone who deliberately chose Breslauer, so without a marker
+   * of our own this would overwrite that choice on every open.
+   */
+  function seedTmType() {
+    try {
+      if (localStorage.getItem(SEEDED_KEY)) return;
+      localStorage.setItem(SEEDED_KEY, '1');
+      if (tmType() === 'default') localStorage.setItem(TM_TYPE_KEY, TM_SANTALUCIA);
+    } catch (e) { /* storage blocked -- the radio still works, ours is not default */ }
+  }
+
   function apply() {
-    if (!useDesignTm || !editor) return;
+    if (!useDesignTm || !editor || tmType() !== TM_SANTALUCIA) return;
     const item = document.querySelector(TM_ITEM);
     if (!item) return;
 
@@ -95,6 +141,10 @@
       text = '— '; // OVE shows a bare 0 with nothing selected, which reads as a real value
     } else if (n > MAX_TM_BP) {
       text = `— (>${MAX_TM_BP} bp) `;
+    } else if (n < S().MIN_TM_BP) {
+      // Below this the nearest-neighbour model returns nonsense, and used to
+      // put a negative temperature in the status bar.
+      text = `— (<${S().MIN_TM_BP} bp) `;
     } else {
       const tm = S().tmNebQ5(bases);
       text = tm === null ? '— ' : `${tm.toFixed(1)} `;
@@ -107,6 +157,8 @@
     const tip = !bases ? 'Select a region to see its melting temperature.'
       : n > MAX_TM_BP
       ? `Nearest-neighbour Tm is a primer model; over ${MAX_TM_BP} bp it is not meaningful.`
+      : n < S().MIN_TM_BP
+      ? `Nearest-neighbour Tm is a two-state duplex model; under ${S().MIN_TM_BP} bp it breaks down.`
       : 'NEB Q5 nearest-neighbour Tm (SantaLucia 1998), 50 mM Na⁺, 1.5 mM Mg²⁺, 200 nM primer '
         + '— the same calculation gibson_planner.py designs against.';
     if (host.title !== tip) host.title = tip;
@@ -118,6 +170,7 @@
     if (o.useDesignTm === false) useDesignTm = false;
     if (!useDesignTm) return;
 
+    seedTmType();
     apply();
 
     // React rewrites the number on every selection change; re-apply after it.

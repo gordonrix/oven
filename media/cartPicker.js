@@ -38,12 +38,16 @@
   let cartCount = 0;
 
   function setCount(n) {
+    // The count is still tracked -- the picker uses it -- but the button no
+    // longer carries it. It reads "Primer Cart" and does both halves of the
+    // job: opens the picker for this file and reveals the cart itself.
     cartCount = n || 0;
-    const btn = document.getElementById('ove-cart-button');
-    // "Add to Cart", not "Cart": this button opens a picker scoped to the
-    // current file. The cart itself is the activity-bar panel, and labelling
-    // this one "Cart" made it read as "show me my cart".
-    if (btn) btn.textContent = cartCount ? `Add to Cart (${cartCount})` : 'Add to Cart';
+  }
+
+  /** Open the picker and bring the cart panel up beside it. */
+  function openCart() {
+    openPicker();
+    post({ type: 'cart/openPanel' });
   }
 
   /** Every primer in the open file, plus the live selection if there is one. */
@@ -209,13 +213,44 @@
     });
 
     const foot = el('div', 'ovecart-foot');
-    const selectAll = el('button', 'ovecart-secondary', 'Select all primers');
-    selectAll.addEventListener('click', () => {
-      checkboxes.forEach((cb, i) => {
-        if (!cb.disabled && rows[i].kind === 'primer' && list.children[i].style.display !== 'none') cb.checked = true;
-      });
-    });
+
+    /*
+     * One tick box for both directions. It was a "Select all primers" button,
+     * which could only ever add to the selection -- clearing it again meant
+     * unticking every row by hand.
+     *
+     * It acts on what is visible, so it follows the filter rather than quietly
+     * selecting rows that have been filtered out of sight.
+     */
+    const eligible = () => checkboxes
+      .map((cb, i) => ({ cb, i }))
+      .filter(({ cb, i }) => !cb.disabled && rows[i].kind === 'primer' &&
+        list.children[i].style.display !== 'none');
+
+    const selectAll = el('label', 'ovecart-selectall');
+    const selectAllBox = el('input');
+    selectAllBox.type = 'checkbox';
+    selectAll.appendChild(selectAllBox);
+    selectAll.appendChild(document.createTextNode('Select all primers'));
     foot.appendChild(selectAll);
+
+    /* Reflect the rows: ticked when all are, indeterminate when only some. */
+    const syncSelectAll = () => {
+      const rowsNow = eligible();
+      const picked = rowsNow.filter(({ cb }) => cb.checked).length;
+      selectAllBox.checked = rowsNow.length > 0 && picked === rowsNow.length;
+      selectAllBox.indeterminate = picked > 0 && picked < rowsNow.length;
+      selectAllBox.disabled = rowsNow.length === 0;
+    };
+
+    selectAllBox.addEventListener('change', () => {
+      const on = selectAllBox.checked;
+      eligible().forEach(({ cb }) => { cb.checked = on; });
+      syncSelectAll();
+    });
+    checkboxes.forEach((cb) => cb.addEventListener('change', syncSelectAll));
+    filter.addEventListener('input', syncSelectAll);
+    syncSelectAll();
 
     const spacer = el('div', 'ovecart-spacer');
     foot.appendChild(spacer);
@@ -307,5 +342,5 @@
     post({ type: 'cart/requestState' });
   }
 
-  window.OveCart = { init, openPicker, addCreated };
+  window.OveCart = { init, openPicker, openCart, addCreated };
 })();
