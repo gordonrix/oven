@@ -286,7 +286,7 @@ class CartPanel {
     <div id="toolbar" class="toolbar">
       <input id="filter" class="filter" type="search" placeholder="Filter…" />
       <div class="btnrow">
-        <button id="copyTsv" class="primary">Copy TSV</button>
+        <button id="copyTsv" class="primary" title="Name and sequence, tab separated — paste straight into an order form">Copy names + seqs</button>
         <button id="copySeqs">Copy sequences</button>
         <button id="exportCsv">Export CSV…</button>
         <button id="remove" class="danger">Remove</button>

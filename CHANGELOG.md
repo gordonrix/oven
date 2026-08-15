@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.16.0
+
+- **The cart's copy button copies just names and sequences.** It emitted all nine columns —
+  length, Tm, source file, coordinates, strand, inventory state, note — which meant deleting
+  seven of them by hand after pasting into a two-column order form. Everything else is
+  derivable or irrelevant once a primer is being ordered. The button now reads
+  **Copy names + seqs**.
+
+  The full set is still one click away as **Export CSV**, which is the path for archiving a
+  cart rather than ordering from it — and the tests that pinned inventory state and origin-wrap
+  coordinates moved there with it.
+
 ## 1.15.1
 
 - The Tm type options read **Breslauer** and **SantaLucia**. They were "Default Tm (Breslauer)"

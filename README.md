@@ -25,7 +25,7 @@ see [CHANGELOG.md](CHANGELOG.md) for the detail.
 ### Designing and ordering primers
 
 - **Primer Cart** — a panel that accumulates primers across plasmid files into one list,
-  with copy-as-TSV, copy-sequences and CSV export, and named sessions so several orders
+  with copy names+sequences, copy-sequences and full CSV export, and named sessions so several orders
   can be in flight at once. Primers created in the editor are added automatically.
 - **Cross-reference an inventory** — point it at your own primer spreadsheet and the cart
   tells you which primers you already have in the freezer.
@@ -106,7 +106,7 @@ Not published to the Marketplace. Build and sideload:
 ```sh
 npm install
 npm run package
-code --install-extension ove-vscode-primer-cart-1.15.1.vsix --force
+code --install-extension ove-vscode-primer-cart-1.16.0.vsix --force
 ```
 
 If you have the original `sanekun.openvectoreditor` installed, uninstall it — otherwise

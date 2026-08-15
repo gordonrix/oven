@@ -33,6 +33,17 @@ function row(item) {
   ];
 }
 
+/*
+ * Name and sequence only. That is what an order form wants and what you paste
+ * into a lab notebook; length, Tm, source, coordinates and inventory state are
+ * all derivable or irrelevant once a primer is being ordered, and pasting nine
+ * columns into a two-column form means deleting seven of them by hand.
+ *
+ * The full set is still one click away as CSV export, which is the path for
+ * archiving a cart rather than ordering from it.
+ */
+const COPY_HEADERS = ['Name', 'Sequence'];
+
 /**
  * Tab-separated, for pasting into Excel or Sheets.
  *
@@ -42,8 +53,8 @@ function row(item) {
  */
 function toTsv(items) {
   const clean = (v) => String(v === null || v === undefined ? '' : v).replace(/[\t\r\n]+/g, ' ');
-  const lines = [HEADERS.join('\t')];
-  for (const item of items) lines.push(row(item).map(clean).join('\t'));
+  const lines = [COPY_HEADERS.join('\t')];
+  for (const item of items) lines.push([item.name, item.sequence].map(clean).join('\t'));
   return lines.join('\n');
 }
 
@@ -69,4 +80,5 @@ function toCsv(items) {
   return '﻿' + lines.join('\r\n') + '\r\n';
 }
 
-module.exports = { toTsv, toSequenceList, toCsv, HEADERS };
+module.exports = {
+  COPY_HEADERS, toTsv, toSequenceList, toCsv, HEADERS };

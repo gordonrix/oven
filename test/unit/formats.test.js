@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTsv, toSequenceList, toCsv, HEADERS } = require('../../src/formats');
+const { toTsv, toSequenceList, toCsv, COPY_HEADERS } = require('../../src/formats');
 
 const items = [
   {
@@ -25,13 +25,16 @@ const items = [
   }
 ];
 
-test('TSV has one clean field per column on every line', () => {
+test('TSV copies name and sequence, and nothing else', () => {
+  // What an order form wants. The rest is derivable or irrelevant once a primer
+  // is being ordered, and would have to be deleted by hand after pasting.
   const lines = toTsv(items).split('\n');
   assert.strictEqual(lines.length, items.length + 1);
+  assert.strictEqual(lines[0], 'Name\tSequence');
   for (const line of lines) {
-    assert.strictEqual(line.split('\t').length, HEADERS.length, `bad column count: ${line}`);
+    assert.strictEqual(line.split('\t').length, COPY_HEADERS.length, `bad column count: ${line}`);
   }
-  assert.ok(lines[0].startsWith('Name\tSequence\tLength\tTm (°C)'));
+  assert.strictEqual(lines[1], 'demo-fwd\tATGCATGC');
 });
 
 test('TSV replaces embedded tabs rather than quoting them', () => {
@@ -41,18 +44,20 @@ test('TSV replaces embedded tabs rather than quoting them', () => {
   assert.ok(!tsv.includes('weird\tname'));
 });
 
-test('TSV reports inventory state per row', () => {
-  const rows = toTsv(items).split('\n').slice(1).map((l) => l.split('\t'));
-  assert.strictEqual(rows[0][7], 'P_042');
-  assert.strictEqual(rows[1][7], 'new');
-  assert.strictEqual(rows[2][7], 'unknown'); // never "new" when the lookup failed
+test('the full export reports inventory state per row', () => {
+  // The detail moved to CSV when TSV was narrowed to an order form; this is
+  // still the path for archiving a cart rather than ordering from it.
+  const rows = toCsv(items).replace(/^\ufeff/, '').trim().split('\r\n').slice(1);
+  assert.match(rows[0], /P_042/);
+  assert.match(rows[1], /(^|,)new(,|$)/);
+  assert.match(rows[2], /unknown/); // never "new" when the lookup failed
 });
 
 test('coordinates are 1-based and flag an origin wrap', () => {
-  const rows = toTsv(items).split('\n').slice(1).map((l) => l.split('\t'));
-  assert.strictEqual(rows[0][5], '25..32');
-  assert.strictEqual(rows[1][5], '6531..5 (wraps origin)');
-  assert.strictEqual(rows[1][6], 'reverse');
+  const csv = toCsv(items);
+  assert.match(csv, /(^|,)25\.\.32(,|$)/m);
+  assert.match(csv, /6531\.\.5 \(wraps origin\)/);
+  assert.match(csv, /reverse/);
 });
 
 test('CSV starts with a BOM and quotes properly', () => {
@@ -73,6 +78,6 @@ test('sequence list is bare by default and tab-joined on request', () => {
 });
 
 test('empty cart serializes to headers only', () => {
-  assert.strictEqual(toTsv([]), HEADERS.join('\t'));
+  assert.strictEqual(toTsv([]), COPY_HEADERS.join('\t'));
   assert.strictEqual(toSequenceList([], false), '');
 });
