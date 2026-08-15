@@ -4,6 +4,297 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.15.1
+
+- The Tm type options read **Breslauer** and **SantaLucia**. They were "Default Tm (Breslauer)"
+  and "NEB Tm (SantaLucia)" — "Default" stopped being true once SantaLucia became the seeded
+  choice, and "NEB" invited comparison with NEB's own calculator, which applies a Q5-specific
+  offset and different salt and concentration terms and so does not agree. The author names are
+  the part that is accurate.
+
+## 1.15.0
+
+Melting temperature:
+
+- **The "Choose Tm Type" radio does something now.** OVE's Tm popover offers Breslauer or
+  SantaLucia and persists the choice, but this extension rewrote the number on every render
+  regardless — so the radio changed the underlying value and nothing on screen ever moved. It
+  looked broken because it effectively was.
+
+  The two are lined up honestly instead: our figure *is* SantaLucia — NEB Q5, with the Mg²⁺ and
+  primer concentrations the design pipeline uses — so it stands in for that option, and
+  Breslauer is left to OVE. The radio moves the number both ways.
+- **The choice persists across sessions.** OVE already stores it in localStorage; the fix was
+  to stop ignoring it, so there is no second mechanism to keep in step. SantaLucia is seeded
+  once on first run so the design Tm is still what you get out of the box — seeded once and
+  remembered, because OVE writes `tmType: "default"` eagerly and "a value is present" cannot
+  otherwise be told apart from someone deliberately choosing Breslauer.
+- **No more negative melting temperatures.** The nearest-neighbour model is two-state and falls
+  apart on short oligos — it read −0.5 °C at 6 nt and −161 °C at 2. Under 8 bp the status bar
+  now declines instead of printing a number, the same way it already did over 100 bp.
+
+  The guard is in the readout, not in `tmNebQ5`: that function is a faithful port of the
+  reference implementation the primer pipeline designs against, and a unit test pins the two
+  together down to a dinucleotide. Changing the calculation to fix a display problem would have
+  broken that agreement, which is the more valuable property.
+
+## 1.14.2
+
+- **A primer's arrowhead is drawn past its last base, not carved out of it.** Upstream puts the
+  tip at the annotation's width and the arrowhead's base *inside* it, so the last nucleotide or
+  two sit in the taper with no background behind them — which reads as the primer stopping
+  short of the bases it covers, and got worse as soon as the point was sharpened. The
+  full-height box now runs the whole width and the point is added on. Features are unchanged.
+
+## 1.14.1
+
+**The ribbon is gone; primers keep OVE's arrowhead, sharpened.** 1.14.0's ribbon was more
+trouble than it was worth. Instead, a primer's arrowhead goes from `arrowPointiness` 0.2 to
+0.55 — upstream's value is so blunt the primer reads as a plain box and its direction is easy
+to miss. Features sit at 1.0; this lands between the two, pointed enough to read at a glance
+without making a primer look like a feature. One constant, no shape logic.
+
+## 1.14.0 (superseded by 1.14.1)
+
+**Primers are drawn with a ribbon instead of an arrowhead.** The body is a plain box; a thick
+band leans up and to the left off its corner, and that band is what carries the direction. A
+triangular arrowhead is easy to miss at a glance, and at low zoom it is only a few pixels wide.
+
+- Reverse primers are a true 180° rotation, so their band leans down and to the right. OVE
+  mirrors the forward path horizontally for reverse annotations, which would have put the band
+  up-and-right instead — primers get `scale(-1,-1)` and a compensating translate.
+- Only the two range types that actually draw an arrowhead are replaced: a primer that fits in
+  one row, and the last row of one that does not. A first or middle row has no 3′ end on it and
+  keeps OVE's continuation curves, so a primer crossing a row boundary still reads as
+  continuing rather than sprouting a second band.
+- Features and parts are untouched — they share the same renderer, so the change is keyed on
+  the annotation type. The circular view has its own primer renderer and is unaffected.
+
+## 1.13.3
+
+- **Reverse-strand primers are spaced off the sequence.** Both primer tracks get the same 5px
+  from OVE, but the forward one also has a labels container above it, so the bottom read as
+  much tighter than the top. The reverse track — told apart by sitting after the letters
+  rather than before them — now gets 9px.
+
+  The margin goes on the track and not as padding on the letters, deliberately:
+  `media/strandBar.js` derives the reverse strand-indicator bar's position from the letters'
+  `offsetHeight`, so padding there would push the bar off the letters it is meant to hug.
+  `!important` is needed because OVE writes the 5px as an inline style.
+
+## 1.13.2
+
+- The active Find match is a light grey wash rather than green. Green on a plasmid reads as an
+  annotation colour rather than as "you are here".
+
+## 1.13.1
+
+- **A codon change can be undone.** It went through `updateEditor`, which replaces the editor's
+  state wholesale — that is how a file is loaded, not how it is edited — so the change sat
+  outside OVE's undo stack and `cmd+Z` did nothing to it. It now goes through OVE's own
+  `updateSequenceData`, taken from the props handed to the right-click override, so undo and
+  redo both work.
+
+  That also removes the `stateTrackingId` bookkeeping 1.13.0 needed: a real edit action marks
+  the document dirty by itself, so File > Save still greys out when clean and lights up after a
+  change without being told to. If OVE ever stops handing that action to the override, the menu
+  item is not offered at all rather than making an edit that cannot be taken back.
+
+## 1.13.0
+
+**Saving is now OVE's own File > Save, with its `cmd/ctrl+S` hotkey.** The bolted-on Save
+button in the top-right is gone.
+
+OVE has always had a Save item; it *hides* it unless an `onSave` prop is passed, and upstream
+never passed one — which is why saving needed a button of our own. With it wired up, the item
+also greys itself out when there is nothing to save, which the button could never do.
+
+One wrinkle worth recording: OVE decides that from `sequenceData.stateTrackingId`, and treats an
+`updateEditor` payload as a fresh load rather than an edit. So a programmatic edit — Change
+Amino Acid is the only one — advances the id deliberately, or it would leave Save greyed out as
+though nothing had changed.
+
+Primer cart:
+
+- **The toolbar button is "Primer Cart"** and opens both halves at once: the picker for the file
+  you are in, and the cart panel beside it. It was "Add to Cart (N)", which opened only the
+  picker and left the cart itself to be found from the command palette.
+- **Select all is a tick box**, so it clears the selection as well as making it — it was a
+  button that could only ever add. It follows the filter, and shows an indeterminate state when
+  only some rows are picked.
+- **Removing a primer no longer asks for confirmation.** It destroys nothing: the primer is
+  still on the sequence and can be added again from the same file. Clearing a whole session
+  still asks.
+
+Primer search:
+
+- **A close control on the panel.** OVE offers no way to dismiss a panel it did not add, so the
+  search panel carries its own — and un-splits the view rather than leaving an empty half
+  beside the sequence.
+
+## 1.12.4
+
+- The four fields in a codon cell are labelled — Codon, AA, Frac., Freq. — under the leftmost
+  block only, since the columns repeat. The labels are centred over their columns rather than
+  following the alignment of the values beneath, which is left for codons and right for numbers.
+
+- **README: a "What this fork adds" summary.** The fork notice listed four changes and had not
+  been touched since v1.3, so it mentioned none of the primer search, alignment, chromatogram,
+  Change Amino Acid or correctness work. Grouped by what each thing is for rather than by
+  release, since the changelog already covers release order.
+
+## 1.12.3
+
+- **The E. coli codon table was wrong about stop codons.** Kazusa has several E. coli entries;
+  the obvious one, K-12 (taxid 83333), is built from too few CDSs to contain an amber stop and
+  reports TAG at a fraction and frequency of exactly zero — which reads as "E. coli never uses
+  TAG". Replaced with W3110, the same organism from 4,332 CDSs, where TAG is 0.07 and 0.2 per
+  thousand. The source link points at that table.
+
+  This slipped through because it passes a fractions-sum-to-one check: the other two stops
+  absorb the missing share. `test/unit/codonUsage.test.js` now checks every table against an
+  independently built genetic code, for family sums, and that **no codon is reported as never
+  used** — which is what catches a table too sparse to ship. The other three organisms were
+  re-checked and are clean.
+- The codon cells are a very light grey rather than the printed table's tan, with 2px rules
+  around each block of four carried through the axis headers so the divisions line up with the
+  letters that name them.
+
+## 1.12.2
+
+- **Change Amino Acid is laid out as a genetic-code table.** First base down the side, second
+  across the top, third within each block, T/C/A/G throughout rather than alphabetical — so an
+  amino acid's codons are the block they sit in. Every codon keeps its own amino-acid label:
+  printed tables bracket a block and name the residue once, which is compact on paper but
+  leaves a row meaning nothing on its own, and here every row is something you click.
+- **An edited codon is written in the case that stands out from its neighbours**, so it can be
+  found in the sequence afterwards. The case comes from the codons either side, not from the
+  bases being replaced: flipping a codon's own case works until two adjacent codons are both
+  edited, at which point the second flips relative to the first and the pair ends up in
+  opposite cases with neither reading as the edit. Neighbours that disagree, or an edit with
+  nothing cased around it, give upper. Nothing downstream reads case.
+
+## 1.12.1
+
+- **Change Amino Acid shows the whole genetic code.** 1.12.0 listed only the synonymous codons
+  for the residue you clicked, which makes the dialog a codon-optimisation tool and nothing
+  else — the common case is mutating the residue itself, and that was unreachable. All 64
+  codons are now laid out as a printed codon table is: four columns, one per middle base,
+  alphabetical within each, ruled into blocks of four so an amino acid's codons sit together
+  and the wobble position is the one that varies.
+- Three-letter / single-letter is a pair of radio buttons; the organism dropdown carries full
+  species names; the source line links to the specific Kazusa table for the organism showing.
+  Fractions and frequencies print without trailing zeros, as the published tables do, and stop
+  stays an asterisk in both notations rather than becoming "Stop" in a column of residue codes.
+
+## 1.12.0
+
+**Change Amino Acid.** Right-click a residue in a translation and pick a different codon for
+it, with codon usage for the organism you are expressing in shown alongside: *S. cerevisiae*,
+*E. coli*, *H. sapiens*, *M. musculus*, from the Codon Usage Database (Nakamura et al. 2000).
+Codons are listed commonest first with their fraction and per-thousand frequency, the one in
+use is marked, and there is a three-letter/single-letter toggle. Choosing one rewrites those
+three bases; **Save** writes it to the file, as with any other edit.
+
+- **DNA base editing is now on by default** (`oveCart.allowSequenceEditing`). It has to be —
+  the menu entry would otherwise appear and silently do nothing.
+- The strand and origin arithmetic is in `media/codonEdit.js`, apart from the dialog and unit
+  tested. That is where the danger is: a reverse-strand CDS displays the reverse complement of
+  what is stored, so a codon picked in reading orientation has to be complemented back before
+  it lands, and on a circular plasmid a codon can straddle the origin, where `codonRange.start`
+  is greater than its `end` and a plain slice silently takes bases from the wrong place. Both
+  round-trip in the tests.
+- OVE hands a right-click the whole translation rather than the residue, so the residue is read
+  from the element under the cursor. If it cannot be read, the menu entry is not offered at all
+  rather than offered pointing at the wrong codon.
+- Only the fraction and frequency are stored per organism — which amino acid a codon encodes is
+  derived from the genetic code, so the two cannot disagree. Every table was checked against
+  that code, and each amino acid's fractions checked to sum to 1, before being written.
+
+## 1.11.5
+
+- **Filter Cut Sites is remembered between sessions.** OVE resets the enzyme filter to "Single
+  cutters" on every mount, so a set of enzymes had to be re-picked for every file. The choice
+  (and the and/or flag beside it) is kept in `globalState` — it follows you between projects,
+  same reasoning as the cart — and applied in the boot script, so the filter is right on the
+  first render rather than flickering through the default.
+
+  The editor handle exposes only `getState`, with no store to subscribe to, so the client reads
+  the filter shortly after any interaction that could have changed it and posts only when the
+  value actually differs. A timer polling forever for a setting that changes a few times a day
+  seemed the wrong trade.
+- `media/codonUsage.js`: codon usage tables for *S. cerevisiae*, *E. coli*, *H. sapiens* and
+  *M. musculus*, from the Codon Usage Database (Nakamura et al. 2000). Groundwork for the
+  Change Amino Acid dialog; nothing loads it yet. Only the fraction and frequency are stored —
+  which amino acid a codon encodes is derived from the genetic code, so the two cannot
+  disagree — and every table was checked against that code, with each amino acid's fractions
+  checked to sum to 1, before being written.
+
+## 1.11.4
+
+Alignment viewer:
+
+- **The pinned reference is OVE's own, so there is one selection again.** 1.11.1 rendered a
+  second one-track alignment view above the scroller. It looked right, but a second view
+  carries its own redux store — so it had its own selection, and highlighting in one did
+  nothing to the other. OVE already has this: `hasTemplate` renders track 0 into
+  `.alignmentTrackFixedToTop` with its own scroll holder, keeps that holder in step
+  horizontally, and offsets the virtualised list's indices so nothing is drawn twice. It was
+  written for the template row in pairwise mode but is not pairwise-specific. Same view, same
+  store, one selection — and about 90 lines of our own scaffolding deleted.
+- OVE rules its template track in red, which is the mismatch colour everywhere else in this
+  panel, on the one track that cannot mismatch. It is a plain divider now.
+- **19px of white above every chromatogram is gone.** A literal `<br>` sits above each trace in
+  OVE's markup, clearing the two scale buttons — which are hidden here, since the amplitude
+  control in the top bar drives every track at once. With a dozen reads on screen that line box
+  was taking more room than the traces. Each row is 62px now instead of 80px.
+
+## 1.11.3
+
+Main viewer:
+
+- **Align / Primer Search / Add to Cart / Save are menu-bar items now**, not coloured pills:
+  black text, no background, the same 14px Arial in a 30px box that File/Edit/View use, and
+  Blueprint's own hover wash. They read as part of the editor rather than as a toolbar bolted
+  on top of it.
+- **The row is right-aligned to OVE's menu bar instead of to the window.** `position: fixed`
+  measures from the webview viewport, and OVE's content stops short of it — there is a gutter
+  down the right-hand side — so Save hung past the toolbar it is meant to sit in. The gutter is
+  measured at runtime (`media/toolButtons.js`) and the row sits 12px inside the bar's edge.
+- New `media/EditorDemo.html`: the first demo page that mounts OVE's actual editor, so its menu
+  bar, right-click menus and redux state can be driven from the browser suite.
+
+## 1.11.2
+
+- **Chromatograms scale from the upper quartile of called-base peaks, not p95.** Measured over
+  157 real Genewiz reads: p95 fixed the two files whose dye front saturates the detector, but
+  left four failed reads — where the called-peak spread is 12×–23×, so p95 sits inside the dye
+  front itself — drawn at 1.6–3.2px of 58. The typical peak now draws at 24.5px against 16.1px,
+  no file is left under 5px (p95 left five), and 4.3% of peaks clip at the top of the track
+  against 0.4% — which is what a chromatogram is supposed to look like. Working shown in
+  `notes/chromatogram-fit-scale.md`.
+- `scripts/patches.js check` now refuses a vendored bundle that does not parse. A hand edit
+  that closes a comment in the wrong place does not fail loudly — the bundle silently stops
+  publishing its exports — so it was worth catching at the patch gate rather than several
+  steps downstream.
+
+## 1.11.1
+
+Alignment viewer:
+
+- **The pinned reference actually stays pinned.** 1.11.0 used `position: sticky`, which
+  cannot work here: OVE virtualises the track list, so once you are a few reads down the
+  reference is not merely off screen, it is unmounted — there is no element left to stick,
+  which is why the pin appeared to jump onto a read. It is now a second, one-track alignment
+  view above the scroller, with its column position driven by the main view's.
+- **One alignment window per reference**, titled with the reference name. Aligning against a
+  different plasmid opens its own window instead of landing in one still holding the last
+  reference's reads, and two references can be compared side by side. Pressing Align again on
+  the same plasmid still reuses its window and keeps the results already on screen.
+- **Traces with very few samples per base are smoothed.** Some writers emit four samples per
+  base with square shoulders; drawn as straight lines that is a flat-topped rectangle rather
+  than a peak. Traces with enough samples to describe their own shape are left untouched.
+
 ## 1.11.0
 
 Alignment viewer, from using it:

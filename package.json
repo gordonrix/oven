@@ -2,7 +2,7 @@
   "name": "ove-vscode-primer-cart",
   "displayName": "Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.11.0",
+  "version": "1.15.1",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "repository": {
@@ -147,8 +147,8 @@
         },
         "oveCart.allowSequenceEditing": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "Allow the DNA bases themselves to be edited. When off (the default), annotations can be created and edited but the sequence cannot be cut, pasted over, complemented or deleted."
+          "default": true,
+          "markdownDescription": "Allow the DNA bases themselves to be edited, including **Change Amino Acid** on a translation. When off, annotations can be created and edited but the sequence cannot be cut, pasted over, complemented or deleted."
         },
         "oveCart.autoAddCreatedPrimers": {
           "type": "boolean",

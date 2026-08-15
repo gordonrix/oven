@@ -16,19 +16,77 @@ v1.2.0 was published to the Marketplace but never pushed to git, so the v1.2.0 s
 here were imported from the published VSIX (see the `vendor-1.2.0` tag, which records a
 sha256 for every imported file).
 
-Changes made in this fork:
+## What this fork adds
 
-- **Primer Cart** — a sidebar panel that accumulates primers across plasmid files, with
-  copy-as-TSV, copy-sequences, and CSV export, plus optional cross-referencing against
-  your own primer inventory spreadsheet.
-- **The editor is no longer read-only by default.** Upstream never overrode OVE's
-  `readOnly` default of `true`, which hid every item in the **Create** menu — so
-  "Create → New Primer" appeared as an empty popup. Base editing stays locked separately
-  via `oveCart.allowSequenceEditing`, so annotations work without risking the sequence.
+Upstream is a viewer: it embeds Open Vector Editor in a VS Code tab and saves the file
+back. Everything below is added here. Grouped by what it is for rather than by release —
+see [CHANGELOG.md](CHANGELOG.md) for the detail.
+
+### Designing and ordering primers
+
+- **Primer Cart** — a panel that accumulates primers across plasmid files into one list,
+  with copy-as-TSV, copy-sequences and CSV export, and named sessions so several orders
+  can be in flight at once. Primers created in the editor are added automatically.
+- **Cross-reference an inventory** — point it at your own primer spreadsheet and the cart
+  tells you which primers you already have in the freezer.
+- **Primer search** — search a plasmid, or just the selection, for every primer in your
+  inventory, with melting temperatures and full-length/partial matching. Hits can be
+  attached to the sequence as annotations or added to the cart.
+- **Melting temperatures** use the NEB Q5 nearest-neighbour model, with an option for the
+  Benchling-style calculation instead.
+
+### Checking clones
+
+- **Alignment** — align Sanger reads against the plasmid on screen. Takes `.ab1`, `.fasta`,
+  `.gb` and `.gbk`, by drag-and-drop or file picker, and uses MAFFT (found automatically in
+  Homebrew or conda; the panel walks you through installing it if it is missing).
+- Reads are quality-trimmed, reverse-complemented if needed, and **rotated when they span
+  the plasmid origin** — which MAFFT cannot do on its own, since it has no notion of a
+  circular sequence.
+- **Chromatograms** are drawn under each trace read, with controls for track height and
+  trace amplitude, and the reference stays pinned above the reads while you scroll.
+- Each read is called **match / partial match / mismatch**, and mutated codons show the
+  amino acid they now encode.
+
+### Editing
+
+- **Change Amino Acid** — right-click a residue in a translation to pick any codon from the
+  genetic code, with codon usage for *S. cerevisiae*, *E. coli*, *H. sapiens* or
+  *M. musculus* shown alongside. The edit is written in the opposite case to its
+  neighbours so it can be found again.
+- **The editor is no longer read-only by default.** Upstream never overrode OVE's `readOnly`
+  default of `true`, which hid every item in the **Create** menu — so "Create → New Primer"
+  appeared as an empty popup.
+- **Filter Cut Sites is remembered** between files and sessions, rather than resetting to
+  "Single cutters" every time.
+
+### Reading the sequence
+
+- **Strand indicator bar** — search hits are marked with which strand they matched.
+- **Selection readout** — length, GC content and melting temperature for the current
+  selection.
+
+### Correctness fixes
+
+- **Features that span the origin** of a circular plasmid render correctly and survive a
+  save round-trip. Upstream wrote them back in a form that grew a spurious duplicate
+  location each time the file was saved.
+- **Three `.ab1` parser bugs** in `@teselagen/bio-parsers`, which between them made trace
+  files unreadable in this environment. Patches and issue drafts for upstream are in
+  [`upstream/`](upstream/).
+- **Chromatogram scaling** is taken from a percentile of the called-base peaks rather than
+  the tallest sample anywhere in the trace — which in a real Sanger file is the dye front,
+  not a base, and drew some reads as a flat line. Measured over 157 real reads; the
+  working is in [`notes/chromatogram-fit-scale.md`](notes/chromatogram-fit-scale.md).
+
+### Housekeeping
+
 - Removed ~10 MB of dead artifacts (a superseded bio-parser bundle, a duplicate
   stylesheet, two committed `.vsix` files) and an unused `react` dependency.
 - Renamed the extension identity and custom-editor `viewType` so it can be installed
   alongside, or instead of, the Marketplace original.
+- The vendored OVE bundle is patched rather than forked, and every patch is tracked,
+  checksummed and re-checkable — see [`patches/README.md`](patches/README.md).
 
 ## Installation
 
@@ -37,7 +95,7 @@ Not published to the Marketplace. Build and sideload:
 ```sh
 npm install
 npm run package
-code --install-extension ove-vscode-primer-cart-1.3.0.vsix --force
+code --install-extension ove-vscode-primer-cart-1.15.1.vsix --force
 ```
 
 If you have the original `sanekun.openvectoreditor` installed, uninstall it — otherwise
@@ -221,7 +279,7 @@ the nearest-neighbour model is a primer model.
 
 - Supports `.dna`, `.fa`, `.fasta`, `.gb`, `.gbk`
 - Select a DNA file → Open With → OVE (can be set as the default)
-- Save with the custom Save button (all formats, including `.dna`)
+- Save with **File > Save** or `cmd/ctrl+S` (all formats, including `.dna`)
 - Command **Open Vector Editor: Open Demo Editor** (`oveCart.showEditor`) opens a
   scratch editor whose contents persist across tab switches
 
