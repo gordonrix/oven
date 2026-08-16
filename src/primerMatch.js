@@ -19,7 +19,7 @@
 'use strict';
 
 const { revComp } = require('../media/cartShared');
-const { tmNebQ5 } = require('./tm');
+const { nebTm } = require('./tm');
 
 const DEFAULT_K = 12;
 const DEFAULT_MIN_ANNEAL = 15;
@@ -140,7 +140,7 @@ function search(index, entries, opts) {
         if (hits.length >= maxHits) { truncated = true; break; }
 
         const annealSeq = strand === 1 ? Q.slice(Q.length - anneal) : Q.slice(0, anneal);
-        const tm = tmNebQ5(annealSeq);
+        const tm = nebTm(annealSeq);
         hits.push({
           name: entry.name,
           alias: entry.alias || '',

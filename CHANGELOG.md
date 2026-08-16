@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.18.0
+
+**Our melting-temperature calculation is gone.** It carried the wrong nearest-neighbour
+parameters for the GC dinucleotide — CG's values (−10.6 / −27.2) instead of GC's
+(−9.8 / −24.4) — so it could not tell `GCGC…` from `CGCG…` and read 12 °C low on a
+GC-alternating 20-mer.
+
+Everything that showed a Tm — the cart, primer search, the status bar — now uses Teselagen's
+`calculateNebTm`, ported into `media/cartShared.js` so the extension host and the webview share
+one implementation. That is the NEB model as Teselagen implements it: a monovalent salt
+correction applied to 1/Tm, **no Mg²⁺ term**, and `R·ln(Ct)` with a 500 nM default.
+
+Removed with it: `media/selectionTm.js` (the status-bar override), `oveCart.useDesignTmCalculation`,
+and the unit suite pinning the old calculation against its Python reference. The Tm type radio
+is now a straight Breslauer/SantaLucia choice with no custom code behind it.
+
+Expect primer Tms to read a little differently — that is the point.
+
 ## 1.17.0
 
 - **The status bar shows Open Vector Editor's own melting temperature.** Cross-checked against

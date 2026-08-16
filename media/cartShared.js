@@ -208,73 +208,80 @@
   /* ------------------------------------------------------------------ Tm -- */
 
   /*
-   * NEB Q5 nearest-neighbour melting temperature (SantaLucia 1998), ported
-   * from the reference implementation the primer-design pipeline uses, so the extension agrees
-   * with the pipeline their existing primers were designed against.
+   * Melting temperature, ported from Teselagen's `calculateNebTm`
+   * (packages/sequence-utils in github.com/TeselaGen/tg-oss, MIT).
    *
-   * It lives here, in the dual-use module, because both sides need it: the
-   * host computes Tm for cart items and search hits, and the webview computes
-   * it live for the current selection.
+   * This replaced a local nearest-neighbour implementation that had the GC
+   * dinucleotide's enthalpy and entropy wrong -- it carried CG's values
+   * (-10.6 / -27.2) instead of GC's (-9.8 / -24.4), so it could not tell
+   * GCGCGC... from CGCGCG... and read 12 C low on a GC-alternating 20-mer.
    *
-   * Deliberate divergence from the Python, which raises on short or
-   * degenerate input: that would abort a cart add or blank the whole editor,
-   * so these return null and the caller renders a dash.
+   * Ported rather than called through the editor bundle because the extension
+   * host needs it too, for the cart and for primer search, and one
+   * implementation is the only way the status bar and the cart can be
+   * guaranteed to agree.
+   *
+   * Note this is the NEB model as Teselagen implements it: a monovalent salt
+   * correction applied to 1/Tm, no Mg2+ term, and R*ln(Ct) rather than
+   * R*ln(Ct/2).
    */
-  const NN_R = 1.987;
-  const NN_TERM_DS = { g: -2.8, a: 4.1, t: 4.1, c: -2.8 };
-  const NN_TERM_DH = { g: 0.1, a: 2.3, t: 2.3, c: 0.1 };
-  const NN_DS = {
-    gg: -19.9, ga: -22.2, gt: -22.4, gc: -27.2,
-    ag: -21.0, aa: -22.2, at: -20.4, ac: -22.4,
-    tg: -22.7, ta: -21.3, tt: -22.2, tc: -22.2,
-    cg: -27.2, ca: -22.7, ct: -21.0, cc: -19.9
-  };
-  const NN_DH = {
-    gg: -8.0, ga: -8.2, gt: -8.4, gc: -10.6,
-    ag: -7.8, aa: -7.9, at: -7.2, ac: -8.4,
-    tg: -8.5, ta: -7.2, tt: -7.9, tc: -8.2,
-    cg: -10.6, ca: -8.5, ct: -7.8, cc: -8.0
-  };
-  // NEB Q5 reaction conditions, matching the Python defaults.
-  const NA = 0.05;
-  const MG = 0.0015;
-  const PRIMER_TOTAL = 2e-7;
+  const NEB_R = 1.987;
+  const NEB_KELVIN = 273.15;
 
-  /** @returns {number|null} Tm in °C, or null for <2 bases or any non-ACGT. */
-  function tmNebQ5(seq, opts) {
+  /* SantaLucia 1998 unified parameters, keyed by duplex. */
+  const NEB_DH = {
+    'AA/TT': -7.9, 'AT/TA': -7.2, 'TA/AT': -7.2, 'CA/GT': -8.5, 'GT/CA': -8.4,
+    'CT/GA': -7.8, 'GA/CT': -8.2, 'CG/GC': -10.6, 'GC/CG': -9.8, 'GG/CC': -8,
+    'TT/AA': -7.9, 'TG/AC': -8.5, 'AC/TG': -8.4, 'AG/TC': -7.8, 'TC/AG': -8.2,
+    'CC/GG': -8, initGC: 0.1, initAT: 2.3
+  };
+  const NEB_DS = {
+    'AA/TT': -22.2, 'AT/TA': -20.4, 'TA/AT': -21.3, 'CA/GT': -22.7, 'GT/CA': -22.4,
+    'CT/GA': -21, 'GA/CT': -22.2, 'CG/GC': -27.2, 'GC/CG': -24.4, 'GG/CC': -19.9,
+    'TT/AA': -22.2, 'TG/AC': -22.7, 'AC/TG': -22.4, 'AG/TC': -21, 'TC/AG': -22.2,
+    'CC/GG': -19.9, initGC: -2.8, initAT: 4.1
+  };
+
+  /**
+   * @param {string} seq single-stranded DNA
+   * @param {{monovalentCationConc?: number, primerConc?: number}} [opts]
+   * @returns {number|null} Tm in Celsius, or null for anything unusable --
+   *   degenerate bases, or too short to have a single dimer.
+   */
+  function nebTm(seq, opts) {
     const o = opts || {};
-    const na = o.na === undefined ? NA : o.na;
-    const mg = o.mg === undefined ? MG : o.mg;
-    const primerTotal = o.primerTotal === undefined ? PRIMER_TOTAL : o.primerTotal;
+    const mono = o.monovalentCationConc === undefined ? 0.05 : o.monovalentCationConc;
+    const primerConc = o.primerConc === undefined ? 5e-7 : o.primerConc;
 
-    const s = String(seq || '').trim().toLowerCase();
-    if (s.length < 2) return null;
-    if (!/^[acgt]+$/.test(s)) return null;
+    const s = String(seq || '').trim().toUpperCase();
+    if (s.length < 2 || /[^ATGC]/.test(s)) return null;
 
-    let ds = 0;
     let dh = 0;
-    ds += 0.368 * (s.length - 1) * Math.log(na + mg * 140);
-    ds += NN_TERM_DS[s[0]] + NN_TERM_DS[s[s.length - 1]];
-    dh += NN_TERM_DH[s[0]] + NN_TERM_DH[s[s.length - 1]];
-    for (let i = 0; i < s.length - 1; i++) {
-      const pair = s.slice(i, i + 2);
-      ds += NN_DS[pair];
-      dh += NN_DH[pair];
+    let ds = 0;
+    for (let i = 0; i < s.length; i++) {
+      if (i === 0 || i === s.length - 1) {
+        const gc = s[i] === 'G' || s[i] === 'C';
+        dh += gc ? NEB_DH.initGC : NEB_DH.initAT;
+        ds += gc ? NEB_DS.initGC : NEB_DS.initAT;
+      }
+      if (i < s.length - 1) {
+        const dimer = s[i] + s[i + 1];
+        const duplex = `${dimer}/${revComp(dimer).split('').reverse().join('')}`;
+        if (NEB_DH[duplex] === undefined) return null;
+        dh += NEB_DH[duplex];
+        ds += NEB_DS[duplex];
+      }
     }
-    return (1000 * dh) / (ds + NN_R * Math.log(primerTotal / 2)) - 273.15;
-  }
 
-  /*
-   * Shortest oligo the nearest-neighbour model is meaningful for.
-   *
-   * A guide for callers, not a limit applied here: this function is a faithful
-   * port of the reference implementation the primer pipeline designs against,
-   * and it stays that way down to a dinucleotide so the two can be compared.
-   * The model is two-state, though, and below this length the initiation terms
-   * swamp the stacking terms -- it reads -0.5 C at 6 nt and -161 C at 2. Any UI
-   * showing a Tm should decline rather than print that.
-   */
-  const MIN_TM_BP = 8;
+    const tm = (dh * 1000) / (ds + NEB_R * Math.log(primerConc)) - NEB_KELVIN;
+    if (!mono) return tm;
+
+    // Owczarzy-style monovalent correction, applied to 1/Tm.
+    const lnMono = Math.log(mono);
+    const gcFrac = ((s.match(/[GC]/g) || []).length / s.length);
+    const correction = (4.29 * gcFrac - 3.95) * 1e-5 * lnMono + Math.pow(9.4, -6) * lnMono * lnMono;
+    return 1 / (1 / (tm + NEB_KELVIN) + correction) - NEB_KELVIN;
+  }
 
   /** @returns {number|null} GC fraction 0..1, or null when there is nothing to count. */
   function gcFraction(seq) {
@@ -285,7 +292,7 @@
   }
 
   return {
-    revComp, deriveBases, wrapsOrigin, normalizeSeqKey, tmNebQ5, gcFraction, MIN_TM_BP,
+    revComp, deriveBases, wrapsOrigin, normalizeSeqKey, nebTm, gcFraction,
     locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations,
     alignmentVerdict, MIN_COVERED_BP
   };

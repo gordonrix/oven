@@ -266,7 +266,6 @@ class DNAViewerProvider {
       sharedUri: this.mediaUri(webview, 'cartShared.js'),
       pickerUri: this.mediaUri(webview, 'cartPicker.js'),
       searchUri: this.mediaUri(webview, 'primerSearch.js'),
-      selTmUri: this.mediaUri(webview, 'selectionTm.js'),
       strandUri: this.mediaUri(webview, 'strandBar.js'),
       toolBtnsUri: this.mediaUri(webview, 'toolButtons.js'),
       cutSitesUri: this.mediaUri(webview, 'cutSites.js'),
@@ -281,8 +280,7 @@ class DNAViewerProvider {
       readOnly: config.readOnly(),
       disableBpEditing: !config.allowSequenceEditing(),
       autoAddCreatedPrimers: config.autoAddCreatedPrimers(),
-      showSelectionStats: config.showSelectionStatsByDefault(),
-      useDesignTm: config.useDesignTmCalculation()
+      showSelectionStats: config.showSelectionStatsByDefault()
     });
   }
 }

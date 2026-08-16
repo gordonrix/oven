@@ -32,8 +32,8 @@ see [CHANGELOG.md](CHANGELOG.md) for the detail.
 - **Primer search** — search a plasmid, or just the selection, for every primer in your
   inventory, with melting temperatures and full-length/partial matching. Hits can be
   attached to the sequence as annotations or added to the cart.
-- **Melting temperatures** use the NEB Q5 nearest-neighbour model, with an option for the
-  Benchling-style calculation instead.
+- **Melting temperatures** come from Open Vector Editor's own nearest-neighbour
+  calculation, with a Breslauer/SantaLucia choice in the status-bar popover.
 
 ### Checking clones
 
@@ -106,7 +106,7 @@ Not published to the Marketplace. Build and sideload:
 ```sh
 npm install
 npm run package
-code --install-extension ove-vscode-primer-cart-1.17.0.vsix --force
+code --install-extension ove-vscode-primer-cart-1.18.0.vsix --force
 ```
 
 If you have the original `sanekun.openvectoreditor` installed, uninstall it — otherwise

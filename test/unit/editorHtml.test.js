@@ -15,11 +15,11 @@ const { buildEditorHtml } = require('../../src/editorHtml');
 const OPTS = {
   styleUri: 'ove.css', scriptUri: 'index.umd.js', cartCssUri: 'c.css', searchCssUri: 's.css',
   strandCssUri: 'st.css', sharedUri: 'shared.js', pickerUri: 'picker.js', searchUri: 'search.js',
-  selTmUri: 'tm.js', strandUri: 'strand.js', toolBtnsUri: 'toolButtons.js',
+  strandUri: 'strand.js', toolBtnsUri: 'toolButtons.js',
   cutSitesUri: 'cutSites.js',
   sequenceJson: '{"name":"x","sequence":"ACGT"}', viewType: 'sequence',
   readOnly: false, disableBpEditing: false, autoAddCreatedPrimers: false,
-  showSelectionStats: true, useDesignTm: false
+  showSelectionStats: true
 };
 
 const FILTER = {

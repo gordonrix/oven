@@ -98,7 +98,7 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         showGCContentByDefault: ${Boolean(showSelectionStats)},
         ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
         panelMap: window.OveSearch.panelMap,
-        onSelectionOrCaretChanged: function () { window.OveSelectionTm.refresh(); },` : ''}
+` : ''}
         /*
          * Lights up OVE's own File > Save and its mod+s hotkey.
          *
@@ -144,9 +144,9 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, pickerUri,
-    searchUri, selTmUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
+    searchUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, sequenceJson, viewType, readOnly,
-    disableBpEditing, autoAddCreatedPrimers, showSelectionStats, useDesignTm,
+    disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
     cutSiteFilter } = opts;
 
   return `<!DOCTYPE html>
@@ -179,7 +179,6 @@ function buildEditorHtml(opts) {
     <script src="${sharedUri}"></script>
     <script src="${pickerUri}"></script>
     <script src="${searchUri}"></script>
-    <script src="${selTmUri}"></script>
     <script src="${strandUri}"></script>
     <script src="${toolBtnsUri}"></script>
     <script src="${cutSitesUri}"></script>
@@ -190,7 +189,6 @@ function buildEditorHtml(opts) {
 ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
-      window.OveSelectionTm.init(editor, { useDesignTm: ${Boolean(useDesignTm)} });
       window.OveStrandBar.init();
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
