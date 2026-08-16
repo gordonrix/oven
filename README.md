@@ -106,7 +106,7 @@ Not published to the Marketplace. Build and sideload:
 ```sh
 npm install
 npm run package
-code --install-extension ove-vscode-primer-cart-1.16.0.vsix --force
+code --install-extension ove-vscode-primer-cart-1.17.0.vsix --force
 ```
 
 If you have the original `sanekun.openvectoreditor` installed, uninstall it — otherwise

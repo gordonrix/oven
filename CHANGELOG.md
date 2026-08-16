@@ -4,6 +4,17 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.17.0
+
+- **The status bar shows Open Vector Editor's own melting temperature.** Cross-checked against
+  20 sequences of 15–45 nt: at matched primer concentration ours ran about 1.2 °C from theirs,
+  and the gap traced partly to a real error on our side — our nearest-neighbour table gives the
+  **GC** dinucleotide the same ΔH/ΔS as **CG** (−10.6 / −27.2), where the published values are
+  −9.8 / −24.4. On a GC-alternating 20-mer that is a 12 °C error.
+
+  `oveCart.useDesignTmCalculation` now defaults off, so nothing overrides OVE. Turning it back
+  on restores the previous behaviour.
+
 ## 1.16.0
 
 - **The cart's copy button copies just names and sequences.** It emitted all nine columns —

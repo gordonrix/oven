@@ -53,7 +53,7 @@ module.exports = {
   allowSequenceEditing: () => cfg().get('allowSequenceEditing', true),
   autoAddCreatedPrimers: () => cfg().get('autoAddCreatedPrimers', true),
   showSelectionStatsByDefault: () => cfg().get('showSelectionStatsByDefault', true),
-  useDesignTmCalculation: () => cfg().get('useDesignTmCalculation', true),
+  useDesignTmCalculation: () => cfg().get('useDesignTmCalculation', false),
   maxItems: () => {
     const n = Number(cfg().get('maxItems', 500));
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 500;
