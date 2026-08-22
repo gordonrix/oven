@@ -2,9 +2,14 @@
   "name": "ove-vscode-primer-cart",
   "displayName": "Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#FFFFFF",
+    "theme": "light"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/gordonrix/ove-vscode"
@@ -120,6 +125,11 @@
         "command": "oveCart.checkMafft",
         "title": "Check MAFFT Installation",
         "category": "Primer Cart"
+      },
+      {
+        "command": "oveCart.addToAlignment",
+        "title": "Add to Alignment",
+        "category": "Open Vector Editor"
       }
     ],
     "configuration": {
@@ -247,6 +257,21 @@
           "markdownDescription": "Maximum number of reads in one alignment. Reads beyond this are ignored, with a note in the panel."
         }
       }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "oveCart.addToAlignment",
+          "when": "resourceExtname =~ /\\.(ab1|gb|gbk|fa|fasta|dna)$/i",
+          "group": "navigation@50"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "oveCart.addToAlignment",
+          "when": "false"
+        }
+      ]
     }
   },
   "scripts": {

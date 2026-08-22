@@ -423,7 +423,8 @@
       browse.addEventListener('click', () => post('align/browse'));
       zone.appendChild(browse);
       zone.appendChild(el('div', 'ovealign-drophint',
-        'from Finder, or from the Explorer on the left'));
+        'Hold \u21e7 Shift while dragging from Finder, or right-click files ' +
+        'in the Explorer \u2192 Add to Alignment'));
       wireDropZone(zone);
       setup.appendChild(zone);
     }
@@ -612,7 +613,22 @@
 
   // The whole panel is a drop target, not just the dashed box -- dropping onto
   // the alignment itself is the obvious thing to try once one is showing.
+  //
+  // Dragging is not dependable, though, and the reason is outside this webview:
+  // once a drag enters the VS Code window over any of its own chrome, the
+  // workbench lays a drop overlay across the whole editor area and opens what
+  // you drop as a new tab. Holding Shift dismisses that overlay. The routes
+  // that always work are Browse..., paste (below), and the Explorer's
+  // right-click > Add to Alignment.
   wireDropZone(document.body);
+
+  // Copy files in Finder, click the panel, press Cmd+V.
+  window.addEventListener('paste', (e) => {
+    const files = e.clipboardData && e.clipboardData.files;
+    if (!files || !files.length) return;
+    e.preventDefault();
+    sendFiles(files);
+  });
 
   render();
   post('align/ready');

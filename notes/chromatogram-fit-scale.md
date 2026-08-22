@@ -4,8 +4,8 @@
 block), landed in `ad6b2fe`. Bundled at `media/index.umd.js:147903`, documented in
 `patches/README.md` under the chromatogram fix.
 
-Written up from the MCS side, where synthetic `.ab1` chromatograms are now generated
-(`multiplex_clonal_sequencing/MCS_demultiplex.py`, `write_ab1`). Those render as a wall of
+Found while rendering synthetic `.ab1` chromatograms written by a separate tool. Those
+render as a wall of
 full-height spikes. Chasing that turned up a second failure that affects real instrument
 files, which is the more important half of this report.
 
@@ -18,8 +18,8 @@ scale = OVE_CHROM_HEIGHT / max(every sample in every channel)
 ```
 
 In a real Sanger `.ab1` that maximum is almost never a base peak. It is the dye front /
-primer blob near the start of the run. Measured over 10 Genewiz files in
-`Research/Constructs/Sanger - genewiz/`:
+primer blob near the start of the run. Measured over 10 real Sanger files from a
+commercial sequencing provider:
 
 | | |
 |---|---|
@@ -159,11 +159,9 @@ and pulls real files down to ~11 px.
 
 ## Reproducing
 
-Real files, including the two saturating ones:
-`Research/Constructs/Sanger - genewiz/**/*.ab1`
+Real files, including the two saturating ones: a local folder of provider `.ab1` reads.
 
-Synthetic files: any `MCS_output/ab1/*.ab1` from an MCS run with `output_ab1` set in the
-metadata config sheet.
+Synthetic files: any `.ab1` written by the generator mentioned above.
 
 There is a standalone Python reimplementation of the render path —
 `convertBasePosTraceToPerBpTrace` → `oveFitScale` → `drawTrace.drawPeaks` — in
@@ -187,7 +185,7 @@ tracks should be independently scaled, that is a separate change.
 
 ## Measured after shipping: p95 is not low enough (1.11.2)
 
-The rule above went in, and was then measured against **157** real Genewiz reads rather than
+The rule above went in, and was then measured against **157** real provider reads rather than
 the ten this report was written from — using the shipping code path (`media/bioparser2.umd.js`
 → the bundled `oveFitScale`) instead of the Python reimplementation, so there is no second
 implementation to keep in step.

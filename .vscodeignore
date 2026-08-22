@@ -9,6 +9,7 @@ vsc-extension-quickstart.md
 **/eslint.config.mjs
 **/.vscode-test.*
 *.vsix
+dist/**
 media/test.js
 media/UMDDemo.html
 test/*
@@ -19,8 +20,10 @@ media/AlignDemo.html
 scripts/**
 patches/**
 upstream/**
+notes/**
 
-# Design sources. The shipped icon is a PNG; the editable original is
-# tracked for future work but has no business in the package.
+# Design sources. The shipped icon is icon.png, exported from these; the
+# originals have no business in the package.
 *.ai
 *.svg
+logo.png

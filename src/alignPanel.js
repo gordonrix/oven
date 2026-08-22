@@ -486,15 +486,54 @@ class AlignPanels {
     );
   }
 
-  /** The panel for this reference, opening one if it is not already up. */
-  show(reference, column) {
+  /** The AlignPanel for this reference, created if there is not one yet. */
+  panelFor(reference) {
     const key = referenceKey(reference);
     let panel = this.byKey.get(key);
     if (!panel) {
       panel = new AlignPanel(this.context, { onDispose: () => this.byKey.delete(key) });
       this.byKey.set(key, panel);
     }
-    return panel.show(reference, column);
+    return panel;
+  }
+
+  /** The panel for this reference, opening one if it is not already up. */
+  show(reference, column) {
+    return this.panelFor(reference).show(reference, column);
+  }
+
+  /**
+   * Add files to an alignment from outside the webview.
+   *
+   * This is the route the Explorer's context menu uses, and it exists because
+   * dragging cannot be relied on: the workbench puts its own drop overlay over
+   * the editor area the moment a drag enters the window over any chrome, and
+   * that overlay opens the file in a new tab instead of letting the webview
+   * see it. Holding Shift dismisses the overlay, but that is a thing to know
+   * rather than a thing that works.
+   */
+  async addFiles(uris) {
+    if (!uris || !uris.length) return;
+    const panels = [...this.byKey.values()];
+
+    // The one being looked at wins; then a lone panel; then ask. A panel with
+    // no webview yet (disposed and not reopened) is not a candidate.
+    let target = panels.find((p) => p.panel && p.panel.active)
+      || panels.find((p) => p.panel && p.panel.visible);
+    if (!target && panels.length === 1) target = panels[0];
+    if (!target && panels.length > 1) {
+      const picked = await vscode.window.showQuickPick(
+        panels.map((p) => ({ label: panelTitle(p.reference), panel: p })),
+        { title: 'Add to which alignment?' });
+      if (!picked) return;
+      target = picked.panel;
+    }
+    if (!target) target = this.panelFor(null);
+
+    // Reveal without stealing focus: the point is the reads landing, and the
+    // Explorer selection is often still being worked through.
+    await target.show(target.reference);
+    await target.addUris(uris.map((u) => u.toString()));
   }
 
   /**

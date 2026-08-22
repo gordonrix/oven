@@ -55,6 +55,10 @@ function activate(context) {
     vscode.commands.registerCommand('oveCart.pickInventoryFile', () => pickInventoryFile()),
     vscode.commands.registerCommand('oveCart.clear', () => cartPanel.clearCart()),
     vscode.commands.registerCommand('oveCart.align', () => alignPanel.show()),
+    // Explorer context menu. Takes the whole multi-selection when there is
+    // one; `uri` alone is what a right-click on an unselected file gives.
+    vscode.commands.registerCommand('oveCart.addToAlignment', (uri, uris) =>
+      alignPanel.addFiles(uris && uris.length ? uris : (uri ? [uri] : []))),
     vscode.commands.registerCommand('oveCart.checkMafft', async () => {
       mafft.invalidate();
       const found = await mafft.get(config.mafftPath());

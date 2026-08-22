@@ -4,6 +4,23 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.19.0
+
+**Adding reads to an alignment no longer depends on drag-and-drop.** Right-click any
+`.ab1`/`.gb`/`.gbk`/`.fa`/`.fasta`/`.dna` files in the Explorer — a multi-selection is fine —
+and choose **Add to Alignment**. If several alignment panels are open it goes to the one you
+are looking at, or asks. You can also copy files in Finder and paste into the panel with
+`Cmd+V`.
+
+Both exist because dragging is not ours to fix. The moment a drag enters the VS Code window
+over any part of the editor chrome, the workbench lays a drop overlay across the whole editor
+area and opens what you drop as a new tab; the webview underneath never sees it. Holding
+**⇧ Shift** while dragging dismisses that overlay, which is why a drop can work in a
+full-screen window — where the pointer can reach the panel without crossing anything else —
+and fail in a smaller one. The drop hint in the panel now says so.
+
+Also in this release: a proper Marketplace icon.
+
 ## 1.18.0
 
 **Our melting-temperature calculation is gone.** It carried the wrong nearest-neighbour
@@ -478,7 +495,7 @@ Alignment viewer, from using it:
 
 - **Fixed: primers spanning the origin rendered as empty hatched boxes, drawn twice.**
   Two separate faults in the same file, both specific to a `join(...)` that crosses the
-  origin — as the Gibson planner emits for a backbone primer.
+  origin — as a backbone primer with a 5' tail does.
   - Open Vector Editor computed the primer's bases from an offset that goes negative when
     the annotation wraps, so it found no bases at all and emitted an invalid negative SVG
     `textLength`. Patched in the vendored bundle; see [patches/README.md](patches/README.md).

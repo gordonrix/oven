@@ -44,6 +44,19 @@ const drop = (page, kind, payload) => page.evaluate(({ kind, payload }) => {
   zone.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
 }, { kind, payload });
 
+/*
+ * Paste is the route that survives the workbench's drop overlay -- copy files
+ * in Finder, click the panel, Cmd+V -- so it is worth pinning.
+ */
+const paste = (page, names) => page.evaluate((names) => {
+  const dt = new DataTransfer();
+  for (const n of names) {
+    dt.items.add(new File([new Uint8Array([1, 2, 3, 4])], n, { type: 'application/octet-stream' }));
+  }
+  document.body.dispatchEvent(
+    new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+}, names);
+
 export default async function run(page) {
   const out = {};
   const fail = [];
@@ -135,6 +148,18 @@ export default async function run(page) {
   const bytesMsg = out.fileDropPosted.find((m) => m.type === 'align/addBytes');
   if (!bytesMsg) fail.push('a Finder-style file drop was not handled');
   else if (!bytesMsg.files[0].base64) fail.push('file bytes were not sent as base64');
+
+  /* --- paste: the route the workbench cannot intercept -------------------- */
+
+  await clearPosted(page);
+  await paste(page, ['pasted-read.ab1']);
+  await page.waitForTimeout(400);
+  out.pastePosted = await posted(page);
+  const pasteMsg = out.pastePosted.find((m) => m.type === 'align/addBytes');
+  if (!pasteMsg) fail.push('a pasted file was not handled');
+  else if (pasteMsg.files[0].name !== 'pasted-read.ab1') {
+    fail.push('the pasted file arrived under the wrong name');
+  }
 
   /* --- an unsupported file is rejected, not silently swallowed ------------- */
 

@@ -38,8 +38,9 @@ see [CHANGELOG.md](CHANGELOG.md) for the detail.
 ### Checking clones
 
 - **Alignment** — align Sanger reads against the plasmid on screen. Takes `.ab1`, `.fasta`,
-  `.gb` and `.gbk`, by drag-and-drop or file picker, and uses MAFFT (found automatically in
-  Homebrew or conda; the panel walks you through installing it if it is missing).
+  `.gb` and `.gbk` from the Explorer's right-click menu, a file picker, a paste or a drop,
+  and uses MAFFT (found automatically in Homebrew or conda; the panel walks you through
+  installing it if it is missing).
 - Reads are quality-trimmed, reverse-complemented if needed, and **rotated when they span
   the plasmid origin** — which MAFFT cannot do on its own, since it has no notion of a
   circular sequence.
@@ -198,10 +199,21 @@ Inventory File…**, also offered inline the first time you search). Tuning:
 
 ## Alignment
 
-Click **Align** in an open plasmid. That plasmid becomes the reference; add reads by
-dropping files onto the panel — from Finder or from the VS Code Explorer — or with
-**Browse…**. `.ab1`, `.gb`, `.gbk` and `.fasta` are all accepted, and a FASTA holding
-several records becomes one track per record.
+Click **Align** in an open plasmid. That plasmid becomes the reference. `.ab1`, `.gb`,
+`.gbk` and `.fasta` are all accepted, and a FASTA holding several records becomes one
+track per record. There are four ways to add reads:
+
+- **Right-click the files in the Explorer → Add to Alignment.** Handles a multi-selection,
+  and is the one route nothing can get in the way of.
+- **Browse…** in the panel.
+- **Paste.** Copy the files in Finder, click the panel, press `Cmd+V`.
+- **Drag and drop** onto the panel, **holding ⇧ Shift**. Shift matters: without it VS Code
+  lays its own drop overlay across the editor area as soon as a drag enters the window, and
+  opens what you drop as a new tab instead of handing it to the panel. That overlay belongs
+  to the workbench, not to this extension, and an extension cannot turn it off — holding
+  Shift dismisses it. Dropping without Shift can still work if the pointer enters the window
+  directly over the panel and touches no other part of the editor on the way, which is why
+  it tends to work full-screen and fail in a smaller window.
 
 The reference sits along the top with its annotations and translations; each read gets its
 own row, showing its chromatogram when it has one and just its bases when it does not, so a
