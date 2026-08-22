@@ -19,6 +19,12 @@ area and opens what you drop as a new tab; the webview underneath never sees it.
 full-screen window — where the pointer can reach the panel without crossing anything else —
 and fail in a smaller one. The drop hint in the panel now says so.
 
+**Renamed to OVEN.** The package is now `oven`, so the extension ID is
+`gordonrix.oven` rather than `gordonrix.ove-vscode-primer-cart`. Done before the first
+publish, while an ID is still free to change — afterwards it is permanent. Command and
+setting IDs keep their `oveCart.` prefix: renaming those would silently reset every
+existing setting.
+
 Also in this release: a proper Marketplace icon.
 
 ## 1.18.0

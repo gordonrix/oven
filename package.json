@@ -1,6 +1,6 @@
 {
-  "name": "ove-vscode-primer-cart",
-  "displayName": "Open Vector Editor + Primer Cart",
+  "name": "oven",
+  "displayName": "OVEN — Open Vector Editor + Primer Cart",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
   "version": "1.19.0",
   "publisher": "gordonrix",
@@ -184,7 +184,7 @@
         "oveCart.inventoryNameColumn": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `\u00b0` or `\u03bc`; if it does not match, the error message lists the headers actually found."
+          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `°` or `μ`; if it does not match, the error message lists the headers actually found."
         },
         "oveCart.inventorySequenceColumn": {
           "type": "string",

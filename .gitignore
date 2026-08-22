@@ -146,3 +146,6 @@ dist/
 # Design sources live here but are not tracked -- large binaries, and the
 # shipped icon is an exported PNG.
 *.ai
+
+# macOS
+.DS_Store
