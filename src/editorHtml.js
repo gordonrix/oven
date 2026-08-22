@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Which OVE panels to show, per the oveCart.viewType setting.
+ * Which OVE panels to show, per the oven.viewType setting.
  * Returned as a JS literal because it goes straight into the inline script.
  */
 function panelsShown(viewTypeConfig) {
@@ -88,6 +88,19 @@ const BASE_STYLE = `
 function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers,
   showSelectionStats, withCart, cutSiteFilter }) {
   return `
+      /*
+       * "Melting Temp of Selection" has no ...ByDefault prop -- unlike GC
+       * content it is read straight from localStorage by useMeltingTemp
+       * (index.umd.js:149800), so seeding the key is the only way to turn it
+       * on. Written only when unset, so a later toggle in the View menu wins,
+       * which is what oven.showSelectionStatsByDefault promises.
+       */
+      ${showSelectionStats ? `try {
+        if (localStorage.getItem("showMeltingTemp") === null) {
+          localStorage.setItem("showMeltingTemp", "true");
+        }
+      } catch (e) { /* storage blocked; the View menu still works */ }` : ''}
+
       const editor = window.createVectorEditor("createDomNodeForMe", {
         withPreviewMode: false,
         editorName: "VectorEditor",
@@ -197,7 +210,7 @@ ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreate
 </html>`;
 }
 
-/** HTML for the scratch editor opened by the oveCart.showEditor command. */
+/** HTML for the scratch editor opened by the oven.showEditor command. */
 function buildDemoHtml(opts) {
   const { styleUri, scriptUri, viewType } = opts;
   return `<!DOCTYPE html>

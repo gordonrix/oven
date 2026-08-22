@@ -14,19 +14,19 @@ const inventory = require('./inventory');
 const shared = require('../media/cartShared.js');
 const { buildEditorHtml } = require('./editorHtml');
 
-const SEARCH_COLS_KEY = 'oveCart.searchColumnWidths';
+const SEARCH_COLS_KEY = 'oven.searchColumnWidths';
 /*
  * The Filter Cut Sites selection. globalState rather than workspaceState: which
  * enzymes someone works with follows them between projects, the same reasoning
  * as the cart.
  */
-const CUT_SITES_KEY = 'oveCart.cutSiteFilter';
+const CUT_SITES_KEY = 'oven.cutSiteFilter';
 
 /**
  * Ask for an inventory file and store it in user settings.
  *
  * Shared by the in-overlay "Choose file…" button and the
- * oveCart.pickInventoryFile command, so both paths behave identically.
+ * oven.pickInventoryFile command, so both paths behave identically.
  */
 async function pickInventoryFile() {
   const picked = await vscode.window.showOpenDialog({
@@ -38,7 +38,7 @@ async function pickInventoryFile() {
   if (!picked || !picked.length) return null;
 
   const file = picked[0].fsPath;
-  await vscode.workspace.getConfiguration('oveCart')
+  await vscode.workspace.getConfiguration('oven')
     .update('inventoryPath', file, vscode.ConfigurationTarget.Global);
   inventory.invalidate();
 
@@ -237,7 +237,7 @@ class DNAViewerProvider {
             added: res.added,
             duplicates: res.duplicates,
             error: res.refused
-              ? `Cart is full (${res.limit} primers). Raise oveCart.maxItems or clear some entries.`
+              ? `Cart is full (${res.limit} primers). Raise oven.maxItems or clear some entries.`
               : null
           });
           pushCartState();

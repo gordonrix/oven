@@ -1,6 +1,6 @@
 {
   "name": "oven",
-  "displayName": "OVEN — Open Vector Editor + Primer Cart",
+  "displayName": "OVEN — Open Vector Editor with New Features",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
   "version": "1.19.0",
   "publisher": "gordonrix",
@@ -53,7 +53,7 @@
     ],
     "customEditors": [
       {
-        "viewType": "oveCart.editor",
+        "viewType": "oven.editor",
         "displayName": "OVE",
         "selector": [
           {
@@ -77,65 +77,75 @@
     ],
     "commands": [
       {
-        "command": "oveCart.showEditor",
-        "title": "Open Vector Editor: Open Demo Editor"
+        "command": "oven.showEditor",
+        "title": "Open Demo Editor",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.show",
-        "title": "Primer Cart: Show Cart"
+        "command": "oven.show",
+        "title": "Show Primer Cart",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.copyTsv",
-        "title": "Primer Cart: Copy All as TSV"
+        "command": "oven.copyTsv",
+        "title": "Copy Cart as TSV",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.copySequences",
-        "title": "Primer Cart: Copy All Sequences"
+        "command": "oven.copySequences",
+        "title": "Copy Cart Sequences",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.exportCsv",
-        "title": "Primer Cart: Export CSV..."
+        "command": "oven.exportCsv",
+        "title": "Export Cart as CSV...",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.newSession",
-        "title": "Primer Cart: New Session"
+        "command": "oven.newSession",
+        "title": "New Cart Session",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.manageSessions",
-        "title": "Primer Cart: Switch or Manage Sessions"
+        "command": "oven.manageSessions",
+        "title": "Switch or Manage Cart Sessions",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.refreshInventory",
-        "title": "Primer Cart: Reload Primer Inventory"
+        "command": "oven.refreshInventory",
+        "title": "Reload Primer Inventory",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.clear",
-        "title": "Primer Cart: Clear Current Session"
+        "command": "oven.clear",
+        "title": "Clear Current Cart Session",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.pickInventoryFile",
-        "title": "Primer Cart: Choose Primer Inventory File..."
+        "command": "oven.pickInventoryFile",
+        "title": "Choose Primer Inventory File...",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.align",
-        "title": "Open Vector Editor: New Alignment",
-        "category": "Primer Cart"
+        "command": "oven.align",
+        "title": "New Alignment",
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.checkMafft",
+        "command": "oven.checkMafft",
         "title": "Check MAFFT Installation",
-        "category": "Primer Cart"
+        "category": "OVEN"
       },
       {
-        "command": "oveCart.addToAlignment",
+        "command": "oven.addToAlignment",
         "title": "Add to Alignment",
-        "category": "Open Vector Editor"
+        "category": "OVEN"
       }
     ],
     "configuration": {
-      "title": "Open Vector Editor + Primer Cart",
+      "title": "OVEN",
       "properties": {
-        "oveCart.viewType": {
+        "oven.viewType": {
           "type": "string",
           "default": "sequence",
           "description": "Default view type when a sequence is opened.",
@@ -150,48 +160,48 @@
             "Show sequence and circular map."
           ]
         },
-        "oveCart.readOnly": {
+        "oven.readOnly": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "Open sequences with editing locked. While locked, the **Create** menu (New Feature, New Primer, ...) is hidden entirely. You can always toggle the padlock in the editor toolbar for a single file."
         },
-        "oveCart.allowSequenceEditing": {
+        "oven.allowSequenceEditing": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Allow the DNA bases themselves to be edited, including **Change Amino Acid** on a translation. When off, annotations can be created and edited but the sequence cannot be cut, pasted over, complemented or deleted."
         },
-        "oveCart.autoAddCreatedPrimers": {
+        "oven.autoAddCreatedPrimers": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Automatically add a primer to the Primer Cart when you create one with **Create -> New Primer**."
         },
-        "oveCart.maxItems": {
+        "oven.maxItems": {
           "type": "number",
           "default": 500,
           "minimum": 1,
           "description": "Maximum number of primers the cart will hold. Adds beyond this are refused rather than silently dropping older entries."
         },
-        "oveCart.inventoryPath": {
+        "oven.inventoryPath": {
           "type": "string",
           "default": "",
           "markdownDescription": "Path to a primer inventory `.xlsx` or `.csv`, used to flag cart primers that you have already ordered. Supports `~` and `${workspaceFolder}`. Leave empty to disable cross-referencing."
         },
-        "oveCart.inventorySheet": {
+        "oven.inventorySheet": {
           "type": "string",
           "default": "",
           "description": "Worksheet name to read from an .xlsx inventory. Leave empty to use the first sheet."
         },
-        "oveCart.inventoryNameColumn": {
+        "oven.inventoryNameColumn": {
           "type": "string",
           "default": "",
           "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `°` or `μ`; if it does not match, the error message lists the headers actually found."
         },
-        "oveCart.inventorySequenceColumn": {
+        "oven.inventorySequenceColumn": {
           "type": "string",
           "default": "",
           "markdownDescription": "Header of the column holding primer sequences. Leave empty to use the second column. Matching against the cart is by exact sequence, ignoring case and whitespace."
         },
-        "oveCart.sequenceCopyIncludesName": {
+        "oven.sequenceCopyIncludesName": {
           "type": "string",
           "default": "sequence",
           "description": "Format used by the \"Copy sequences\" button.",
@@ -204,54 +214,54 @@
             "Name and sequence separated by a tab, one per line."
           ]
         },
-        "oveCart.searchMinAnneal": {
+        "oven.searchMinAnneal": {
           "type": "number",
           "default": 15,
           "minimum": 8,
           "markdownDescription": "Minimum number of bases at a primer's 3' end that must match the template exactly for it to count as a hit. Lower finds more and noisier; higher is stricter."
         },
-        "oveCart.searchFullLengthOnly": {
+        "oven.searchFullLengthOnly": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "Start each primer search with **100% match only** ticked, hiding primers whose 5' tail is absent from the template."
         },
-        "oveCart.searchMaxHits": {
+        "oven.searchMaxHits": {
           "type": "number",
           "default": 500,
           "minimum": 1,
           "description": "Safety cap on how many primer-search hits are returned. Overflow is reported in the results header."
         },
-        "oveCart.inventoryAliasColumn": {
+        "oven.inventoryAliasColumn": {
           "type": "string",
           "default": "",
           "markdownDescription": "Header of an optional column shown alongside each search hit. Leave empty to use a column named `Alias` if one exists; a missing column is never an error."
         },
-        "oveCart.inventoryDescriptionColumn": {
+        "oven.inventoryDescriptionColumn": {
           "type": "string",
           "default": "",
           "markdownDescription": "Header of an optional description column shown as a tooltip on search hits. Leave empty to use a column named `Description` if one exists."
         },
-        "oveCart.showSelectionStatsByDefault": {
+        "oven.showSelectionStatsByDefault": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Turn on Open Vector Editor's **Melting Temp of Selection** and **Percent GC Content of Selection** status-bar items the first time a sequence is opened. Both can still be toggled from the **View** menu afterwards, and your choice there wins."
         },
-        "oveCart.mafftPath": {
+        "oven.mafftPath": {
           "type": "string",
           "default": "",
           "markdownDescription": "Full path to the `mafft` executable. Leave empty to search your `PATH`, then the usual Homebrew and conda locations (including named conda environments, which are never on VS Code's `PATH`). Run **Primer Cart: Check MAFFT Installation** to see what was found. Install MAFFT with `brew install mafft` or `conda install -c bioconda mafft`."
         },
-        "oveCart.mafftArgs": {
+        "oven.mafftArgs": {
           "type": "string",
           "default": "--auto",
           "markdownDescription": "Extra arguments passed to MAFFT. `--auto` lets MAFFT pick a strategy; use `--localpair --maxiterate 1000` for L-INS-i accuracy, or `--retree 1` for speed on large read sets. `--adjustdirection`, `--preservecase` and `--quiet` are always added."
         },
-        "oveCart.alignTrimQuality": {
+        "oven.alignTrimQuality": {
           "type": "number",
           "default": 20,
           "markdownDescription": "Trim trace ends below this Phred quality before aligning, so end noise does not dominate the mismatch count. Set to `0` to align the full base calls. Only affects `.ab1` reads, which are the only ones carrying quality scores."
         },
-        "oveCart.alignMaxReads": {
+        "oven.alignMaxReads": {
           "type": "number",
           "default": 50,
           "markdownDescription": "Maximum number of reads in one alignment. Reads beyond this are ignored, with a note in the panel."
@@ -261,14 +271,14 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "oveCart.addToAlignment",
+          "command": "oven.addToAlignment",
           "when": "resourceExtname =~ /\\.(ab1|gb|gbk|fa|fasta|dna)$/i",
           "group": "navigation@50"
         }
       ],
       "commandPalette": [
         {
-          "command": "oveCart.addToAlignment",
+          "command": "oven.addToAlignment",
           "when": "false"
         }
       ]
@@ -281,7 +291,7 @@
     "test:vscode": "vscode-test",
     "package": "vsce package --no-dependencies",
     "patches": "node scripts/patches.js",
-    "prepackage": "node scripts/patches.js check"
+    "prepackage": "node scripts/patches.js check && rm -f *.vsix"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

@@ -78,6 +78,6 @@ Press <kbd>F5</kbd>, then:
    open a single `.gb` from Finder — it still survives. (This is the case
    `workspaceState` would fail.)
 3. Copy TSV, paste into Excel: nine clean columns, `°` intact.
-4. Point `oveCart.inventoryPath` at a real inventory; known primers go green,
+4. Point `oven.inventoryPath` at a real inventory; known primers go green,
    new ones orange. Rename the file away and every badge must go grey
    **"unknown"**, never orange.

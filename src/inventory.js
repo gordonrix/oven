@@ -32,7 +32,7 @@ function load() {
     return {
       status: 'error',
       path: file,
-      message: `"${base}" is an Excel lock file, not a workbook. Point oveCart.inventoryPath at the real file.`
+      message: `"${base}" is an Excel lock file, not a workbook. Point oven.inventoryPath at the real file.`
     };
   }
 

@@ -129,6 +129,13 @@
     <script src="primerSearch.js"></script>
     <script src="strandBar.js"></script>
     <script>
+      // Mirrors what src/editorHtml.js does for showSelectionStatsByDefault, so
+      // test/browser/nativeTm.mjs is checking the real contract rather than a
+      // demo-only shortcut.
+      if (localStorage.getItem('showMeltingTemp') === null) {
+        localStorage.setItem('showMeltingTemp', 'true');
+      }
+
       const editor = window.createVectorEditor('createDomNodeForMe', {
         withPreviewMode: false,
         editorName: 'VectorEditor',

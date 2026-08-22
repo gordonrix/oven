@@ -1,10 +1,10 @@
-/* Single place that reads oveCart.* settings, so defaults live in one file. */
+/* Single place that reads oven.* settings, so defaults live in one file. */
 'use strict';
 
 const os = require('os');
 const path = require('path');
 
-const SECTION = 'oveCart';
+const SECTION = 'oven';
 
 /*
  * `vscode` is required lazily rather than at module load. Everything in this

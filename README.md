@@ -1,4 +1,6 @@
-# Open Vector Editor + Primer Cart
+# OVEN — Open Vector Editor with New Features
+
+<img src="icon.png" alt="OVEN" width="128">
 
 View plasmid sequences in VS Code with [Open Vector Editor](https://github.com/TeselaGen/tg-oss/tree/master/packages/ove),
 and collect the primers you design across many plasmid files into one list you can copy
@@ -107,7 +109,7 @@ Not published to the Marketplace. Build and sideload:
 ```sh
 npm install
 npm run package
-code --install-extension oven-1.19.0.vsix --force
+code --install-extension oven-*.vsix --force
 ```
 
 If you have the original `sanekun.openvectoreditor` installed, uninstall it — otherwise
@@ -118,10 +120,10 @@ both will offer to open `.gb` files and "Reopen Editor With…" will show two OV
 1. Open a plasmid file. Select a region and use **Create → New Primer**, or use an
    existing primer already annotated in the file.
 2. Click **Cart** in the top-right of the editor to pick primers to add. Primers you
-   create are added automatically (`oveCart.autoAddCreatedPrimers`).
+   create are added automatically (`oven.autoAddCreatedPrimers`).
 3. Repeat in as many plasmid files as you like — the cart is global and persists across
    restarts.
-4. Click **Open cart** at the top of that picker (or run **Primer Cart: Show Cart**) to
+4. Click **Open cart** at the top of that picker (or run **OVEN: Show Primer Cart**) to
    open the cart as an editor tab, listing primers from every file. Use **Copy TSV**
    (pastes into Excel/Sheets as columns), **Copy sequences** (one per line, for bulk
    oligo order forms), or **Export CSV…**.
@@ -135,14 +137,14 @@ A cart belongs to a **session**, so it does not grow without bound. Hit **+ New 
 in the cart to park the current batch and start empty — nothing is deleted, and the old
 session stays available from the session button. Sessions are named by date by default;
 rename them to something like `2026-08-10 backbone swaps` and old orders stay findable.
-Commands: **Primer Cart: New Session**, **Primer Cart: Switch or Manage Sessions**.
+Commands: **OVEN: New Cart Session**, **OVEN: Switch or Manage Cart Sessions**.
 
 ### Cross-referencing an existing inventory
 
-Point `oveCart.inventoryPath` at an `.xlsx` or `.csv` of primers you have already
+Point `oven.inventoryPath` at an `.xlsx` or `.csv` of primers you have already
 ordered and each cart row is flagged green (already in inventory, with its ID) or orange
 (new). By default the first column is the name and the second is the sequence; override
-with `oveCart.inventoryNameColumn` / `oveCart.inventorySequenceColumn`. Matching is by
+with `oven.inventoryNameColumn` / `oven.inventorySequenceColumn`. Matching is by
 exact sequence, ignoring case and whitespace.
 
 If the inventory cannot be read, every row shows a grey **unknown** badge rather than
@@ -191,10 +193,10 @@ Drag the divider at the right of any column header to resize it, and double-clic
 divider to restore the defaults. Widths are remembered across files and sessions. If the
 columns total more than the pane, the table scrolls sideways rather than hiding anything.
 
-Configure the inventory with `oveCart.inventoryPath` (or **Primer Cart: Choose Primer
+Configure the inventory with `oven.inventoryPath` (or **OVEN: Choose Primer
 Inventory File…**, also offered inline the first time you search). Tuning:
-`oveCart.searchMinAnneal` (default 15), `oveCart.searchFullLengthOnly`,
-`oveCart.searchMaxHits`, and optional `oveCart.inventoryAliasColumn` /
+`oven.searchMinAnneal` (default 15), `oven.searchFullLengthOnly`,
+`oven.searchMaxHits`, and optional `oven.inventoryAliasColumn` /
 `inventoryDescriptionColumn` (auto-detected from `Alias` / `Description` headers).
 
 ## Alignment
@@ -258,10 +260,10 @@ Two things worth knowing if it is still not found:
 - `conda install` into an environment other than `base` puts the binary somewhere the login
   shell never sees. The search covers `~/miniforge3`, `~/miniconda3`, `~/anaconda3` and
   `~/mambaforge` and their `envs/*`, but if yours lives elsewhere use **Locate MAFFT…** or
-  set `oveCart.mafftPath` by hand.
+  set `oven.mafftPath` by hand.
 
-Run **Primer Cart: Check MAFFT Installation** at any time to see which binary was found and
-what version it is. Use `oveCart.mafftArgs` (default `--auto`) to choose a strategy —
+Run **OVEN: Check MAFFT Installation** at any time to see which binary was found and
+what version it is. Use `oven.mafftArgs` (default `--auto`) to choose a strategy —
 `--localpair --maxiterate 1000` for L-INS-i accuracy, say. `--adjustdirection` is always
 passed, so a read given in the wrong orientation is flipped rather than reported as garbage.
 
@@ -272,18 +274,18 @@ chromatogram rotated to match so the peaks still sit over their own bases. On a 
 4489 bp plasmid this is the difference between 0 mismatches and 2140. The reference is
 never rotated, so every position stays in its coordinates.
 
-Trace ends below `oveCart.alignTrimQuality` (default 20) are trimmed first, so a noisy
+Trace ends below `oven.alignTrimQuality` (default 20) are trimmed first, so a noisy
 Sanger tail does not drown the mismatch count; set it to `0` to align the full read.
-`oveCart.alignMaxReads` (default 50) caps one alignment.
+`oven.alignMaxReads` (default 50) caps one alignment.
 
 ## Selection readout
 
 Open Vector Editor has **Melting Temp of Selection** and **Percent GC Content of
-Selection** status-bar items, both off by default. `oveCart.showSelectionStatsByDefault`
+Selection** status-bar items, both off by default. `oven.showSelectionStatsByDefault`
 (on) switches them on the first time you open a sequence; toggling them yourself in the
 **View** menu afterwards always wins.
 
-`oveCart.useDesignTmCalculation` (on) substitutes the number in that melting-temp item
+`oven.useDesignTmCalculation` (on) substitutes the number in that melting-temp item
 with the NEB Q5 nearest-neighbour Tm a primer-design pipeline targets — 200 nM primer
 with a 1.5 mM Mg²⁺ correction — instead of OVE's own figure at 500 nM with no Mg. The
 difference is small but real; on a 22 bp region OVE reports 64.6 where your pipeline
@@ -303,7 +305,7 @@ the nearest-neighbour model is a primer model.
 - Supports `.dna`, `.fa`, `.fasta`, `.gb`, `.gbk`
 - Select a DNA file → Open With → OVE (can be set as the default)
 - Save with **File > Save** or `cmd/ctrl+S` (all formats, including `.dna`)
-- Command **Open Vector Editor: Open Demo Editor** (`oveCart.showEditor`) opens a
+- Command **Open Vector Editor: Open Demo Editor** (`oven.showEditor`) opens a
   scratch editor whose contents persist across tab switches
 
 ## Known issues
@@ -311,7 +313,7 @@ the nearest-neighbour model is a primer model.
 Inherited from upstream:
 
 - Content in a file-backed editor does not persist when you switch to another tab; only
-  the editor opened via `oveCart.showEditor` retains its contents.
+  the editor opened via `oven.showEditor` retains its contents.
 - `.dna` files: primers in the file are displayed and preserved on save, but **new**
   primers created in the UI are not written back to `.dna`. Use `.gb` if you need that.
   (The Primer Cart is unaffected — it holds primers regardless of what the file can store.)

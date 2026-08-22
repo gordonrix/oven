@@ -131,7 +131,7 @@ test('deleting the active session activates another', async () => {
 });
 
 test('migrates a pre-sessions flat cart without losing anything', async () => {
-  // Anyone upgrading from 1.3.x has oveCart.items and no sessions key.
+  // Anyone upgrading from 1.3.x has oven.items and no sessions key.
   const legacy = [{
     id: 'legacy-1', schemaVersion: SCHEMA_VERSION, name: 'test1', sequence: 'ACGTACGTACGTACGTACGTA',
     length: 21, tm: 47.8, tmSource: 'computed', sourcePath: '/p/plasmidA.gb', sourceName: 'plasmidA',

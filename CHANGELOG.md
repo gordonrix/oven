@@ -19,13 +19,27 @@ area and opens what you drop as a new tab; the webview underneath never sees it.
 full-screen window — where the pointer can reach the panel without crossing anything else —
 and fail in a smaller one. The drop hint in the panel now says so.
 
-**Renamed to OVEN.** The package is now `oven`, so the extension ID is
-`gordonrix.oven` rather than `gordonrix.ove-vscode-primer-cart`. Done before the first
-publish, while an ID is still free to change — afterwards it is permanent. Command and
-setting IDs keep their `oveCart.` prefix: renaming those would silently reset every
-existing setting.
+**Renamed to OVEN — Open Vector Editor with New Features.** All of the identifiers moved
+at once, which is only safe because nothing is published yet:
 
-Also in this release: a proper Marketplace icon.
+| was | is |
+|---|---|
+| extension ID `gordonrix.ove-vscode-primer-cart` | `gordonrix.oven` |
+| settings `oveCart.*` | `oven.*` |
+| commands `oveCart.*` | `oven.*` |
+| custom editor viewType `oveCart.editor` | `oven.editor` |
+
+**If you used an earlier build, two things need re-pointing by hand:** any `oveCart.*`
+entries in your `settings.json` (rename the prefix), and any
+`workbench.editorAssociations` mapping to `oveCart.editor`. Cart sessions and the
+cut-site filter live in the extension's own storage, which is keyed by extension ID, so
+those start empty — there is no migration, deliberately, since publishing an ID is
+irreversible and doing this afterwards would have stranded real users.
+
+Command palette entries are now all under one **OVEN:** category, instead of the mix of
+"Primer Cart:" and "Open Vector Editor:" prefixes that had accumulated.
+
+Also in this release: a Marketplace icon.
 
 ## 1.18.0
 

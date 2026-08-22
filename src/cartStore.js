@@ -21,9 +21,9 @@ const crypto = require('crypto');
 const { tmForPrimer } = require('./tm');
 const { normalizeSeqKey } = require('../media/cartShared');
 
-const LEGACY_ITEMS_KEY = 'oveCart.items';
-const SESSIONS_KEY = 'oveCart.sessions';
-const ACTIVE_KEY = 'oveCart.activeSessionId';
+const LEGACY_ITEMS_KEY = 'oven.items';
+const SESSIONS_KEY = 'oven.sessions';
+const ACTIVE_KEY = 'oven.activeSessionId';
 const SCHEMA_VERSION = 1;
 const DEFAULT_SESSION_ID = 'cart-default';
 
@@ -45,7 +45,7 @@ class CartStore {
     let raw = this.context.globalState.get(SESSIONS_KEY, null);
 
     if (!Array.isArray(raw)) {
-      // Pre-sessions layout: a single flat oveCart.items list. Surface it as
+      // Pre-sessions layout: a single flat oven.items list. Surface it as
       // one session, written back on the next mutation so reads stay pure.
       //
       // The id must be a constant, not a fresh one per call: sessions() is

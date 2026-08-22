@@ -102,7 +102,7 @@ test('a broken configured path fails loudly instead of silently using another', 
   // binary, and quietly aligning with a different one hides a real mistake.
   const res = await resolveMafft('/bin/echo');
   assert.strictEqual(res.ok, false);
-  assert.match(res.message, /oveCart\.mafftPath/);
+  assert.match(res.message, /oven\.mafftPath/);
   assert.match(res.message, /\/bin\/echo/);
   assert.deepStrictEqual(res.tried, ['/bin/echo'], 'a configured path must not fall through');
 });
@@ -114,5 +114,5 @@ test('the not-found message says what to install AND to reload the window', () =
   assert.match(m, /brew install mafft/);
   assert.match(m, /conda install -c bioconda mafft/);
   assert.match(m, /reload the window/i);
-  assert.match(m, /oveCart\.mafftPath/);
+  assert.match(m, /oven\.mafftPath/);
 });

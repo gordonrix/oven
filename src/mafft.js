@@ -104,7 +104,7 @@ function probe(binary) {
 /**
  * Locate a usable MAFFT.
  *
- * @param {string} configuredPath value of oveCart.mafftPath ('mafft' when unset)
+ * @param {string} configuredPath value of oven.mafftPath ('mafft' when unset)
  * @returns {Promise<{ok, path?, version?, viaSetting?, message?, tried?}>}
  */
 async function resolveMafft(configuredPath) {
@@ -118,7 +118,7 @@ async function resolveMafft(configuredPath) {
     return {
       ok: false,
       viaSetting: true,
-      message: `oveCart.mafftPath points at "${configured}", which ${res.reason}.`,
+      message: `oven.mafftPath points at "${configured}", which ${res.reason}.`,
       tried: [configured]
     };
   }
@@ -141,7 +141,7 @@ function notFoundMessage() {
   return 'MAFFT was not found. Install it with "brew install mafft" or ' +
     '"conda install -c bioconda mafft", then reload the window — VS Code reads your ' +
     'PATH when it starts, so a fresh install is invisible until it does. ' +
-    'If it lives somewhere unusual, set oveCart.mafftPath to its full path.';
+    'If it lives somewhere unusual, set oven.mafftPath to its full path.';
 }
 
 /** Cached across calls; the panel invalidates this when the setting changes. */

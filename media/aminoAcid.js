@@ -18,8 +18,8 @@
 (function () {
   'use strict';
 
-  const ORGANISM_KEY = 'oveCart.codonOrganism';
-  const NOTATION_KEY = 'oveCart.codonThreeLetter';
+  const ORGANISM_KEY = 'oven.codonOrganism';
+  const NOTATION_KEY = 'oven.codonThreeLetter';
 
   let editor = null;
   let overlay = null;

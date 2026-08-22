@@ -71,7 +71,7 @@ class AlignPanel {
       return this.fail(`That file ${res.reason}. MAFFT is usually at ` +
         '/opt/homebrew/bin/mafft, or <conda>/envs/<name>/bin/mafft.');
     }
-    await vscode.workspace.getConfiguration('oveCart')
+    await vscode.workspace.getConfiguration('oven')
       .update('mafftPath', chosen, vscode.ConfigurationTarget.Global);
     mafft.invalidate();
     await this.checkMafft();
@@ -89,7 +89,7 @@ class AlignPanel {
     }
 
     const panel = vscode.window.createWebviewPanel(
-      'oveCart.alignment',
+      'oven.alignment',
       panelTitle(this.reference),
       { viewColumn: column || vscode.ViewColumn.Beside, preserveFocus: false },
       {
@@ -114,7 +114,7 @@ class AlignPanel {
               : 'Still cannot find MAFFT.');
             break;
           case 'align/openSettings':
-            vscode.commands.executeCommand('workbench.action.openSettings', 'oveCart.mafftPath');
+            vscode.commands.executeCommand('workbench.action.openSettings', 'oven.mafftPath');
             break;
           case 'align/browse': await this.browse(); break;
           case 'align/addUris': await this.addUris(msg.uris || []); break;
@@ -479,7 +479,7 @@ class AlignPanels {
     // all share the one MAFFT.
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (!e.affectsConfiguration('oveCart.mafftPath')) return;
+        if (!e.affectsConfiguration('oven.mafftPath')) return;
         mafft.invalidate();
         for (const panel of this.byKey.values()) panel.checkMafft();
       })

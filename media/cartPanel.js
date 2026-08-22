@@ -70,7 +70,7 @@
     let cls = 'banner';
 
     if (inv.status === 'disabled') {
-      text = 'Set oveCart.inventoryPath to flag primers you have already ordered.';
+      text = 'Set oven.inventoryPath to flag primers you have already ordered.';
       cls += ' info';
     } else if (inv.status === 'missing' || inv.status === 'error') {
       text = `Primer inventory could not be read — every primer shows as “unknown”. ${inv.message || ''}`;

@@ -28,7 +28,7 @@ class CartPanel {
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (['inventoryPath', 'inventorySheet', 'inventoryNameColumn', 'inventorySequenceColumn']
-          .some((k) => e.affectsConfiguration(`oveCart.${k}`))) {
+          .some((k) => e.affectsConfiguration(`oven.${k}`))) {
           inventory.invalidate();
           this.push();
         }
@@ -45,7 +45,7 @@ class CartPanel {
     }
 
     const panel = vscode.window.createWebviewPanel(
-      'oveCart.panel',
+      'oven.panel',
       'Primer Cart',
       { viewColumn: column || vscode.ViewColumn.Beside, preserveFocus: false },
       {
@@ -78,7 +78,7 @@ class CartPanel {
         case 'cart/newSession': await this.newSession(); break;
         case 'cart/manageSessions': await this.manageSessions(); break;
         case 'cart/openSettings':
-          vscode.commands.executeCommand('workbench.action.openSettings', 'oveCart.inventoryPath');
+          vscode.commands.executeCommand('workbench.action.openSettings', 'oven.inventoryPath');
           break;
         default: break;
       }
@@ -190,7 +190,7 @@ class CartPanel {
     if (!item || !item.sourcePath) return;
     try {
       await vscode.commands.executeCommand(
-        'vscode.openWith', vscode.Uri.file(item.sourcePath), 'oveCart.editor', vscode.ViewColumn.One
+        'vscode.openWith', vscode.Uri.file(item.sourcePath), 'oven.editor', vscode.ViewColumn.One
       );
     } catch (e) {
       vscode.window.showErrorMessage(`Could not open ${item.sourcePath}: ${e.message}`);

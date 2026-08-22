@@ -199,7 +199,7 @@ function runMafft(records, opts = {}) {
         if (!String(stdout || '').trimStart().startsWith('>')) {
           return reject(new Error(
             `"${bin}" ran but did not return an alignment, so it is probably not MAFFT. ` +
-            'Check oveCart.mafftPath.'));
+            'Check oven.mafftPath.'));
         }
         const aligned = parseFasta(stdout);
         if (aligned.length !== records.length) {
