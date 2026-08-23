@@ -135303,6 +135303,19 @@ ${seq.sequence}
     FileSaver.saveAs(blob, filename);
     window.toastr.success("File Downloaded Successfully");
   }, "exportSequenceToFile");
+  let ovenDragging = false;
+  let ovenLastSel = null;
+  let ovenAnchor = null;
+  let ovenFlush = null;
+  if (typeof window !== "undefined") {
+    window.addEventListener("mousedown", () => { ovenDragging = true; ovenAnchor = null; }, true);
+    window.addEventListener("mouseup", () => {
+      ovenDragging = false;
+      const flush = ovenFlush;
+      ovenFlush = null;
+      if (flush) setTimeout(flush, 0);
+    }, true);
+  }
   const withEditorProps = compose(
     connect(
       mapStateToProps,
@@ -135311,7 +135324,8 @@ ${seq.sequence}
         const toSpread = {};
         if (mapProps2.annotationToAdd) {
           toSpread.original_selectionLayerUpdate = dispatchProps.selectionLayerUpdate;
-          toSpread.selectionLayerUpdate = (sel) => {
+          const ovenSyncFields = (sel) => {
+            if (!sel || typeof sel.start !== "number" || typeof sel.end !== "number") return;
             dispatchProps.dispatch({
               type: "@@redux-form/CHANGE",
               meta: {
@@ -135332,6 +135346,44 @@ ${seq.sequence}
               },
               payload: sel.end + 1
             });
+          };
+          /*
+           * PATCH (oven): fill the fields when the drag ends, not on every
+           * mousemove.
+           *
+           * Stock dispatches these two CHANGEs per pointer event and each one
+           * re-renders the whole annotation form. That never showed while this
+           * form could only be a modal -- a modal covers the sequence, so there
+           * was no dragging to pay for -- but the New Primer panel is dragged
+           * against, and there it cost ~35 ms per event on top of the ~33 ms
+           * the editor already spends.
+           *
+           * Mid-drag the original selectionLayerUpdate runs instead, so the
+           * highlight tracks the pointer exactly as it does with nothing open.
+           * The flush is deferred one tick past mouseup rather than run inside
+           * it: the listener is on the capture phase and so fires before the
+           * editor's own mouseup handler, and reading the selection any earlier
+           * catches it mid-update -- which is what left Bind Start stuck at 1
+           * in an earlier attempt.
+           */
+          toSpread.selectionLayerUpdate = (sel) => {
+            if (!ovenDragging) {
+              ovenLastSel = sel;
+              return ovenSyncFields(sel);
+            }
+            /*
+             * The anchor has to be held here. OVE derives a drag's fixed edge
+             * from the stored selection, which stock never updates while a form
+             * is open -- so writing the real selection back mid-drag destroys
+             * it, and every event after the first arrives with start collapsed
+             * to 0. Keeping the first event's start and moving only the far
+             * edge reproduces what the drag meant.
+             */
+            if (ovenAnchor === null) ovenAnchor = sel.start;
+            const fixed = __spreadProps(__spreadValues({}, sel), { start: ovenAnchor });
+            ovenLastSel = fixed;
+            dispatchProps.selectionLayerUpdate(fixed);
+            ovenFlush = () => ovenSyncFields(ovenLastSel);
           };
           toSpread.caretPositionUpdate = noop$8;
         }
@@ -170797,34 +170849,27 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
    */
   const AddOrEditPrimerPanel = compose$1(
     withEditorProps,
-    withProps((props) => {
-      const sel = props.selectionLayer || {};
-      const hasRange = typeof sel.start === "number" && sel.start > -1 && sel.end > -1;
-      return {
-        annotationTypePlural: "primers",
-        RenderBases,
-        upsertAnnotation: props.upsertPrimer,
-        initialValues: __spreadValues({
-          forward: true,
-          arrowheadType: "TOP"
-        }, hasRange ? convertRangeTo1Based({ start: sel.start, end: sel.end }) : {})
-      };
+    withProps({
+      annotationTypePlural: "primers",
+      RenderBases
     }),
+    withProps((props) => ({ upsertAnnotation: props.upsertPrimer })),
     reduxForm({
-      // Deliberately the dialog's own form name. Two other pieces of OVE key
-      // off it -- the annotationToAdd selector that draws the pending primer
-      // on the map, and the selection sync behind "You can also click or drag
-      // in the editor", which dispatches a redux-form CHANGE at
-      // annotationToAdd.formName -- and both are hard-coded to these three
-      // names, so a new one would render a form that previews nothing and
-      // follows nothing.
-      form: "AddOrEditPrimerDialog",
-      enableReinitialize: true,
-      keepDirtyOnReinitialize: true
+      /*
+       * Deliberately the dialog's own form name: the annotationToAdd selector
+       * that draws the pending primer on the map, and the selection sync that
+       * fills start/end, are both hard-coded to these three names.
+       *
+       * No enableReinitialize. Deriving initialValues from selectionLayer and
+       * reinitialising on every store change put two mechanisms on the same two
+       * fields. The panel passes initialValues once, exactly as
+       * showAddOrEditAnnotationDialog does for the modal, and the sync owns
+       * them from then on.
+       */
+      form: "AddOrEditPrimerDialog"
     }),
     // Not optional: the component reads start/end/bases/forward as plain props,
-    // not from form state. Without this, Binding Site Length renders NaN and
-    // the strand radios do not reflect what is selected.
+    // not from form state. Without this, Binding Site Length renders NaN.
     tgFormValues(
       "start",
       "end",

@@ -31,6 +31,22 @@
   // why. Both mount sites use "VectorEditor".
   let editorName = 'VectorEditor';
 
+  /*
+   * What the form starts with, built once when the panel opens -- the same
+   * thing showAddOrEditAnnotationDialog hands the modal. From then on the
+   * editor owns these fields: it fills them from the selection when a drag
+   * ends. Deriving them from the store instead put two mechanisms on the same
+   * two fields.
+   */
+  let initialValues = { forward: true, arrowheadType: 'TOP' };
+
+  function selectionValues() {
+    const sel = seqState().selectionLayer || {};
+    const hasRange = typeof sel.start === 'number' && sel.start > -1 && sel.end > -1;
+    // 1-based, which is what the form's fields are in.
+    return hasRange ? { start: sel.start + 1, end: sel.end + 1 } : {};
+  }
+
   function seqState() {
     try {
       return editor.getState() || {};
@@ -69,7 +85,7 @@
     }
     return reactElement('div', {
       className: 'ovenp-root',
-      children: reactElement(Form, { hideModal: hidePanel, editorName })
+      children: reactElement(Form, { hideModal: hidePanel, editorName, initialValues })
     });
   }
 
@@ -120,6 +136,9 @@
   }
 
   function open() {
+    // Snapshot before mounting, so the form starts on whatever is already
+    // highlighted rather than empty.
+    initialValues = Object.assign({ forward: true, arrowheadType: 'TOP' }, selectionValues());
     showPanel();
   }
 

@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.24.0
+
+**Selecting with the New Primer panel open is roughly twice as fast, and the editor now
+shows the selection while you drag.** Measured over a 60-step drag in the demo editor:
+3796 ms before, 1855 ms after.
+
+Open Vector Editor dispatched two redux-form CHANGEs per pointer event while an annotation
+form was open, and each one re-rendered the whole form. That never mattered while this form
+could only be a modal — a modal covers the sequence, so there was nothing to drag against —
+but the panel is dragged against constantly. The fields are now filled when the drag ends;
+mid-drag the ordinary selection highlight runs instead, which stock suppressed entirely.
+
+The drag anchor is held explicitly, because writing the selection back mid-drag destroys the
+one Open Vector Editor derives for itself: without that, every event after the first arrives
+with its start collapsed to 0, and **Bind Start** sticks at 1 wherever you drag from.
+`test/browser/newPrimer.mjs` now asserts the selection is applied and that Bind Start
+matches where the drag began.
+
 ## 1.23.1
 
 **The New Primer and Primer Search tabs have a close × on them.** Drag either panel into the

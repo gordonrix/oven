@@ -175,6 +175,42 @@ export default async function run(page) {
   if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
   if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
 
+  /* --- the drag itself stays cheap ----------------------------------------- */
+
+  /*
+   * The fields are filled when the drag ends, not on every mousemove: stock
+   * dispatched two redux-form CHANGEs per pointer event, each re-rendering the
+   * whole form, which made selecting against an open panel feel heavy.
+   *
+   * Two things have to hold. The selection must actually be applied while
+   * dragging -- the editor now shows it, which stock never did with a form open
+   * -- and its start must be the point the drag began. Writing the selection
+   * back mid-drag destroys OVE's own anchor, so an earlier attempt at this had
+   * every event after the first arrive with start collapsed to 0, and Bind
+   * Start stuck at 1 no matter where you dragged from.
+   */
+  const selectionText = () => page.evaluate(() => {
+    const t = [...document.querySelectorAll('.veStatusBarItem')].map((x) => x.textContent).join(' ');
+    const m = /Selecting (\d+) bps from (\d+) to (\d+)/.exec(t);
+    return m ? `${m[2]}..${m[3]}` : 'none';
+  });
+
+  await dragOver(page, 40, 300);
+  out.selectionDuringDrag = await selectionText();
+  out.fieldsAfterDrag = (await fields(page)).textInputs;
+
+  if (out.selectionDuringDrag === 'none') {
+    fail.push('dragging with the panel open left no selection in the editor');
+  } else {
+    const [selStart] = out.selectionDuringDrag.split('..');
+    const [, fieldStart] = out.fieldsAfterDrag;
+    if (selStart !== fieldStart) {
+      fail.push(`Bind Start ${fieldStart} does not match the selection ${out.selectionDuringDrag}`);
+    }
+    // The anchor regression showed up as exactly this.
+    if (fieldStart === '1') fail.push('Bind Start collapsed to 1 -- the drag anchor was lost');
+  }
+
   /* --- the tab closes from its own cross ----------------------------------- */
 
   /*
