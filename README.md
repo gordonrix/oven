@@ -208,7 +208,7 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 
 ## Other
 
-- Select a DNA file → **Open With → OVE**, and set it as the default if you like
+- Select a DNA file → **Open With → OVEN**, and set it as the default if you like
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a light grey bar showing which strand they matched

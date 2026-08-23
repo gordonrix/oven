@@ -4,6 +4,12 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.20.1
+
+The editor picker in the top right now reads **OVEN** rather than **OVE**. That label is
+the custom editor's own `displayName`, separate from the extension's, and had been left at
+the upstream value through the rename.
+
 ## 1.20.0
 
 **The primer search table is yours to configure.** A **Columns** dropdown sits between
