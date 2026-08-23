@@ -87,7 +87,10 @@
       }
     }
 
-    const panel = { id: PANEL_ID, name: PANEL_NAME, active: true };
+    // canClose puts OVE's own small-cross on the tab. Without it the panel
+    // can only be dismissed from inside its own body, which is no help once
+    // it has been dragged into the same group as the sequence map.
+    const panel = { id: PANEL_ID, name: PANEL_NAME, active: true, canClose: true };
     if (groups.length <= 1) {
       groups.push([panel]); // split, so the sequence stays beside the form
     } else {

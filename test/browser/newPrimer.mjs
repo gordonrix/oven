@@ -175,6 +175,27 @@ export default async function run(page) {
   if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
   if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
 
+  /* --- the tab closes from its own cross ----------------------------------- */
+
+  /*
+   * Reported: drag the panel into the sequence map's group and it becomes
+   * impossible to dismiss. The form's Cancel button is inside the panel body,
+   * which is only rendered while its tab is active -- so switching to Sequence
+   * Map strands it. OVE draws a small-cross on any tab whose panel carries
+   * canClose, and ours simply never set it.
+   */
+  out.crossCount = await page.locator('[class*=veTabActive] .bp3-icon-small-cross').count();
+  if (!out.crossCount) fail.push('no close cross on the New Primer tab');
+  else {
+    await page.locator('[class*=veTabActive] .bp3-icon-small-cross').first().click();
+    await page.waitForTimeout(1000);
+    out.panelAfterCross = await page.locator('.ovenp-root').count();
+    out.tabsAfterCross = await page.evaluate(() =>
+      [...document.querySelectorAll('[class*=veTab]')].map((e) => e.innerText.trim()).filter(Boolean));
+    if (out.panelAfterCross) fail.push('the cross did not close the panel');
+    if (out.tabsAfterCross.includes('New Primer')) fail.push('the tab outlived its panel');
+  }
+
   out.FAILURES = fail;
   out.PASS = fail.length === 0;
   return out;

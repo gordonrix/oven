@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.23.1
+
+**The New Primer and Primer Search tabs have a close × on them.** Drag either panel into the
+sequence map's group and it used to become impossible to dismiss: the only way out was a
+button inside the panel body, and a body only renders while its own tab is active — so
+switching to Sequence Map stranded it.
+
+Open Vector Editor already draws a cross on any tab whose panel carries `canClose`. Ours
+simply never set it.
+
 ## 1.23.0
 
 **Simulate PCR moves from `mod+shift+p` to `mod+alt+p`.** The old binding is the VS Code

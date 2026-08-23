@@ -383,6 +383,14 @@ export default async function run(page) {
     fail.push(`reset should restore Tail: ${JSON.stringify(out.headersAfterReset)}`);
   }
 
+  /* --- the tab closes from its own cross ----------------------------------- */
+
+  // Same fix as the New Primer panel: the in-panel x is unreachable once the
+  // panel shares a group with the sequence map, since only the active tab's
+  // body renders. canClose puts OVE's own cross on the tab.
+  out.tabCross = await page.locator('[class*=veTab-primerSearch] .bp3-icon-small-cross, [class*=veTabActive] .bp3-icon-small-cross').count();
+  if (!out.tabCross) fail.push('no close cross on the Primer Search tab');
+
   out.FAILURES = fail;
   out.PASS = fail.length === 0;
   return out;
