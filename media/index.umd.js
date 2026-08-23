@@ -135306,11 +135306,14 @@ ${seq.sequence}
   let ovenDragging = false;
   let ovenLastSel = null;
   let ovenAnchor = null;
+  let ovenLastSyncAt = 0;
+  const OVEN_SYNC_MS = 100;
   let ovenFlush = null;
   if (typeof window !== "undefined") {
     window.addEventListener("mousedown", () => {
       ovenDragging = true;
       ovenAnchor = null;
+      ovenLastSyncAt = 0;
     }, true);
     window.addEventListener("mouseup", () => {
       ovenDragging = false;
@@ -135402,8 +135405,29 @@ ${seq.sequence}
              * closes. So it is a choice, and oven.newPrimerLiveSelection makes
              * it. Either way the release lands on the exact final range.
              */
+            /*
+             * Throttled, not deferred.
+             *
+             * The bar you watch while dragging is drawn from these form values,
+             * so holding them to mouseup leaves the drag with no feedback at
+             * all. Feeding them per pointer event is what costs: the same form
+             * renders at ~25 ms inside OVE's dialog portal and ~84 ms inside a
+             * panel, which is a difference in where it mounts rather than in
+             * the form or its composition -- rendering this exact composition
+             * back inside wrapDialog measures 25 ms again.
+             *
+             * A wall-clock window is stable here even though the work is what
+             * slows the drag: fewer syncs make the drag faster, which lets the
+             * window cover more events, which settles. Measured per pointer
+             * event: 84 ms unthrottled, 41 ms at 100 ms, 27 ms deferred
+             * entirely, against 16 ms with no panel open.
+             */
             if (typeof window === "undefined" || window.__ovenNewPrimerLiveSelection !== false) {
-              ovenSyncFields(fixed);
+              const nowMs = Date.now();
+              if (nowMs - ovenLastSyncAt >= OVEN_SYNC_MS) {
+                ovenLastSyncAt = nowMs;
+                ovenSyncFields(fixed);
+              }
             }
             ovenFlush = () => ovenSyncFields(ovenLastSel);
           };

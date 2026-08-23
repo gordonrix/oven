@@ -4,6 +4,28 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.24.2
+
+**Dragging a selection with the New Primer panel open is about half the cost, and the bar
+still follows the pointer.** The field sync is throttled to a few times a second instead of
+running on every pointer event. Measured per event in the demo editor: 84 ms before, 41 ms
+now, against 16 ms with no panel open and 25 ms for the old modal.
+
+Two earlier claims here were wrong and are worth correcting. The modal did **not** block
+dragging — a bug in the measurement was aiming the drag below the sequence, so nothing was
+being selected and the modal only looked free. And throttling was dismissed as unworkable on
+the grounds that the work is what slows the drag, so a wall-clock window would never close.
+That is backwards: fewer syncs make the drag faster, which lets the window cover more events.
+It settles.
+
+What remains true is that the cost is about **where the form mounts**, not the form: the same
+composition measures ~25 ms per event inside Open Vector Editor's dialog portal and ~84 ms
+unthrottled inside a panel. Rendering this exact composition back inside `wrapDialog` returns
+it to 25 ms, so it is not the form, its props, or its composition.
+
+`oven.newPrimerLiveSelection` still switches the sync off entirely (27 ms per event, fields
+filling in on release) for anyone who wants the last of it.
+
 ## 1.24.1
 
 **The bar follows the drag again.** 1.24.0 deferred the New Primer fields to mouse-up for
