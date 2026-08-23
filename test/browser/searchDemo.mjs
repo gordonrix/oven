@@ -30,6 +30,8 @@ const rows = (page) => page.evaluate(() =>
     tm: r.querySelector('.ovesearch-c4').textContent,
     tail: r.querySelector('.ovesearch-c5').textContent,
     alias: r.querySelector('.ovesearch-c6').textContent,
+    description: r.querySelector('.ovesearch-c7')
+      ? r.querySelector('.ovesearch-c7').textContent : null,
     action: r.querySelector('.ovesearch-attach').textContent,
     disabled: r.querySelector('.ovesearch-attach').disabled
   })));
@@ -197,7 +199,8 @@ export default async function run(page) {
   await clearPosted(page);
   const grip = page.locator('.ovesearch-header .ovesearch-c2 .ovesearch-grip');
   out.gripCount = await page.locator('.ovesearch-grip').count();
-  if (out.gripCount !== 8) fail.push(`expected a grip per column, got ${out.gripCount}`);
+  // Nine with the fixture's description column; see the description block below.
+  if (out.gripCount !== 9) fail.push(`expected a grip per column, got ${out.gripCount}`);
 
   const box = await grip.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -213,7 +216,7 @@ export default async function run(page) {
   const grew = out.nameWidthAfter - out.nameWidthBefore;
   if (grew < 50 || grew > 90) fail.push(`dragging +70px should widen the Name column by ~70, got ${grew}`);
   if (out.savedWidths.length !== 1) fail.push(`expected one width save on mouseup, got ${out.savedWidths.length}`);
-  if (out.savedWidths[0] && out.savedWidths[0].widths.length !== 8) fail.push('saved widths should cover all 8 columns');
+  if (out.savedWidths[0] && out.savedWidths[0].widths.length !== 9) fail.push('saved widths should cover all 9 columns');
 
   // body rows must track the header, or the table shears
   out.bodyNameWidth = await page.evaluate(() => Math.round(
@@ -259,6 +262,43 @@ export default async function run(page) {
     fail.push(`scoping to 1400..1600 should leave only DEMO_TAIL_F, got ${out.scopedRows.map((r) => r.name)}`);
   }
   if (!/in selection/.test(out.scopedCount)) fail.push(`count should say "in selection": ${out.scopedCount}`);
+
+  /* --- the description column, headed with the file's own wording ---------- */
+
+  // The fixture's inventory reports descriptionColumn "Purpose", which is the
+  // whole point: the column need not be called Description, and the header the
+  // user sees is their own.
+  out.descHeader = await page.evaluate(() => {
+    const h = document.querySelector('.ovesearch-header .ovesearch-c7');
+    return h ? h.textContent.trim() : null;
+  });
+  if (out.descHeader !== 'Purpose') {
+    fail.push(`description column should be headed "Purpose", got ${out.descHeader}`);
+  }
+  const withDesc = (await rows(page)).filter((r) => r.description);
+  if (!withDesc.length) fail.push('no row rendered a description');
+
+  // Hidden entirely when the inventory has no such column -- an empty strip of
+  // table would be worse than none.
+  await page.evaluate(async () => {
+    const fx = await fetch('../test/fixtures/searchHits.json').then((r) => r.json());
+    window.postMessage({
+      type: 'search/results',
+      hits: fx.hits,
+      // Same payload minus descriptionColumn: the file has no such column.
+      inventory: { status: 'ok', path: '/demo/inventory.xlsx', message: null, rowCount: 6 },
+      scoped: false, selection: null, fullLengthOnly: false, columnWidths: null
+    }, '*');
+  });
+  await page.waitForTimeout(300);
+  out.descAfterNoColumn = await page.evaluate(() =>
+    Boolean(document.querySelector('.ovesearch-header .ovesearch-c7')));
+  if (out.descAfterNoColumn) fail.push('description column should vanish when the file has none');
+  out.trackCountNoDesc = await page.evaluate(() => (
+    getComputedStyle(document.querySelector('.ovesearch-row')).gridTemplateColumns.split(' ').length));
+  if (out.trackCountNoDesc !== 8) {
+    fail.push(`grid should fall back to 8 tracks without a description column, got ${out.trackCountNoDesc}`);
+  }
 
   out.FAILURES = fail;
   out.PASS = fail.length === 0;

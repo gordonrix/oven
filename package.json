@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gordonrix/ove-vscode"
+    "url": "https://github.com/gordonrix/oven"
   },
   "engines": {
     "vscode": "^1.98.0"
@@ -239,7 +239,7 @@
         "oven.inventoryDescriptionColumn": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Header of an optional description column shown as a tooltip on search hits. Leave empty to use a column named `Description` if one exists."
+          "markdownDescription": "Header of an optional free-text column from your inventory, shown as the last column of the search results and labelled with the header itself. Name any column you like — `Purpose`, `Ordered by`, `Freezer box`. Leave empty to use a column named `Description` if one exists; a missing column is never an error, and the column is hidden entirely when there is nothing to put in it."
         },
         "oven.showSelectionStatsByDefault": {
           "type": "boolean",
@@ -303,5 +303,9 @@
     "depcheck": "^1.4.7",
     "eslint": "^9.21.0",
     "globals": "^15.14.0"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/gordonrix/oven/issues"
+  },
+  "homepage": "https://github.com/gordonrix/oven#readme"
 }

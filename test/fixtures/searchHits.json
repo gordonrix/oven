@@ -80,7 +80,8 @@
   "status": "ok",
   "path": "/demo/inventory.xlsx",
   "message": null,
-  "rowCount": 6
+  "rowCount": 6,
+  "descriptionColumn": "Purpose"
  },
  "scanned": 5,
  "skipped": 1,

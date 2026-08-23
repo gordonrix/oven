@@ -37,7 +37,15 @@ those start empty — there is no migration, deliberately, since publishing an I
 irreversible and doing this afterwards would have stranded real users.
 
 Command palette entries are now all under one **OVEN:** category, instead of the mix of
-"Primer Cart:" and "Open Vector Editor:" prefixes that had accumulated.
+"Primer Cart:" and "Open Vector Editor:" prefixes that had accumulated. The GitHub repo
+moved to `gordonrix/oven` — the old URL redirects.
+
+**The primer search now has a description column.** `oven.inventoryDescriptionColumn` was
+already able to name any column in your inventory, but whatever it found only ever showed
+up in a tooltip. It is now the last column of the results, headed with the wording from
+your own file — point it at `Purpose`, `Ordered by` or `Freezer box` and that is what the
+header says. Files without such a column are unaffected: the column is not drawn at all
+rather than sitting there empty.
 
 Also in this release: a Marketplace icon.
 

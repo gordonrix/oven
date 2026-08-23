@@ -111,6 +111,9 @@
 .ovesearch-row {
   display: grid;
   grid-template-columns: var(--ovesearch-cols, 56px 26px 56px 48px 46px 46px 130px 62px);
+  /* The fallback lists the eight always-present columns; the ninth
+     (description) only ever arrives through --ovesearch-cols, which JS sets
+     before the first row renders. */
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
@@ -177,7 +180,8 @@ body.ovesearch-resizing * { cursor: col-resize !important; user-select: none !im
 .ovesearch-c1.fwd { color: #0f9960; }
 .ovesearch-c1.rev { color: #c23030; }
 .ovesearch-c2,
-.ovesearch-c6 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovesearch-c6,
+.ovesearch-c7 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ovesearch-c2 { font-weight: 600; }
 .ovesearch-c3,
 .ovesearch-c4,
@@ -185,7 +189,10 @@ body.ovesearch-resizing * { cursor: col-resize !important; user-select: none !im
 .ovesearch-c5 { color: #5c7080; }
 .ovesearch-c5.has-tail { color: #bf7326; font-weight: 600; }
 .ovesearch-c6 { color: #5c7080; }
-.ovesearch-c7 { text-align: right; }
+/* Free text from the user's own spreadsheet, so it gets the quieter weight the
+   identifier columns do not. */
+.ovesearch-c7 { color: #5c7080; }
+.ovesearch-c8 { text-align: right; }
 
 .ovesearch-attach {
   padding: 2px 8px;

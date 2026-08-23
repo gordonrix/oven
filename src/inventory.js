@@ -244,7 +244,11 @@ function searchSequence(sequence, circular, opts) {
     status: inv.status,
     path: inv.path || '',
     message: inv.message || null,
-    rowCount: inv.rowCount || 0
+    rowCount: inv.rowCount || 0,
+    // The header verbatim, so the results table can label the column with the
+    // user's own wording rather than a generic "Description". Null when the
+    // file has no such column, which is what hides the column entirely.
+    descriptionColumn: inv.descriptionColumn || null
   };
   if (inv.status !== 'ok') {
     return { hits: [], inventory: summary, tookMs: 0, scanned: 0, skipped: 0, truncated: false };

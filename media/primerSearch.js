@@ -39,10 +39,24 @@
   let fullLengthOnly = false;
   let filterText = '';
 
-  // Pos, Str, Name, Anneal, Tm, Tail, Alias, action
-  const COLUMN_DEFAULTS = [56, 26, 56, 48, 46, 46, 130, 62];
+  // Pos, Str, Name, Anneal, Tm, Tail, Alias, Description, action
+  const COLUMN_DEFAULTS = [56, 26, 56, 48, 46, 46, 130, 160, 62];
   const MIN_COLUMN = 24;
   let columnWidths = COLUMN_DEFAULTS.slice();
+
+  // The description column carries whatever header the inventory file used, so
+  // an "Ordered by" or "Purpose" column reads as itself rather than as a
+  // generic label. Null means the file has no such column, and then the column
+  // is not rendered at all -- an empty strip of table would be worse than none.
+  const DESC_COL = 7;
+  function descriptionHeader() {
+    return (state.inventory && state.inventory.descriptionColumn) || null;
+  }
+  /** Column indices to render, skipping description when there is nothing in it. */
+  function activeColumns() {
+    const all = [0, 1, 2, 3, 4, 5, 6, DESC_COL, 8];
+    return descriptionHeader() ? all : all.filter((i) => i !== DESC_COL);
+  }
 
   const post = (m) => vscodeApi && vscodeApi.postMessage(m);
   const toast = (kind, text) => window.toastr && window.toastr[kind] && window.toastr[kind](text);
@@ -254,7 +268,11 @@
    * whole table without re-rendering a row -- which is what keeps it smooth.
    */
   function applyWidths() {
-    if (root) root.style.setProperty('--ovesearch-cols', columnWidths.map((w) => `${w}px`).join(' '));
+    if (!root) return;
+    // Only the visible tracks: a hidden description column must not leave a
+    // gap in the grid template.
+    const cols = activeColumns().map((i) => `${columnWidths[i]}px`).join(' ');
+    root.style.setProperty('--ovesearch-cols', cols);
   }
 
   function persistWidths() {
@@ -434,8 +452,10 @@
     const attached = attachedKeys();
 
     const header = el('div', 'ovesearch-row ovesearch-header');
-    ['Pos', 'Str', 'Name', 'Anneal', 'Tm', 'Tail', 'Alias', ''].forEach((h, i) => {
-      const cell = el('div', 'ovesearch-c' + i, h);
+    const LABELS = ['Pos', 'Str', 'Name', 'Anneal', 'Tm', 'Tail', 'Alias', descriptionHeader(), ''];
+    activeColumns().forEach((i) => {
+      const cell = el('div', 'ovesearch-c' + i, LABELS[i] || '');
+      if (i === DESC_COL) cell.title = `From the "${LABELS[i]}" column of your inventory file`;
       cell.appendChild(makeGrip(i));
       header.appendChild(cell);
     });
@@ -453,7 +473,11 @@
       row.appendChild(strand);
 
       const name = el('div', 'ovesearch-c2', hit.name || '(unnamed)');
-      name.title = `${hit.sequence}\n\n${hit.description || ''}`.trim();
+      // The description has its own column and tooltip when the file provides
+      // one; repeat it here only when there is no column to read it from.
+      name.title = descriptionHeader()
+        ? hit.sequence
+        : `${hit.sequence}\n\n${hit.description || ''}`.trim();
       row.appendChild(name);
 
       row.appendChild(el('div', 'ovesearch-c3', `${hit.anneal}`));
@@ -462,7 +486,14 @@
         hit.overhang ? `+${hit.overhang}` : '—'));
       row.appendChild(el('div', 'ovesearch-c6', hit.alias || ''));
 
-      const actions = el('div', 'ovesearch-c7');
+      if (descriptionHeader()) {
+        const desc = el('div', 'ovesearch-c' + DESC_COL, hit.description || '');
+        // Truncated to the column width, so the full text needs somewhere to live.
+        if (hit.description) desc.title = hit.description;
+        row.appendChild(desc);
+      }
+
+      const actions = el('div', 'ovesearch-c8');
       const btn = el('button', 'ovesearch-attach', isAttached ? '✓' : 'Attach');
       btn.disabled = isAttached;
       btn.title = isAttached

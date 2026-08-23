@@ -143,9 +143,33 @@ Commands: **OVEN: New Cart Session**, **OVEN: Switch or Manage Cart Sessions**.
 
 Point `oven.inventoryPath` at an `.xlsx` or `.csv` of primers you have already
 ordered and each cart row is flagged green (already in inventory, with its ID) or orange
-(new). By default the first column is the name and the second is the sequence; override
-with `oven.inventoryNameColumn` / `oven.inventorySequenceColumn`. Matching is by
-exact sequence, ignoring case and whitespace.
+(new). Matching is by exact sequence, ignoring case and whitespace.
+
+**Your file only has to have two columns: a name and a sequence.** Everything else about
+its shape is up to you — any column order, any extra columns, any sheet, any header
+wording.
+
+| setting | what it names | default |
+|---|---|---|
+| `oven.inventoryNameColumn` | the name or ID column | first column |
+| `oven.inventorySequenceColumn` | the sequence column | second column |
+| `oven.inventorySheet` | which sheet, for a workbook | first sheet |
+| `oven.inventoryAliasColumn` | an optional short second identifier | a column named `Alias` |
+| `oven.inventoryDescriptionColumn` | an optional free-text column | a column named `Description` |
+
+The two optional columns are exactly that — a file without them loads fine. The
+description column can name **anything**: point it at `Purpose`, `Ordered by` or
+`Freezer box` and that column appears as the last column of the search results, headed
+with your own wording. When no such column exists the column is not drawn at all.
+
+Columns you do not name are read past and ignored, so a spreadsheet with twenty columns
+of ordering metadata works without being cut down first.
+
+Header matching is exact first, then case-insensitive. A name or sequence column that
+cannot be found is a hard error listing the headers actually present — inventory headers
+routinely contain characters that are easy to mistype (`°`, `μ`), and a silent "no
+matches" would read as "nothing in your inventory" when it means "I read the wrong
+column".
 
 If the inventory cannot be read, every row shows a grey **unknown** badge rather than
 orange — a primer is never labelled "new" on the strength of a failed lookup.
@@ -196,8 +220,8 @@ columns total more than the pane, the table scrolls sideways rather than hiding 
 Configure the inventory with `oven.inventoryPath` (or **OVEN: Choose Primer
 Inventory File…**, also offered inline the first time you search). Tuning:
 `oven.searchMinAnneal` (default 15), `oven.searchFullLengthOnly`,
-`oven.searchMaxHits`, and optional `oven.inventoryAliasColumn` /
-`inventoryDescriptionColumn` (auto-detected from `Alias` / `Description` headers).
+`oven.searchMaxHits`, and the optional `Alias` / description columns described under
+[Cross-referencing an existing inventory](#cross-referencing-an-existing-inventory).
 
 ## Alignment
 

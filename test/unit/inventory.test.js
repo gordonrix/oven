@@ -6,7 +6,7 @@ const fs = require('fs');
 
 const { parseSharedStrings, parseSheet, colToIndex, readSheet } = require('../../src/xlsxLite');
 const csvLite = require('../../src/csvLite');
-const { resolveColumn } = require('../../src/inventory');
+const { resolveColumn, optionalColumn } = require('../../src/inventory');
 
 test('shared strings concatenate every run in a rich-text cell', () => {
   // This is the regression that matters. Excel stores "Tm (°C)" as three runs.
@@ -71,6 +71,27 @@ test('resolveColumn falls back, matches case-insensitively, and reports headers'
   );
 });
 
+/*
+ * The alias and description columns are the ones a stranger's spreadsheet is
+ * least likely to match, so their lookup must never fail the parse -- a file
+ * with neither is normal, not broken.
+ */
+test('optionalColumn takes any header, and returns -1 rather than throwing', () => {
+  const headers = ['Oligo ID', 'Sequence', 'Purpose', 'Ordered by', 'Freezer box'];
+
+  // Any column can be the description column, not just one called Description.
+  assert.strictEqual(optionalColumn(headers, 'Purpose', 'Description'), 2);
+  assert.strictEqual(optionalColumn(headers, 'Ordered by', 'Description'), 3);
+  assert.strictEqual(optionalColumn(headers, 'freezer BOX', 'Description'), 4);
+
+  // Unset falls back to the conventional name...
+  assert.strictEqual(optionalColumn(['Name', 'Seq', 'Description'], '', 'Description'), 2);
+  // ...and when that is absent too, the answer is "no column", not an error.
+  assert.strictEqual(optionalColumn(headers, '', 'Description'), -1);
+  assert.strictEqual(optionalColumn(headers, 'Nonexistent', 'Description'), -1);
+  assert.strictEqual(optionalColumn(headers, '', ''), -1);
+});
+
 test('csv parsing handles quotes, embedded separators and newlines', () => {
   const rows = csvLite.parse('name,seq\n"a,b",ATGC\n"say ""hi""","AT\nGC"\n');
   assert.deepStrictEqual(rows, [['name', 'seq'], ['a,b', 'ATGC'], ['say "hi"', 'AT\nGC']]);
@@ -85,13 +106,13 @@ test('csv delimiter is sniffed from the header line', () => {
 /*
  * An optional check against a real workbook, for the awkward things a
  * hand-written fixture will not reproduce -- rich-text headers, thousands of
- * rows, characters like U+00B0 and U+03BC. Point OVECART_TEST_INVENTORY at a
+ * rows, characters like U+00B0 and U+03BC. Point OVEN_TEST_INVENTORY at a
  * spreadsheet to run it; it skips otherwise. No real path is committed: the
  * inventory is the user's data and so is where it lives.
  *
- *   OVECART_TEST_INVENTORY="/path/to/Primers Inventory.xlsx" npm test
+ *   OVEN_TEST_INVENTORY="/path/to/Primers Inventory.xlsx" npm test
  */
-const REAL_INVENTORY = process.env.OVECART_TEST_INVENTORY || '';
+const REAL_INVENTORY = process.env.OVEN_TEST_INVENTORY || '';
 
 test('reads a real inventory workbook', { skip: !REAL_INVENTORY || !fs.existsSync(REAL_INVENTORY) }, () => {
   const { rows, sheetNames } = readSheet(REAL_INVENTORY);
