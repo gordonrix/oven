@@ -22,8 +22,8 @@ patches/**
 upstream/**
 notes/**
 
-# Design sources. The shipped icon is icon.png, exported from these; the
-# originals have no business in the package.
+# Design sources. The shipped icon is images/icon.png; the large original and
+# any editable sources have no business in the package.
 *.ai
 *.svg
-logo.png
+images/bigicon.png

@@ -15,6 +15,7 @@ const shared = require('../media/cartShared.js');
 const { buildEditorHtml } = require('./editorHtml');
 
 const SEARCH_COLS_KEY = 'oven.searchColumnWidths';
+const SEARCH_SHOWN_KEY = 'oven.searchColumns';
 /*
  * The Filter Cut Sites selection. globalState rather than workspaceState: which
  * enzymes someone works with follows them between projects, the same reasoning
@@ -196,6 +197,7 @@ class DNAViewerProvider {
           selection: message.selection || null,
           fullLengthOnly: config.searchFullLengthOnly(),
           columnWidths: this.context.globalState.get(SEARCH_COLS_KEY, null),
+          columns: this.context.globalState.get(SEARCH_SHOWN_KEY, null),
           hits: res.hits,
           inventory: res.inventory,
           tookMs: res.tookMs,
@@ -210,6 +212,14 @@ class DNAViewerProvider {
       // survives closing the file, rather than resetting on every open.
       if (message.type === 'search/setColumnWidths') {
         await this.context.globalState.update(SEARCH_COLS_KEY, message.widths || null);
+        return;
+      }
+
+      // Which columns are shown, kept beside their widths. null means "no
+      // preference", which is not the same as "none": it lets the default keep
+      // depending on the inventory file.
+      if (message.type === 'search/setColumns') {
+        await this.context.globalState.update(SEARCH_SHOWN_KEY, message.columns || null);
         return;
       }
 

@@ -170387,9 +170387,14 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
   }
   __name(getTextNodeAtPosition, "getTextNodeAtPosition");
   const useTmType = /* @__PURE__ */ __name(() => {
+    // PATCH (oven): SantaLucia by default, not Breslauer. The unified
+    // SantaLucia (1998) nearest-neighbour set is what NEB's own calculator and
+    // our analysis scripts use, so leaving the stock default in place made the
+    // status bar disagree with everything else on the bench. Still switchable
+    // from the popover, and a stored choice still wins.
     return useLocalStorageState("tmType", {
       isSimpleString: true,
-      defaultValue: "default"
+      defaultValue: "neb_tm"
     });
   }, "useTmType");
   function MeltingTemp({

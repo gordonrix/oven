@@ -103,6 +103,21 @@ function parseInventory(file) {
 
   const cell = (row, i) => (i < 0 || row[i] === undefined ? '' : String(row[i]).trim());
 
+  /*
+   * Every column that is not the name or the sequence is offered to the search
+   * table, so a spreadsheet's own "Date ordered" or "Dissolved in" can be shown
+   * without this file having to know those names. Blank and duplicate headers
+   * are dropped: they cannot be told apart in the UI, and a trailing empty
+   * column is common in exported sheets.
+   */
+  const extraColumns = [];
+  const extraIdx = [];
+  headers.forEach((h, i) => {
+    if (i === nameIdx || i === seqIdx || !h || extraColumns.includes(h)) return;
+    extraColumns.push(h);
+    extraIdx.push(i);
+  });
+
   const bySeq = new Map();
   const entries = [];
   let duplicates = 0;
@@ -118,7 +133,9 @@ function parseInventory(file) {
     // Search wants every row, including duplicates-by-sequence: two inventory
     // entries with the same oligo are still two things you could pick off the
     // shelf. The matcher dedupes per binding site instead.
-    entries.push({ name, sequence: seq, alias: cell(row, aliasIdx), description: cell(row, descIdx) });
+    const extra = {};
+    extraColumns.forEach((h, n) => { extra[h] = cell(row, extraIdx[n]); });
+    entries.push({ name, sequence: seq, extra });
 
     const key = normalizeSeqKey(seq);
     if (bySeq.has(key)) { duplicates++; continue; } // first occurrence wins
@@ -134,6 +151,7 @@ function parseInventory(file) {
     sheetName,
     sheetNames,
     headers,
+    extraColumns,
     nameColumn: headers[nameIdx],
     sequenceColumn: headers[seqIdx],
     aliasColumn: aliasIdx < 0 ? null : headers[aliasIdx],
@@ -245,10 +263,14 @@ function searchSequence(sequence, circular, opts) {
     path: inv.path || '',
     message: inv.message || null,
     rowCount: inv.rowCount || 0,
-    // The header verbatim, so the results table can label the column with the
-    // user's own wording rather than a generic "Description". Null when the
-    // file has no such column, which is what hides the column entirely.
-    descriptionColumn: inv.descriptionColumn || null
+    // Headers verbatim, so the results table can offer the file's own columns
+    // under the file's own wording rather than a fixed list.
+    extraColumns: inv.extraColumns || [],
+    // Which of those to show when the user has expressed no preference. The
+    // alias column is the useful one far more often than the first column
+    // happens to be -- a spreadsheet's first extra column is typically Length
+    // or a date.
+    aliasColumn: inv.aliasColumn || null
   };
   if (inv.status !== 'ok') {
     return { hits: [], inventory: summary, tookMs: 0, scanned: 0, skipped: 0, truncated: false };

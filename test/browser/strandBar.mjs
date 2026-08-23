@@ -101,7 +101,7 @@ export default async function run(page) {
 
   const rowByName = async (name) => {
     const idx = await page.evaluate((n) => [...document.querySelectorAll('.ovesearch-row:not(.ovesearch-header)')]
-      .findIndex((r) => r.querySelector('.ovesearch-c2').textContent === n), name);
+      .findIndex((r) => r.querySelector('.ovesearch-k-name').textContent === n), name);
     if (idx < 0) throw new Error(`no search result row named ${name}`);
     await page.locator('.ovesearch-row:not(.ovesearch-header)').nth(idx).click();
     await page.waitForTimeout(400);

@@ -2,8 +2,6 @@
  "hits": [
   {
    "name": "DEMO_CLEAN_F",
-   "alias": "clean fwd",
-   "description": "full-length forward",
    "sequence": "TGTGACATCCTCCTATTAGCAATAG",
    "strand": 1,
    "anneal": 25,
@@ -13,12 +11,17 @@
    "end": 324,
    "threePrime": 324,
    "wraps": false,
-   "tm": 62.6
+   "tm": 62.6,
+   "extra": {
+    "Length": "25",
+    "Tm (°C)": "62.6",
+    "Date ordered": "2026-01-15",
+    "Alias": "clean fwd",
+    "Description": "full-length forward"
+   }
   },
   {
    "name": "DEMO_CLEAN_R",
-   "alias": "clean rev",
-   "description": "full-length reverse",
    "sequence": "AGAAGTGCCTAGTAAGAACGGAATTA",
    "strand": -1,
    "anneal": 26,
@@ -28,12 +31,17 @@
    "end": 825,
    "threePrime": 800,
    "wraps": false,
-   "tm": 64.4
+   "tm": 64.4,
+   "extra": {
+    "Length": "26",
+    "Tm (°C)": "64.4",
+    "Date ordered": "2026-01-15",
+    "Alias": "clean rev",
+    "Description": "full-length reverse"
+   }
   },
   {
    "name": "DEMO_TAIL_F",
-   "alias": "gibson fwd",
-   "description": "16 nt tail",
    "sequence": "ggggccccttttaaaaCGAGAATTCTAGAGCTGGATCG",
    "strand": 1,
    "anneal": 23,
@@ -43,12 +51,17 @@
    "end": 1521,
    "threePrime": 1521,
    "wraps": false,
-   "tm": 64.4
+   "tm": 64.4,
+   "extra": {
+    "Length": "38",
+    "Tm (°C)": "64.4",
+    "Date ordered": "2026-01-15",
+    "Alias": "gibson fwd",
+    "Description": "16 nt tail"
+   }
   },
   {
    "name": "DEMO_TAIL_R",
-   "alias": "bsmbi rev",
-   "description": "9 nt tail",
    "sequence": "CACGTCTCACCCCCGTCATGGCATACGGTTGCA",
    "strand": -1,
    "anneal": 24,
@@ -58,12 +71,17 @@
    "end": 2223,
    "threePrime": 2200,
    "wraps": false,
-   "tm": 73.7
+   "tm": 73.7,
+   "extra": {
+    "Length": "33",
+    "Tm (°C)": "73.7",
+    "Date ordered": "2026-01-15",
+    "Alias": "bsmbi rev",
+    "Description": "9 nt tail"
+   }
   },
   {
    "name": "DEMO_LATE_F",
-   "alias": "",
-   "description": "",
    "sequence": "GGAACATTGGGAACATTGTCA",
    "strand": 1,
    "anneal": 21,
@@ -73,7 +91,14 @@
    "end": 4020,
    "threePrime": 4020,
    "wraps": false,
-   "tm": 61.9
+   "tm": 61.9,
+   "extra": {
+    "Length": "21",
+    "Tm (°C)": "61.9",
+    "Date ordered": "2026-01-15",
+    "Alias": "",
+    "Description": ""
+   }
   }
  ],
  "inventory": {
@@ -81,7 +106,14 @@
   "path": "/demo/inventory.xlsx",
   "message": null,
   "rowCount": 6,
-  "descriptionColumn": "Purpose"
+  "extraColumns": [
+   "Length",
+   "Tm (°C)",
+   "Date ordered",
+   "Alias",
+   "Description"
+  ],
+  "aliasColumn": "Alias"
  },
  "scanned": 5,
  "skipped": 1,

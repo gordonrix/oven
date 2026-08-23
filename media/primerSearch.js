@@ -39,23 +39,102 @@
   let fullLengthOnly = false;
   let filterText = '';
 
-  // Pos, Str, Name, Anneal, Tm, Tail, Alias, Description, action
-  const COLUMN_DEFAULTS = [56, 26, 56, 48, 46, 46, 130, 160, 62];
+  /*
+   * The columns.
+   *
+   * Two kinds. The six computed ones below are worked out from the match and
+   * always exist; the rest are the inventory file's own columns -- every header
+   * that is not the name or the sequence -- and so vary from one spreadsheet to
+   * the next. A file column's key is `col:` plus its header, which is why the
+   * header text is what persists rather than a position: reordering columns in
+   * the spreadsheet must not silently show a different one.
+   *
+   * `locked` columns cannot be turned off. Position, strand and name identify
+   * which primer a row is about, and the action column is how a row is acted
+   * on -- a table without them is not a shorter table, it is a broken one.
+   */
+  const BUILTIN_COLUMNS = [
+    { key: 'pos', label: 'Pos', width: 56, locked: true },
+    { key: 'str', label: 'Str', width: 26, locked: true },
+    { key: 'name', label: 'Name', width: 90, locked: true },
+    { key: 'anneal', label: 'Anneal bp', width: 62 },
+    { key: 'tm', label: 'Tm', width: 46 },
+    { key: 'tail', label: 'Tail', width: 46 }
+  ];
+  const ACTION_COLUMN = { key: 'attach', label: '', width: 62, locked: true };
+  const FILE_KEY = 'col:';
+  const DEFAULT_BUILTIN = ['pos', 'str', 'name', 'anneal', 'tm', 'tail'];
   const MIN_COLUMN = 24;
-  let columnWidths = COLUMN_DEFAULTS.slice();
+  const DEFAULT_FILE_WIDTH = 130;
 
-  // The description column carries whatever header the inventory file used, so
-  // an "Ordered by" or "Purpose" column reads as itself rather than as a
-  // generic label. Null means the file has no such column, and then the column
-  // is not rendered at all -- an empty strip of table would be worse than none.
-  const DESC_COL = 7;
-  function descriptionHeader() {
-    return (state.inventory && state.inventory.descriptionColumn) || null;
+  // Keyed by column key rather than held as a positional array: the set of
+  // columns depends on the inventory file, so an index means nothing until you
+  // know which file produced it.
+  let columnWidths = {};
+  // null until the user expresses a preference, which is what lets the default
+  // depend on the file (see defaultVisible).
+  let visibleColumns = null;
+
+  function fileColumns() {
+    const inv = state.inventory || {};
+    return (inv.extraColumns || []).map((h) => ({
+      key: FILE_KEY + h, label: h, width: DEFAULT_FILE_WIDTH, file: h
+    }));
   }
-  /** Column indices to render, skipping description when there is nothing in it. */
+
+  /** Every column that could be shown, in table order. */
+  function allColumns() {
+    return BUILTIN_COLUMNS.concat(fileColumns(), [ACTION_COLUMN]);
+  }
+
+  /*
+   * What to show before the user has chosen. The alias column rather than the
+   * first file column: a spreadsheet's first extra column is usually something
+   * like Length or a date, whereas an alias is a second name for the primer and
+   * so belongs beside the first one.
+   */
+  function defaultVisible() {
+    const alias = (state.inventory || {}).aliasColumn;
+    return DEFAULT_BUILTIN.concat(alias ? [FILE_KEY + alias] : []);
+  }
+
+  function isVisible(col) {
+    if (col.locked) return true;
+    const chosen = visibleColumns || defaultVisible();
+    return chosen.indexOf(col.key) !== -1;
+  }
+
+  /** Columns actually drawn, in table order. */
   function activeColumns() {
-    const all = [0, 1, 2, 3, 4, 5, 6, DESC_COL, 8];
-    return descriptionHeader() ? all : all.filter((i) => i !== DESC_COL);
+    return allColumns().filter(isVisible);
+  }
+
+  function widthOf(col) {
+    const w = columnWidths[col.key];
+    return Math.max(MIN_COLUMN, Number(w) || col.width);
+  }
+
+  /** The value a column shows for one hit. */
+  function cellValue(col, hit) {
+    switch (col.key) {
+      case 'pos': return String(hit.threePrime + 1) + (hit.wraps ? '\u21a9' : '');
+      case 'str': return hit.strand === 1 ? '+' : '\u2212';
+      case 'name': return hit.name || '(unnamed)';
+      case 'anneal': return String(hit.anneal);
+      case 'tm': return hit.tm === null ? '\u2014' : String(hit.tm);
+      case 'tail': return hit.overhang ? `+${hit.overhang}` : '\u2014';
+      default: return (hit.extra && hit.extra[col.file]) || '';
+    }
+  }
+
+  /*
+   * A column key becomes part of a class name, and a header can be anything a
+   * spreadsheet allows -- "Tm (°C)", "[] (µM)". Non-word characters would make
+   * an invalid selector, so they are folded to dashes. Collisions only affect
+   * styling, never which value a cell shows: that comes from the key itself.
+   */
+  function cssKey(key) {
+    return key.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
   }
 
   const post = (m) => vscodeApi && vscodeApi.postMessage(m);
@@ -269,9 +348,9 @@
    */
   function applyWidths() {
     if (!root) return;
-    // Only the visible tracks: a hidden description column must not leave a
-    // gap in the grid template.
-    const cols = activeColumns().map((i) => `${columnWidths[i]}px`).join(' ');
+    // Only the visible tracks: a hidden column must not leave a gap in the
+    // grid template.
+    const cols = activeColumns().map((c) => `${widthOf(c)}px`).join(' ');
     root.style.setProperty('--ovesearch-cols', cols);
   }
 
@@ -279,7 +358,11 @@
     post({ type: 'search/setColumnWidths', widths: columnWidths });
   }
 
-  function makeGrip(colIndex) {
+  function persistVisible() {
+    post({ type: 'search/setColumns', columns: visibleColumns });
+  }
+
+  function makeGrip(col) {
     const grip = el('div', 'ovesearch-grip');
     grip.title = 'Drag to resize · double-click to reset all columns';
 
@@ -287,10 +370,10 @@
       e.preventDefault();
       e.stopPropagation(); // the header must not treat this as a row click
       const startX = e.clientX;
-      const startWidth = columnWidths[colIndex];
+      const startWidth = widthOf(col);
 
       const onMove = (ev) => {
-        columnWidths[colIndex] = Math.max(MIN_COLUMN, Math.round(startWidth + ev.clientX - startX));
+        columnWidths[col.key] = Math.max(MIN_COLUMN, Math.round(startWidth + ev.clientX - startX));
         applyWidths();
       };
       const onUp = () => {
@@ -306,7 +389,7 @@
 
     grip.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      columnWidths = COLUMN_DEFAULTS.slice();
+      columnWidths = {};
       applyWidths();
       persistWidths();
     });
@@ -314,15 +397,72 @@
     return grip;
   }
 
+  /*
+   * The columns picker. A plain details/summary rather than a Blueprint popover:
+   * it closes on click-outside and on Escape for free, and this panel is our
+   * markup rather than OVE's, so there is nothing to match.
+   */
+  function buildColumnsMenu() {
+    const wrap = el('details', 'ovesearch-cols');
+    const summary = el('summary', 'ovesearch-colsbtn', 'Columns');
+    summary.title = 'Choose which columns to show';
+    wrap.appendChild(summary);
+
+    const menu = el('div', 'ovesearch-colsmenu');
+    const chosen = visibleColumns || defaultVisible();
+
+    for (const col of allColumns()) {
+      if (col.locked) continue;
+      const row = el('label', 'ovesearch-colsitem');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = chosen.indexOf(col.key) !== -1;
+      cb.addEventListener('change', () => {
+        // Start from the effective set, so the first tick does not throw away
+        // the defaults the user has been looking at.
+        const next = (visibleColumns || defaultVisible()).slice();
+        const at = next.indexOf(col.key);
+        if (cb.checked && at === -1) next.push(col.key);
+        else if (!cb.checked && at !== -1) next.splice(at, 1);
+        visibleColumns = next;
+        persistVisible();
+        render();
+      });
+      row.appendChild(cb);
+      row.appendChild(el('span', null, col.label));
+      if (col.file) row.title = `"${col.file}" from your inventory file`;
+      menu.appendChild(row);
+    }
+
+    if (!fileColumns().length) {
+      menu.appendChild(el('div', 'ovesearch-colsnote',
+        'Columns from your inventory file appear here once a search has run.'));
+    }
+
+    const reset = el('button', 'ovesearch-colsreset', 'Reset to defaults');
+    reset.addEventListener('click', () => {
+      visibleColumns = null;
+      persistVisible();
+      render();
+    });
+    menu.appendChild(reset);
+
+    wrap.appendChild(menu);
+    return wrap;
+  }
+
   function visibleHits() {
     let hits = state.hits;
     if (fullLengthOnly) hits = hits.filter((h) => h.overhang === 0);
     const q = filterText.trim().toLowerCase();
     if (q) {
+      // Every inventory column is searched, not just the shown ones: filtering
+      // by a value you can see is obvious, and filtering by one you know is in
+      // the file is the more useful half.
       hits = hits.filter((h) =>
         (h.name || '').toLowerCase().includes(q) ||
-        (h.alias || '').toLowerCase().includes(q) ||
-        (h.sequence || '').toLowerCase().includes(q));
+        (h.sequence || '').toLowerCase().includes(q) ||
+        Object.values(h.extra || {}).some((v) => String(v).toLowerCase().includes(q)));
     }
     return hits;
   }
@@ -368,6 +508,8 @@
     check.appendChild(el('span', null, '100% match'));
     check.title = 'Hide primers whose 5′ tail is not present in this template';
     controls.appendChild(check);
+
+    controls.appendChild(buildColumnsMenu());
 
     const filter = el('input', 'ovesearch-filter');
     filter.type = 'search';
@@ -452,11 +594,10 @@
     const attached = attachedKeys();
 
     const header = el('div', 'ovesearch-row ovesearch-header');
-    const LABELS = ['Pos', 'Str', 'Name', 'Anneal', 'Tm', 'Tail', 'Alias', descriptionHeader(), ''];
-    activeColumns().forEach((i) => {
-      const cell = el('div', 'ovesearch-c' + i, LABELS[i] || '');
-      if (i === DESC_COL) cell.title = `From the "${LABELS[i]}" column of your inventory file`;
-      cell.appendChild(makeGrip(i));
+    activeColumns().forEach((col) => {
+      const cell = el('div', `ovesearch-cell ovesearch-k-${cssKey(col.key)}`, col.label);
+      if (col.file) cell.title = `"${col.file}" from your inventory file`;
+      cell.appendChild(makeGrip(col));
       header.appendChild(cell);
     });
     list.appendChild(header);
@@ -467,41 +608,34 @@
       const isAttached = attached.has(hitKey(hit));
       if (isAttached) row.classList.add('is-attached');
 
-      row.appendChild(el('div', 'ovesearch-c0', String(hit.threePrime + 1) + (hit.wraps ? '↩' : '')));
-      const strand = el('div', 'ovesearch-c1 ' + (hit.strand === 1 ? 'fwd' : 'rev'), hit.strand === 1 ? '+' : '−');
-      strand.title = hit.strand === 1 ? 'forward' : 'reverse';
-      row.appendChild(strand);
+      for (const col of activeColumns()) {
+        if (col.key === 'attach') {
+          const actions = el('div', 'ovesearch-cell ovesearch-k-attach');
+          const btn = el('button', 'ovesearch-attach', isAttached ? '\u2713' : 'Attach');
+          btn.disabled = isAttached;
+          btn.title = isAttached
+            ? 'A primer already covers this footprint'
+            : 'Add a primer_bind annotation over the annealing region';
+          btn.addEventListener('click', (e) => { e.stopPropagation(); attach(hit); });
+          actions.appendChild(btn);
+          row.appendChild(actions);
+          continue;
+        }
 
-      const name = el('div', 'ovesearch-c2', hit.name || '(unnamed)');
-      // The description has its own column and tooltip when the file provides
-      // one; repeat it here only when there is no column to read it from.
-      name.title = descriptionHeader()
-        ? hit.sequence
-        : `${hit.sequence}\n\n${hit.description || ''}`.trim();
-      row.appendChild(name);
+        const text = cellValue(col, hit);
+        let cls = `ovesearch-cell ovesearch-k-${cssKey(col.key)}`;
+        if (col.key === 'str') cls += hit.strand === 1 ? ' fwd' : ' rev';
+        if (col.key === 'tail' && hit.overhang) cls += ' has-tail';
+        const cell = el('div', cls, text);
 
-      row.appendChild(el('div', 'ovesearch-c3', `${hit.anneal}`));
-      row.appendChild(el('div', 'ovesearch-c4', hit.tm === null ? '—' : String(hit.tm)));
-      row.appendChild(el('div', 'ovesearch-c5' + (hit.overhang ? ' has-tail' : ''),
-        hit.overhang ? `+${hit.overhang}` : '—'));
-      row.appendChild(el('div', 'ovesearch-c6', hit.alias || ''));
+        if (col.key === 'str') cell.title = hit.strand === 1 ? 'forward' : 'reverse';
+        // The sequence identifies a primer and is never a column of its own.
+        else if (col.key === 'name') cell.title = hit.sequence;
+        // File columns truncate, so the full text needs somewhere to live.
+        else if (col.file && text) cell.title = text;
 
-      if (descriptionHeader()) {
-        const desc = el('div', 'ovesearch-c' + DESC_COL, hit.description || '');
-        // Truncated to the column width, so the full text needs somewhere to live.
-        if (hit.description) desc.title = hit.description;
-        row.appendChild(desc);
+        row.appendChild(cell);
       }
-
-      const actions = el('div', 'ovesearch-c8');
-      const btn = el('button', 'ovesearch-attach', isAttached ? '✓' : 'Attach');
-      btn.disabled = isAttached;
-      btn.title = isAttached
-        ? 'A primer already covers this footprint'
-        : 'Add a primer_bind annotation over the annealing region';
-      btn.addEventListener('click', (e) => { e.stopPropagation(); attach(hit); });
-      actions.appendChild(btn);
-      row.appendChild(actions);
 
       row.title = 'Click to select and scroll to this binding site';
       row.addEventListener('click', () => reveal(hit));
@@ -565,9 +699,13 @@
           truncated: Boolean(msg.truncated)
         };
         if (msg.fullLengthOnly) fullLengthOnly = true;
-        if (Array.isArray(msg.columnWidths) && msg.columnWidths.length === COLUMN_DEFAULTS.length) {
-          columnWidths = msg.columnWidths.map((w) => Math.max(MIN_COLUMN, Number(w) || MIN_COLUMN));
+        // Widths are keyed by column key now. An array is a pre-1.20 value and
+        // is discarded rather than migrated: the old indices meant positions in
+        // a fixed table that no longer exists.
+        if (msg.columnWidths && !Array.isArray(msg.columnWidths)) {
+          columnWidths = msg.columnWidths;
         }
+        if (Array.isArray(msg.columns)) visibleColumns = msg.columns;
         render();
       } else if (msg.type === 'search/inventoryChanged') {
         run(state.scoped);

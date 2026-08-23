@@ -4,6 +4,41 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.20.0
+
+**The primer search table is yours to configure.** A **Columns** dropdown sits between
+"100% match" and the filter box. Two kinds of column are offered:
+
+- computed from the match — `Anneal bp` (was `Anneal`), `Tm`, `Tail`
+- **every column of your inventory file**, under its own header
+
+That second half is new. Before, only a column named `Alias` and one named `Description`
+could ever reach the table; a spreadsheet's `Date ordered`, `Dissolved in` or
+`Designed by` were read past and discarded. Now every header that is not the name or the
+sequence is available.
+
+`Pos`, `Str`, `Name` and the **Attach** button cannot be turned off — a table without them
+is not shorter, it is broken. The choice persists across files and sessions, and **Reset to
+defaults** restores it.
+
+The default is `Anneal bp`, `Tm`, `Tail` and your **alias** column — deliberately the alias
+rather than the first extra column, because a real inventory's first extra column is
+usually `Length` or a date.
+
+The filter box now searches every inventory column, including ones you are not showing.
+
+**Melting temperature defaults to SantaLucia.** Open Vector Editor ships Breslauer as the
+default; the unified SantaLucia (1998) parameters are what NEB's calculator uses, so the
+stock default had the status bar disagreeing with every other number on the bench. Still
+switchable from the popover, and a choice you have already made still wins.
+
+Column widths are now keyed by column rather than by position, since which columns exist
+depends on the inventory file. Any widths saved by an earlier version are discarded once.
+
+The README has been cut roughly a third and rewritten for someone who has never seen the
+extension: implementation notes, upstream-bug archaeology and settings that no longer exist
+are gone, and everything about how this differs from upstream is confined to one section.
+
 ## 1.19.1
 
 **Fixed: the status bar showed a melting temperature for selections that cannot have

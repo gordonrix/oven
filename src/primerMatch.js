@@ -71,7 +71,7 @@ function inWindow(p, start, end) {
 
 /**
  * @param {object} index from buildIndex
- * @param {Array<{name,sequence,alias,description}>} entries inventory primers
+ * @param {Array<{name,sequence,extra}>} entries inventory primers
  * @param {object} [opts] minAnneal, selection {start,end} (0-based inclusive), maxHits
  * @returns {{hits: object[], scanned: number, skipped: number, truncated: boolean}}
  */
@@ -143,8 +143,10 @@ function search(index, entries, opts) {
         const tm = nebTm(annealSeq);
         hits.push({
           name: entry.name,
-          alias: entry.alias || '',
-          description: entry.description || '',
+          // Every non-name, non-sequence cell from the row, keyed by header.
+          // Which of them the table draws is the user's choice, made in the
+          // webview, so the host sends them all rather than guessing.
+          extra: entry.extra || {},
           sequence: entry.sequence,          // original case, as ordered
           strand,
           anneal,

@@ -265,7 +265,23 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -170243,7 +170406,25 @@
+@@ -170224,9 +170387,14 @@
+   }
+   __name(getTextNodeAtPosition, "getTextNodeAtPosition");
+   const useTmType = /* @__PURE__ */ __name(() => {
++    // PATCH (oven): SantaLucia by default, not Breslauer. The unified
++    // SantaLucia (1998) nearest-neighbour set is what NEB's own calculator and
++    // our analysis scripts use, so leaving the stock default in place made the
++    // status bar disagree with everything else on the bench. Still switchable
++    // from the popover, and a stored choice still wins.
+     return useLocalStorageState("tmType", {
+       isSimpleString: true,
+-      defaultValue: "default"
++      defaultValue: "neb_tm"
+     });
+   }, "useTmType");
+   function MeltingTemp({
+@@ -170243,7 +170411,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -292,7 +308,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170436,13 @@
+@@ -170255,21 +170441,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -317,7 +333,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170456,7 @@
+@@ -170283,7 +170461,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },

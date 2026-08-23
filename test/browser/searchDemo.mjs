@@ -21,20 +21,33 @@ const clearPosted = (page) =>
 const menus = (page) =>
   page.evaluate(() => [...document.querySelectorAll('.bp3-menu')].map((m) => m.innerText.replace(/\n/g, ' / ')));
 
+const cell = (r, key) => {
+  const n = r.querySelector(`.ovesearch-k-${key}`);
+  return n ? n.textContent : null;
+};
 const rows = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('.ovesearch-row:not(.ovesearch-header)')].map((r) => ({
-    pos: r.querySelector('.ovesearch-c0').textContent,
-    strand: r.querySelector('.ovesearch-c1').textContent,
-    name: r.querySelector('.ovesearch-c2').textContent,
-    anneal: r.querySelector('.ovesearch-c3').textContent,
-    tm: r.querySelector('.ovesearch-c4').textContent,
-    tail: r.querySelector('.ovesearch-c5').textContent,
-    alias: r.querySelector('.ovesearch-c6').textContent,
-    description: r.querySelector('.ovesearch-c7')
-      ? r.querySelector('.ovesearch-c7').textContent : null,
-    action: r.querySelector('.ovesearch-attach').textContent,
-    disabled: r.querySelector('.ovesearch-attach').disabled
-  })));
+  [...document.querySelectorAll('.ovesearch-row:not(.ovesearch-header)')].map((r) => {
+    const at = (key) => {
+      const n = r.querySelector(`.ovesearch-k-${key}`);
+      return n ? n.textContent : null;
+    };
+    return {
+      pos: at('pos'),
+      strand: at('str'),
+      name: at('name'),
+      anneal: at('anneal'),
+      tm: at('tm'),
+      tail: at('tail'),
+      alias: at('col-alias'),
+      description: at('col-description'),
+      length: at('col-length'),
+      action: r.querySelector('.ovesearch-attach').textContent,
+      disabled: r.querySelector('.ovesearch-attach').disabled
+    };
+  }));
+
+const headers = (page) => page.evaluate(() =>
+  [...document.querySelectorAll('.ovesearch-header > div')].map((d) => d.textContent.trim()));
 
 const dismiss = async (page) => {
   await page.keyboard.press('Escape');
@@ -191,16 +204,16 @@ export default async function run(page) {
     getComputedStyle(document.querySelector('.ovesearch-root'))
       .getPropertyValue('--ovesearch-cols').trim());
   const nameWidth = () => page.evaluate(() =>
-    Math.round(document.querySelector('.ovesearch-header .ovesearch-c2').getBoundingClientRect().width));
+    Math.round(document.querySelector('.ovesearch-header .ovesearch-k-name').getBoundingClientRect().width));
 
   out.colsDefault = await colsNow();
   out.nameWidthBefore = await nameWidth();
 
   await clearPosted(page);
-  const grip = page.locator('.ovesearch-header .ovesearch-c2 .ovesearch-grip');
+  const grip = page.locator('.ovesearch-header .ovesearch-k-name .ovesearch-grip');
   out.gripCount = await page.locator('.ovesearch-grip').count();
-  // Nine with the fixture's description column; see the description block below.
-  if (out.gripCount !== 9) fail.push(`expected a grip per column, got ${out.gripCount}`);
+  // Eight by default: six built-ins, the alias column, and the action column.
+  if (out.gripCount !== 8) fail.push(`expected a grip per column, got ${out.gripCount}`);
 
   const box = await grip.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -216,11 +229,15 @@ export default async function run(page) {
   const grew = out.nameWidthAfter - out.nameWidthBefore;
   if (grew < 50 || grew > 90) fail.push(`dragging +70px should widen the Name column by ~70, got ${grew}`);
   if (out.savedWidths.length !== 1) fail.push(`expected one width save on mouseup, got ${out.savedWidths.length}`);
-  if (out.savedWidths[0] && out.savedWidths[0].widths.length !== 9) fail.push('saved widths should cover all 9 columns');
+  // Widths are keyed by column key, not positional: which columns exist depends
+  // on the inventory file, so an index means nothing without knowing the file.
+  const savedW = out.savedWidths[0] && out.savedWidths[0].widths;
+  if (Array.isArray(savedW)) fail.push('widths should be keyed by column, not an array');
+  else if (!savedW || !savedW.name) fail.push(`resizing Name should store its width: ${JSON.stringify(savedW)}`);
 
   // body rows must track the header, or the table shears
   out.bodyNameWidth = await page.evaluate(() => Math.round(
-    document.querySelector('.ovesearch-row:not(.ovesearch-header) .ovesearch-c2').getBoundingClientRect().width));
+    document.querySelector('.ovesearch-row:not(.ovesearch-header) .ovesearch-k-name').getBoundingClientRect().width));
   if (Math.abs(out.bodyNameWidth - out.nameWidthAfter) > 2) {
     fail.push(`body column ${out.bodyNameWidth} does not match header ${out.nameWidthAfter}`);
   }
@@ -265,39 +282,105 @@ export default async function run(page) {
 
   /* --- the description column, headed with the file's own wording ---------- */
 
-  // The fixture's inventory reports descriptionColumn "Purpose", which is the
-  // whole point: the column need not be called Description, and the header the
-  // user sees is their own.
-  out.descHeader = await page.evaluate(() => {
-    const h = document.querySelector('.ovesearch-header .ovesearch-c7');
-    return h ? h.textContent.trim() : null;
-  });
-  if (out.descHeader !== 'Purpose') {
-    fail.push(`description column should be headed "Purpose", got ${out.descHeader}`);
+  /*
+   * The default is the six computed columns plus the *alias* column -- not the
+   * first file column, which in a real spreadsheet is usually Length or a date.
+   * The fixture puts Length first and Alias fourth so the two choices differ.
+   */
+  out.defaultHeaders = await headers(page);
+  const expected = ['Pos', 'Str', 'Name', 'Anneal bp', 'Tm', 'Tail', 'Alias', ''];
+  if (JSON.stringify(out.defaultHeaders) !== JSON.stringify(expected)) {
+    fail.push(`default columns wrong: ${JSON.stringify(out.defaultHeaders)}`);
   }
-  const withDesc = (await rows(page)).filter((r) => r.description);
-  if (!withDesc.length) fail.push('no row rendered a description');
+  const withAlias = (await rows(page)).filter((r) => r.alias);
+  if (!withAlias.length) fail.push('no row rendered an alias');
+  if ((await rows(page)).some((r) => r.length !== null)) {
+    fail.push('Length should be available but not shown by default');
+  }
 
-  // Hidden entirely when the inventory has no such column -- an empty strip of
-  // table would be worse than none.
+  /* --- the columns picker -------------------------------------------------- */
+
+  await clearPosted(page);
+  await page.locator('.ovesearch-cols > summary').click();
+  await page.waitForTimeout(200);
+  out.menuItems = await page.evaluate(() =>
+    [...document.querySelectorAll('.ovesearch-colsitem')].map((n) => n.textContent.trim()));
+
+  // Locked columns must not be offered at all -- a table without Pos/Str/Name
+  // or the Attach button is broken, not compact.
+  for (const locked of ['Pos', 'Str', 'Name']) {
+    if (out.menuItems.includes(locked)) fail.push(`${locked} must not be de-selectable`);
+  }
+  for (const offered of ['Anneal bp', 'Tm', 'Tail', 'Length', 'Alias', 'Description']) {
+    if (!out.menuItems.includes(offered)) fail.push(`${offered} should be in the picker`);
+  }
+
+  // Tick a file column that is off by default.
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.ovesearch-colsitem')]
+      .find((n) => n.textContent.trim() === 'Length');
+    row.querySelector('input').click();
+  });
+  await page.waitForTimeout(300);
+  out.headersWithLength = await headers(page);
+  if (!out.headersWithLength.includes('Length')) fail.push('ticking Length did not show it');
+  if ((await rows(page)).every((r) => r.length === null)) fail.push('Length column has no cells');
+
+  // Untick a built-in one.
+  await page.locator('.ovesearch-cols > summary').click();
+  await page.waitForTimeout(150);
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.ovesearch-colsitem')]
+      .find((n) => n.textContent.trim() === 'Tail');
+    row.querySelector('input').click();
+  });
+  await page.waitForTimeout(300);
+  out.headersNoTail = await headers(page);
+  if (out.headersNoTail.includes('Tail')) fail.push('unticking Tail did not hide it');
+
+  // The choice must reach the host, or it cannot outlive the panel.
+  out.savedColumns = (await posted(page)).filter((m) => m.type === 'search/setColumns');
+  if (!out.savedColumns.length) fail.push('column choice was not persisted');
+  const last = out.savedColumns[out.savedColumns.length - 1].columns;
+  if (!last.includes('col:Length') || last.includes('tail')) {
+    fail.push(`persisted set is wrong: ${JSON.stringify(last)}`);
+  }
+
+  // Header and body must stay in step, which is the failure a grid makes easy.
+  out.trackCount = await page.evaluate(() => (
+    getComputedStyle(document.querySelector('.ovesearch-row')).gridTemplateColumns.split(' ').length));
+  if (out.trackCount !== out.headersNoTail.length) {
+    fail.push(`grid has ${out.trackCount} tracks for ${out.headersNoTail.length} headers`);
+  }
+
+  /*
+   * A file with no extra columns at all. The standing choice still applies --
+   * Tail was unticked above and must stay unticked -- and the file columns
+   * simply have nothing to contribute.
+   */
   await page.evaluate(async () => {
     const fx = await fetch('../test/fixtures/searchHits.json').then((r) => r.json());
     window.postMessage({
       type: 'search/results',
       hits: fx.hits,
-      // Same payload minus descriptionColumn: the file has no such column.
-      inventory: { status: 'ok', path: '/demo/inventory.xlsx', message: null, rowCount: 6 },
-      scoped: false, selection: null, fullLengthOnly: false, columnWidths: null
+      inventory: { status: 'ok', path: '/demo/inventory.xlsx', message: null, rowCount: 6, extraColumns: [] },
+      scoped: false, selection: null, fullLengthOnly: false, columnWidths: null, columns: null
     }, '*');
   });
   await page.waitForTimeout(300);
-  out.descAfterNoColumn = await page.evaluate(() =>
-    Boolean(document.querySelector('.ovesearch-header .ovesearch-c7')));
-  if (out.descAfterNoColumn) fail.push('description column should vanish when the file has none');
-  out.trackCountNoDesc = await page.evaluate(() => (
-    getComputedStyle(document.querySelector('.ovesearch-row')).gridTemplateColumns.split(' ').length));
-  if (out.trackCountNoDesc !== 8) {
-    fail.push(`grid should fall back to 8 tracks without a description column, got ${out.trackCountNoDesc}`);
+  out.headersNoExtras = await headers(page);
+  if (JSON.stringify(out.headersNoExtras) !== JSON.stringify(['Pos', 'Str', 'Name', 'Anneal bp', 'Tm', ''])) {
+    fail.push(`bare inventory should show only built-ins: ${JSON.stringify(out.headersNoExtras)}`);
+  }
+
+  // Reset puts Tail back and re-derives the alias column from the file.
+  await page.locator('.ovesearch-cols > summary').click();
+  await page.waitForTimeout(150);
+  await page.locator('.ovesearch-colsreset').click();
+  await page.waitForTimeout(300);
+  out.headersAfterReset = await headers(page);
+  if (!out.headersAfterReset.includes('Tail')) {
+    fail.push(`reset should restore Tail: ${JSON.stringify(out.headersAfterReset)}`);
   }
 
   out.FAILURES = fail;
