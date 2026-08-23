@@ -4,6 +4,25 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.24.1
+
+**The bar follows the drag again.** 1.24.0 deferred the New Primer fields to mouse-up for
+speed, and took the visible feedback with them: the bar you watch while dragging is drawn
+from those form values, not from the selection layer, so holding them back froze it until
+release.
+
+Live is the default again. The two cannot be had at once — each field update re-renders the
+whole form, which is the cost — and throttling splits the difference badly rather than well:
+per frame and per 80 ms both measured *slower* than doing it live, because the work is what
+slows the drag down, so a wall-clock window never closes.
+
+So it is now a choice. **`oven.newPrimerLiveSelection`** (default on) updates the fields and
+the bar as you drag; turn it off and both fill in when you release. A 60-step drag in the
+demo editor costs ~3800 ms live against ~1855 ms deferred.
+
+Kept from 1.24.0: the drag anchor is held explicitly, so the editor shows the selection while
+you drag — which stock suppressed entirely whenever an annotation form was open.
+
 ## 1.24.0
 
 **Selecting with the New Primer panel open is roughly twice as fast, and the editor now

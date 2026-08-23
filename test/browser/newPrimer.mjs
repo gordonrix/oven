@@ -211,6 +211,45 @@ export default async function run(page) {
     if (fieldStart === '1') fail.push('Bind Start collapsed to 1 -- the drag anchor was lost');
   }
 
+  /* --- the bar follows the drag ------------------------------------------- */
+
+  /*
+   * The bar drawn over the sequence during a drag comes from the form's own
+   * values, not from the selection layer. That is why holding those values back
+   * until mouseup holds the bar back too, and why oven.newPrimerLiveSelection
+   * is a choice rather than something that can be optimised away: live costs a
+   * whole-form re-render per pointer event (~3800 ms for a 60-step drag in this
+   * editor, against ~1855 ms deferred).
+   *
+   * Only the live default is exercised here. The deferred path is a page global
+   * this world cannot reach, so it is covered where it is set instead --
+   * test/unit/editorHtml.test.js.
+   */
+  const highlightWidth = () => page.evaluate(() => {
+    const n = document.querySelector('.veSelectionLayer.veRowViewSelectionLayer');
+    return n ? Math.round(n.getBoundingClientRect().width) : 0;
+  });
+
+  const b = await page.locator('.veRowItem, .veLinearView, .veVectorInteractionWrapper')
+    .first().boundingBox();
+  const dragY = b.y + b.height / 2;
+  await page.mouse.move(b.x + 40, dragY);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 150, dragY, { steps: 6 });
+  await page.waitForTimeout(400);
+  out.barEarly = await highlightWidth();
+  await page.mouse.move(b.x + 500, dragY, { steps: 12 });
+  await page.waitForTimeout(400);
+  out.barLate = await highlightWidth();
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+
+  // Growing mid-drag is the whole point -- frozen until mouseup is the bug.
+  if (!(out.barEarly > 20)) fail.push(`no bar during the drag: ${out.barEarly}px`);
+  if (!(out.barLate > out.barEarly)) {
+    fail.push(`the bar did not follow the drag: ${out.barEarly}px then ${out.barLate}px`);
+  }
+
   /* --- the tab closes from its own cross ----------------------------------- */
 
   /*

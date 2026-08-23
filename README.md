@@ -40,7 +40,8 @@ command palette (`Cmd/Ctrl+Shift+P`) and add entries like:
 ```
 
 Most take effect immediately; the ones that change how the editor is built —
-`oven.newPrimerHotkey`, `oven.readOnly`, `oven.viewType` — need the file reopened.
+`oven.newPrimerHotkey`, `oven.newPrimerLiveSelection`, `oven.readOnly`, `oven.viewType` —
+need the file reopened.
 
 ## Primer cart
 

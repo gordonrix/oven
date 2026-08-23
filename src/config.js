@@ -53,6 +53,7 @@ module.exports = {
   allowSequenceEditing: () => cfg().get('allowSequenceEditing', true),
   autoAddCreatedPrimers: () => cfg().get('autoAddCreatedPrimers', true),
   newPrimerHotkey: () => cfg().get('newPrimerHotkey', 'mod+shift+k'),
+  newPrimerLiveSelection: () => cfg().get('newPrimerLiveSelection', true),
   showSelectionStatsByDefault: () => cfg().get('showSelectionStatsByDefault', true),
   maxItems: () => {
     const n = Number(cfg().get('maxItems', 500));

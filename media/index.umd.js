@@ -135308,7 +135308,10 @@ ${seq.sequence}
   let ovenAnchor = null;
   let ovenFlush = null;
   if (typeof window !== "undefined") {
-    window.addEventListener("mousedown", () => { ovenDragging = true; ovenAnchor = null; }, true);
+    window.addEventListener("mousedown", () => {
+      ovenDragging = true;
+      ovenAnchor = null;
+    }, true);
     window.addEventListener("mouseup", () => {
       ovenDragging = false;
       const flush = ovenFlush;
@@ -135383,6 +135386,25 @@ ${seq.sequence}
             const fixed = __spreadProps(__spreadValues({}, sel), { start: ovenAnchor });
             ovenLastSel = fixed;
             dispatchProps.selectionLayerUpdate(fixed);
+            /*
+             * Live or on release, and it is a real either/or.
+             *
+             * The bar you watch while dragging is the pending annotation OVE
+             * draws from these form values -- not the selection layer. Holding
+             * the values back therefore holds the bar back too: measured, the
+             * highlight sits frozen until mouseup. Feeding them live is what
+             * costs, since every one of these re-renders the whole form (~35 ms
+             * an event in the demo editor, against ~33 ms for the drag itself).
+             *
+             * Throttling splits the difference badly rather than well -- per
+             * frame or per 80 ms both measured slower than stock, because the
+             * work is what slows the drag down, so a wall-clock window never
+             * closes. So it is a choice, and oven.newPrimerLiveSelection makes
+             * it. Either way the release lands on the exact final range.
+             */
+            if (typeof window === "undefined" || window.__ovenNewPrimerLiveSelection !== false) {
+              ovenSyncFields(fixed);
+            }
             ovenFlush = () => ovenSyncFields(ovenLastSel);
           };
           toSpread.caretPositionUpdate = noop$8;

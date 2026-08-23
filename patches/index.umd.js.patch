@@ -1,6 +1,6 @@
 --- a/media/index.umd.js
 +++ b/media/index.umd.js
-@@ -135303,6 +135303,19 @@
+@@ -135303,6 +135303,22 @@
      FileSaver.saveAs(blob, filename);
      window.toastr.success("File Downloaded Successfully");
    }, "exportSequenceToFile");
@@ -9,7 +9,10 @@
 +  let ovenAnchor = null;
 +  let ovenFlush = null;
 +  if (typeof window !== "undefined") {
-+    window.addEventListener("mousedown", () => { ovenDragging = true; ovenAnchor = null; }, true);
++    window.addEventListener("mousedown", () => {
++      ovenDragging = true;
++      ovenAnchor = null;
++    }, true);
 +    window.addEventListener("mouseup", () => {
 +      ovenDragging = false;
 +      const flush = ovenFlush;
@@ -20,7 +23,7 @@
    const withEditorProps = compose(
      connect(
        mapStateToProps,
-@@ -135311,7 +135324,8 @@
+@@ -135311,7 +135327,8 @@
          const toSpread = {};
          if (mapProps2.annotationToAdd) {
            toSpread.original_selectionLayerUpdate = dispatchProps.selectionLayerUpdate;
@@ -30,7 +33,7 @@
              dispatchProps.dispatch({
                type: "@@redux-form/CHANGE",
                meta: {
-@@ -135333,6 +135347,44 @@
+@@ -135333,6 +135350,63 @@
                payload: sel.end + 1
              });
            };
@@ -70,12 +73,31 @@
 +            const fixed = __spreadProps(__spreadValues({}, sel), { start: ovenAnchor });
 +            ovenLastSel = fixed;
 +            dispatchProps.selectionLayerUpdate(fixed);
++            /*
++             * Live or on release, and it is a real either/or.
++             *
++             * The bar you watch while dragging is the pending annotation OVE
++             * draws from these form values -- not the selection layer. Holding
++             * the values back therefore holds the bar back too: measured, the
++             * highlight sits frozen until mouseup. Feeding them live is what
++             * costs, since every one of these re-renders the whole form (~35 ms
++             * an event in the demo editor, against ~33 ms for the drag itself).
++             *
++             * Throttling splits the difference badly rather than well -- per
++             * frame or per 80 ms both measured slower than stock, because the
++             * work is what slows the drag down, so a wall-clock window never
++             * closes. So it is a choice, and oven.newPrimerLiveSelection makes
++             * it. Either way the release lands on the exact final range.
++             */
++            if (typeof window === "undefined" || window.__ovenNewPrimerLiveSelection !== false) {
++              ovenSyncFields(fixed);
++            }
 +            ovenFlush = () => ovenSyncFields(ovenLastSel);
 +          };
            toSpread.caretPositionUpdate = noop$8;
          }
          return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, ownProps), mapProps2), dispatchProps), toSpread);
-@@ -146231,6 +146283,26 @@
+@@ -146231,6 +146305,26 @@
      }
      charWN = arrowPointiness * charWN;
      const widthMinusOne = width - charWN;
@@ -102,7 +124,7 @@
      let path2;
      let hasAPoint = false;
      const endLine = annotation.overlapsSelf ? `L 0,${height2 / 2}
-@@ -146263,10 +146335,10 @@
+@@ -146263,10 +146357,10 @@
        hasAPoint = true;
        path2 = `
          ${startLines}
@@ -116,7 +138,7 @@
          ${bottomLine}
          ${endLine}
          z`;
-@@ -146274,10 +146346,10 @@
+@@ -146274,10 +146368,10 @@
        hasAPoint = true;
        path2 = `
        ${startLines}
@@ -130,7 +152,7 @@
        ${bottomLine}
        Q ${pointiness},${height2 / 2} ${0},${0}
        z`;
-@@ -146443,10 +146515,15 @@
+@@ -146443,10 +146537,15 @@
          }
        }
      }
@@ -149,7 +171,7 @@
      };
      const r2 = {
        aRange,
-@@ -146613,7 +146690,7 @@
+@@ -146613,7 +146712,7 @@
            );
          }
        });
@@ -158,7 +180,7 @@
        basesToShow.baseEl = /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(
          "text",
          __spreadProps(__spreadValues({}, {
-@@ -146807,7 +146884,18 @@
+@@ -146807,7 +146906,18 @@
                  annotation,
                  annotation.forward
                )
@@ -178,7 +200,7 @@
                height: annotationRange.containsLocations && !disregardLocations ? anotationHeightNoSpace / 8 : anotationHeightNoSpace,
                hideName: type2 === "primer" && annotation.bases || annotationRange.containsLocations && !disregardLocations,
                name: annotation.name
-@@ -147871,6 +147959,125 @@
+@@ -147871,6 +147981,125 @@
      component: ShowChromQualScoresMenu(),
      shouldDismissPopover: false
    };
@@ -304,7 +326,7 @@
    function Chromatogram(props) {
      const { isRowView, chromatogramData, row, getGaps, charWidth: charWidth2 } = props;
      const [showChromQualScores] = useShowChromQualScores();
-@@ -147881,6 +148088,7 @@
+@@ -147881,6 +148110,7 @@
      if (props.setScalePct)
        setScalePct = props.setScalePct;
      const canvasRef = reactExports.useRef();
@@ -312,7 +334,7 @@
      const gapsBeforeRow = getGaps(row.start).gapsBefore;
      reactExports.useEffect(() => {
        if (!chromatogramData || !chromatogramData.baseTraces || !canvasRef.current) {
-@@ -147984,7 +148192,7 @@
+@@ -147984,7 +148214,7 @@
              display: "inline-block"
            }
          },
@@ -321,7 +343,7 @@
        )
      );
    }
-@@ -151077,9 +151285,33 @@
+@@ -151077,9 +151307,33 @@
        hotkeyProps: { preventDefault: true }
      },
      newPrimer: {
@@ -357,7 +379,7 @@
      },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
-@@ -151354,7 +151586,14 @@
+@@ -151354,7 +151608,14 @@
      },
      simulatePCR: {
        handler: (props) => props.createNewPCR(),
@@ -373,7 +395,7 @@
        hotkeyProps: { preventDefault: true },
        isHidden: (props) => isProtein(props)
      },
-@@ -155777,9 +156016,16 @@
+@@ -155777,9 +156038,16 @@
              range2,
              charWidth2
            );
@@ -392,7 +414,7 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -170224,9 +170470,14 @@
+@@ -170224,9 +170492,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -408,7 +430,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +170494,25 @@
+@@ -170243,7 +170516,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -435,7 +457,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170524,13 @@
+@@ -170255,21 +170546,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -460,7 +482,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170544,7 @@
+@@ -170283,7 +170566,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -469,7 +491,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170563,6 +170824,64 @@
+@@ -170563,6 +170846,64 @@
        RenderBases
      })
    });
@@ -534,7 +556,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180667,8 @@
+@@ -180348,6 +180689,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

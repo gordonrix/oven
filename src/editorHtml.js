@@ -163,7 +163,7 @@ function buildEditorHtml(opts) {
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
     sequenceJson, viewType, readOnly,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
-    cutSiteFilter, newPrimerHotkey } = opts;
+    cutSiteFilter, newPrimerHotkey, newPrimerLiveSelection } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -198,7 +198,10 @@ function buildEditorHtml(opts) {
       that moment. Declaring it there is what shows the shortcut next to the
       menu entry, so it has to be the real one rather than a default.
     -->
-    <script>window.__ovenNewPrimerHotkey = ${JSON.stringify(newPrimerHotkey || 'mod+shift+k')};</script>
+    <script>
+      window.__ovenNewPrimerHotkey = ${JSON.stringify(newPrimerHotkey || 'mod+shift+k')};
+      window.__ovenNewPrimerLiveSelection = ${newPrimerLiveSelection === false ? 'false' : 'true'};
+    </script>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
     <script src="${pickerUri}"></script>
