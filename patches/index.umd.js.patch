@@ -282,7 +282,23 @@
      },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
-@@ -155777,9 +155957,16 @@
+@@ -151354,7 +151534,14 @@
+     },
+     simulatePCR: {
+       handler: (props) => props.createNewPCR(),
+-      hotkey: "mod+shift+p",
++      /*
++       * PATCH (oven): was mod+shift+p, which is the VS Code command palette.
++       * That is resolved by the workbench before a webview sees the key, so
++       * Simulate PCR was unreachable by keyboard and the shortcut printed next
++       * to it in the Tools menu was a lie. mod+alt+p keeps the mnemonic and is
++       * bound by neither OVE nor VS Code.
++       */
++      hotkey: "mod+alt+p",
+       hotkeyProps: { preventDefault: true },
+       isHidden: (props) => isProtein(props)
+     },
+@@ -155777,9 +155964,16 @@
              range2,
              charWidth2
            );
@@ -301,7 +317,7 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -170224,9 +170411,14 @@
+@@ -170224,9 +170418,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -317,7 +333,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +170435,25 @@
+@@ -170243,7 +170442,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -344,7 +360,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170465,13 @@
+@@ -170255,21 +170472,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -369,7 +385,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170485,7 @@
+@@ -170283,7 +170492,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -378,7 +394,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170563,6 +170765,71 @@
+@@ -170563,6 +170772,71 @@
        RenderBases
      })
    });
@@ -450,7 +466,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180615,8 @@
+@@ -180348,6 +180622,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

@@ -151534,7 +151534,14 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     },
     simulatePCR: {
       handler: (props) => props.createNewPCR(),
-      hotkey: "mod+shift+p",
+      /*
+       * PATCH (oven): was mod+shift+p, which is the VS Code command palette.
+       * That is resolved by the workbench before a webview sees the key, so
+       * Simulate PCR was unreachable by keyboard and the shortcut printed next
+       * to it in the Tools menu was a lie. mod+alt+p keeps the mnemonic and is
+       * bound by neither OVE nor VS Code.
+       */
+      hotkey: "mod+alt+p",
       hotkeyProps: { preventDefault: true },
       isHidden: (props) => isProtein(props)
     },

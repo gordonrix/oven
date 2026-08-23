@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.23.0
+
+**Simulate PCR moves from `mod+shift+p` to `mod+alt+p`.** The old binding is the VS Code
+command palette, which the workbench resolves before a webview ever sees the key — so the
+shortcut could not work, and the one printed beside it in the Tools menu was a lie.
+
+Open Vector Editor is written for a browser tab, where `mod+shift+p` is free. Several of its
+other bindings land on VS Code workbench shortcuts for the same reason; they are left alone
+here.
+
 ## 1.22.3
 
 README: a **Settings** section. Every other section named settings by their `oven.*` id
