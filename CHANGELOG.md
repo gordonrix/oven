@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.22.1
+
+**Fixes 1.22.0, which added the panel but left the obvious way in still opening the modal.**
+Right-click > **Create > New Primer** — and the Create menu, and the hotkey — all run one
+Open Vector Editor command, and 1.22.0 added a separate entry beside it rather than changing
+that command. So the panel existed but almost nothing reached it.
+
+The command itself is now patched, so every entry point lands in the same place, and the
+extra menu entry is gone. Declaring the shortcut on the command is also what makes Open
+Vector Editor draw it next to the label, the way **Cut** shows its own — which is why it
+was not appearing before.
+
 ## 1.22.0
 
 **New Primer is a side panel, not a modal.** It opens as a tab beside the sequence map, so

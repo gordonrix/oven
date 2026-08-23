@@ -133,6 +133,48 @@ export default async function run(page) {
     fail.push(`created at ${out.created.start}, expected ${Number(start2) - 1}`);
   }
 
+  /* --- OVE's own Create > New Primer opens the panel, not a dialog --------- */
+
+  /*
+   * The route that matters. Adding a menu entry of our own beside this one left
+   * the obvious path -- right-click > Create > New Primer -- still opening a
+   * modal over the sequence, which is the whole thing this replaced. The
+   * bundle's newPrimer command is patched instead, so every entry point lands
+   * in the same place, and OVE draws the shortcut next to it the way it does
+   * for Cut and Undo.
+   */
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__closeNewPrimer')));
+  await page.waitForTimeout(600);
+  out.panelClosed = await page.locator('.ovenp-root').count();
+  if (out.panelClosed) fail.push('the panel did not close');
+
+  const box2 = await page.locator('.veRowItem, .veLinearView, .veVectorInteractionWrapper')
+    .first().boundingBox();
+  await page.mouse.click(box2.x + 120, box2.y + box2.height / 2, { button: 'right' });
+  await page.waitForTimeout(700);
+  await page.locator('.bp3-menu-item').filter({ hasText: 'Create' }).first().hover();
+  await page.waitForTimeout(700);
+
+  const entry = page.locator('.bp3-menu-item').filter({ hasText: 'New Primer' }).first();
+  if (!await entry.count()) {
+    fail.push('no New Primer entry in the Create menu');
+  } else {
+    out.menuEntry = (await entry.innerText()).replace(/\n/g, ' ').trim();
+    // OVE renders a command's hotkey beside its label; New Feature shows K for
+    // mod+k, so New Primer showing nothing would mean the binding never
+    // reached the command definition.
+    if (!/\S\s+\S/.test(out.menuEntry)) {
+      fail.push(`no shortcut shown next to New Primer: "${out.menuEntry}"`);
+    }
+    await entry.click();
+    await page.waitForTimeout(1500);
+  }
+
+  out.panelFromMenu = await page.locator('.ovenp-root').count();
+  out.dialogFromMenu = await page.locator('.bp3-dialog').count();
+  if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
+  if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
+
   out.FAILURES = fail;
   out.PASS = fail.length === 0;
   return out;

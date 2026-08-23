@@ -246,7 +246,43 @@
        )
      );
    }
-@@ -155777,9 +155933,16 @@
+@@ -151077,9 +151233,33 @@
+       hotkeyProps: { preventDefault: true }
+     },
+     newPrimer: {
+-      handler: (props) => props.handleNewPrimer(),
++      /*
++       * PATCH (oven): open our side panel rather than the modal.
++       *
++       * Intercepting the command rather than adding a second menu entry, because
++       * this one command is what Create > New Primer, the right-click Create
++       * submenu and the hotkey all run -- an extra entry beside it leaves the
++       * obvious route still opening a dialog over the sequence.
++       *
++       * Falls back to the stock dialog if our module is not loaded, which is the
++       * case in the scratch editor from oven.showEditor.
++       */
++      handler: (props) => {
++        if (window.OveNewPrimer) return window.OveNewPrimer.open();
++        return props.handleNewPrimer();
++      },
+       isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.primers,
+-      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
++      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
++      /*
++       * newFeature is mod+k and newPart is mod+l; newPrimer had nothing. Read
++       * from a global rather than hard-coded so oven.newPrimerHotkey can set it
++       * -- these defs are built when the bundle evaluates, so the value has to
++       * be in place before this script tag runs. Declaring it here is also what
++       * puts the shortcut next to the entry in the menus, the same way Cut
++       * shows X, and into View Editor Hotkeys.
++       */
++      hotkey: (typeof window !== "undefined" && window.__ovenNewPrimerHotkey) || "mod+shift+k",
++      hotkeyProps: { preventDefault: true }
+     },
+     rotateToCaretPosition: {
+       isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
+@@ -155777,9 +155957,16 @@
              range2,
              charWidth2
            );
@@ -265,7 +301,7 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -170224,9 +170387,14 @@
+@@ -170224,9 +170411,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -281,7 +317,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +170411,25 @@
+@@ -170243,7 +170435,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -308,7 +344,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170441,13 @@
+@@ -170255,21 +170465,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -333,7 +369,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170461,7 @@
+@@ -170283,7 +170485,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -342,7 +378,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170563,6 +170741,71 @@
+@@ -170563,6 +170765,71 @@
        RenderBases
      })
    });
@@ -414,7 +450,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180591,8 @@
+@@ -180348,6 +180615,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

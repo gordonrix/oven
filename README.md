@@ -27,9 +27,10 @@ to open `.gb` files.
 Collect primers from any number of plasmid files into one list you can paste into a
 spreadsheet or an oligo order.
 
-1. Open a plasmid, highlight a region, and press `Cmd/Ctrl+Shift+K` — or right-click and
-   choose **New primer**. The form opens as a panel beside the sequence, so the plasmid
-   stays visible, and the binding site follows the selection as you drag.
+1. Open a plasmid, highlight a region, and use **Create → New Primer** — from the menu bar,
+   the right-click menu, or `Cmd/Ctrl+Shift+K`. The form opens as a panel beside the
+   sequence, so the plasmid stays visible, and the binding site follows the selection as
+   you drag.
 2. Click **Add to Cart** in the top right to pick primers. Ones you create are added
    automatically.
 3. Repeat in as many files as you like. The cart is global and survives restarts.

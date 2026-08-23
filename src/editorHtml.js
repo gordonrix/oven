@@ -192,6 +192,13 @@ function buildEditorHtml(opts) {
       <button id="ove-cart-button" class="ove-cart-btn"
               onclick="window.OveCart.openCart()">Primer Cart</button>
     </div>
+    <!--
+      Must precede the bundle: OVE builds its command definitions when the
+      script evaluates, and the New Primer hotkey is read from this global at
+      that moment. Declaring it there is what shows the shortcut next to the
+      menu entry, so it has to be the real one rather than a default.
+    -->
+    <script>window.__ovenNewPrimerHotkey = ${JSON.stringify(newPrimerHotkey || 'mod+shift+k')};</script>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
     <script src="${pickerUri}"></script>

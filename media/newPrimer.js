@@ -120,84 +120,23 @@
     showPanel();
   }
 
-  /* ------------------------------------------------------------- hotkey -- */
-
-  // Overridden from settings; see oven.newPrimerHotkey.
-  let hotkey = 'mod+shift+k';
-
-  /** "mod+shift+k" -> "⌘⇧K" on a Mac, "Ctrl+Shift+K" elsewhere. */
-  function hotkeyLabel(combo) {
-    const mac = isMac();
-    return String(combo || '').split('+').map((part) => {
-      const p = part.trim().toLowerCase();
-      if (p === 'mod') return mac ? '⌘' : 'Ctrl';
-      if (p === 'cmd' || p === 'meta') return mac ? '⌘' : 'Win';
-      if (p === 'ctrl' || p === 'control') return mac ? '⌃' : 'Ctrl';
-      if (p === 'shift') return mac ? '⇧' : 'Shift';
-      if (p === 'alt' || p === 'option') return mac ? '⌥' : 'Alt';
-      return p.toUpperCase();
-    }).join(mac ? '' : '+');
-  }
-
-  function isMac() {
-    return /Mac|iPhone|iPad/.test((navigator && navigator.platform) || '');
-  }
-
-  function matchesHotkey(e, combo) {
-    const parts = String(combo || '').split('+').map((p) => p.trim().toLowerCase()).filter(Boolean);
-    const key = parts[parts.length - 1];
-    if (!key || (e.key || '').toLowerCase() !== key) return false;
-
-    const mac = isMac();
-    // "mod" is Cmd on a Mac and Ctrl everywhere else, matching OVE's own
-    // hotkey vocabulary so a binding reads the same in both places.
-    const want = {
-      shift: parts.includes('shift'),
-      alt: parts.includes('alt') || parts.includes('option'),
-      meta: parts.includes('cmd') || parts.includes('meta') || (mac && parts.includes('mod')),
-      ctrl: parts.includes('ctrl') || parts.includes('control') || (!mac && parts.includes('mod'))
-    };
-    return e.shiftKey === want.shift && e.altKey === want.alt
-      && e.metaKey === want.meta && e.ctrlKey === want.ctrl;
-  }
-
-  function wireHotkey() {
-    window.addEventListener('keydown', (e) => {
-      if (!hotkey || !matchesHotkey(e, hotkey)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      open();
-    }, true); // capture, so OVE's own handlers do not swallow it first
-  }
-
-  /* -------------------------------------------------- right-click entry -- */
-
-  /**
-   * The menu item, with its shortcut shown beside it.
+  /*
+   * The shortcut and the menu entry are Open Vector Editor's, not ours.
    *
-   * OVE renders a menu item's `label` to the right of its text, which is how
-   * its own commands show their hotkeys -- so the binding is discoverable from
-   * the menu rather than only from settings.
+   * The newPrimer command in the bundle is patched to call open() instead of
+   * showing the dialog, so Create > New Primer, the right-click Create submenu
+   * and the hotkey all land here -- and OVE draws the shortcut beside the entry
+   * and lists it in View Editor Hotkeys for free. A listener of our own here
+   * would fire a second time on the same keypress.
+   *
+   * The key itself comes from oven.newPrimerHotkey, written to
+   * window.__ovenNewPrimerHotkey before the bundle evaluates; see editorHtml.js.
    */
-  function menuItems() {
-    return [{
-      text: 'New primer',
-      label: hotkeyLabel(hotkey),
-      className: 'ove-newprimer-menu-item',
-      onClick: () => open()
-    }];
-  }
 
   function init(ove, opts) {
     editor = ove;
-    if (opts && opts.hotkey) hotkey = opts.hotkey;
     if (opts && opts.editorName) editorName = opts.editorName;
-    wireHotkey();
   }
 
-  window.OveNewPrimer = {
-    init, open, showPanel, hidePanel, panelMap, menuItems, PANEL_ID,
-    // exported for tests
-    hotkeyLabel, matchesHotkey
-  };
+  window.OveNewPrimer = { init, open, showPanel, hidePanel, panelMap, PANEL_ID };
 })();

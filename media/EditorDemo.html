@@ -52,6 +52,7 @@
         getState: () => ({}), setState: () => {}
       });
     </script>
+    <script>window.__ovenNewPrimerHotkey = "mod+shift+k";</script>
     <script src="index.umd.js"></script>
     <script>
       /*
@@ -153,7 +154,7 @@
     <script>
       window.OveCutSites.init(acquireVsCodeApi(), editor, null);
       window.OveAminoAcid.init(acquireVsCodeApi(), editor);
-      window.OveNewPrimer.init(editor, { hotkey: 'mod+shift+k' });
+      window.OveNewPrimer.init(editor);
       // DOM bridges: patchright evaluates in an isolated world, so a test
       // can reach the DOM but not these globals.
       document.addEventListener('__openNewPrimer', () => window.OveNewPrimer.open());

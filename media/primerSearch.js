@@ -659,10 +659,6 @@
       className: 'ove-search-menu-item',
       onClick: () => open({ scoped })
     },
-    // Our New Primer panel, with its shortcut shown beside it. Only offered
-    // when there is a selection to build a primer from -- OVE's own Create >
-    // New Primer is disabled without one for the same reason.
-    ...(scoped && window.OveNewPrimer ? window.OveNewPrimer.menuItems() : []),
     // Only ever appends on a translation, and only when the click can be tied
     // to one residue -- it returns nothing otherwise.
     ...(window.OveAminoAcid ? window.OveAminoAcid.menuItems(opts, props) : [])];

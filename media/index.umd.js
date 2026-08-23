@@ -151233,9 +151233,33 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       hotkeyProps: { preventDefault: true }
     },
     newPrimer: {
-      handler: (props) => props.handleNewPrimer(),
+      /*
+       * PATCH (oven): open our side panel rather than the modal.
+       *
+       * Intercepting the command rather than adding a second menu entry, because
+       * this one command is what Create > New Primer, the right-click Create
+       * submenu and the hotkey all run -- an extra entry beside it leaves the
+       * obvious route still opening a dialog over the sequence.
+       *
+       * Falls back to the stock dialog if our module is not loaded, which is the
+       * case in the scratch editor from oven.showEditor.
+       */
+      handler: (props) => {
+        if (window.OveNewPrimer) return window.OveNewPrimer.open();
+        return props.handleNewPrimer();
+      },
       isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.primers,
-      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
+      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
+      /*
+       * newFeature is mod+k and newPart is mod+l; newPrimer had nothing. Read
+       * from a global rather than hard-coded so oven.newPrimerHotkey can set it
+       * -- these defs are built when the bundle evaluates, so the value has to
+       * be in place before this script tag runs. Declaring it here is also what
+       * puts the shortcut next to the entry in the menus, the same way Cut
+       * shows X, and into View Editor Hotkeys.
+       */
+      hotkey: (typeof window !== "undefined" && window.__ovenNewPrimerHotkey) || "mod+shift+k",
+      hotkeyProps: { preventDefault: true }
     },
     rotateToCaretPosition: {
       isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
