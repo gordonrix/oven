@@ -151235,7 +151235,17 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     newPrimer: {
       handler: (props) => props.handleNewPrimer(),
       isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.primers,
-      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
+      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
+      /*
+       * PATCH (oven): New Primer had no hotkey, though its two siblings do --
+       * newFeature is mod+k and newPart is mod+l. mod+shift+k rather than a
+       * plain letter because VS Code binds most of those at the workbench
+       * level, where they fire whatever a webview does with the event;
+       * cmd+shift+k is editor-scoped (deleteLines, when textInputFocus), so it
+       * never reaches us here. Shows up in View Editor Hotkeys like any other.
+       */
+      hotkey: "mod+shift+k",
+      hotkeyProps: { preventDefault: true }
     },
     rotateToCaretPosition: {
       isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,

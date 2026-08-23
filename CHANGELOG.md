@@ -4,6 +4,19 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.21.0
+
+**`Cmd/Ctrl+Shift+K` creates a primer** from the current selection. Open Vector Editor
+gives **New Feature** `mod+k` and **New Part** `mod+l` but left **New Primer** with no
+hotkey at all; this fills the gap, and appears in **View Editor Hotkeys** alongside the
+others.
+
+The particular key is not arbitrary. VS Code resolves its own keybindings for events a
+webview has already handled, so a workbench-level shortcut — `cmd+j`, `cmd+shift+n` —
+would win regardless of what the editor does with it. `cmd+shift+k` is editor-scoped
+upstream (`deleteLines`, `when: textInputFocus`), so it never reaches a webview and is
+free to take.
+
 ## 1.20.1
 
 The editor picker in the top right now reads **OVEN** rather than **OVE**. That label is
