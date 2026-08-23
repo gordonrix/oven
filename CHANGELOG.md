@@ -4,6 +4,11 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.22.3
+
+README: a **Settings** section. Every other section named settings by their `oven.*` id
+without ever saying where a setting lives — which is only obvious if you already knew.
+
 ## 1.22.1
 
 **Fixes 1.22.0, which added the panel but left the obvious way in still opening the modal.**

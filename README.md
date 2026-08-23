@@ -22,6 +22,26 @@ code --install-extension oven-*.vsix --force
 If you have `sanekun.openvectoreditor` installed, uninstall it first — otherwise both offer
 to open `.gb` files.
 
+## Settings
+
+Everything below that reads like `oven.something` is a VS Code setting. To change one:
+
+**`Cmd+,`** on macOS, **`Ctrl+,`** on Windows and Linux — or **Code → Settings → Settings** —
+then type **OVEN** in the search box. All of them are grouped under **Extensions → OVEN**.
+
+To edit them as text instead, run **Preferences: Open User Settings (JSON)** from the
+command palette (`Cmd/Ctrl+Shift+P`) and add entries like:
+
+```jsonc
+{
+  "oven.inventoryPath": "/Users/you/Documents/Primers Inventory.xlsx",
+  "oven.newPrimerHotkey": "alt+p"
+}
+```
+
+Most take effect immediately; the ones that change how the editor is built —
+`oven.newPrimerHotkey`, `oven.readOnly`, `oven.viewType` — need the file reopened.
+
 ## Primer cart
 
 Collect primers from any number of plasmid files into one list you can paste into a
@@ -215,7 +235,7 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a light grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
-- **Changing the New Primer shortcut:** `oven.newPrimerHotkey` in Settings (search "OVEN"),
+- **Changing the New Primer shortcut:** `oven.newPrimerHotkey` — see [Settings](#settings),
   default `mod+shift+k` — `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+`, so
   `alt+p` or `mod+alt+n` are both fine. The new binding is shown next to **New Primer** in
   the menus. **Reopen the file** for a change to take effect. Avoid combinations VS Code
