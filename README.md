@@ -27,8 +27,9 @@ to open `.gb` files.
 Collect primers from any number of plasmid files into one list you can paste into a
 spreadsheet or an oligo order.
 
-1. Open a plasmid, select a region, and use **Create → New Primer** (`Cmd/Ctrl+Shift+K`)
-   — or use a primer already annotated in the file.
+1. Open a plasmid, highlight a region, and press `Cmd/Ctrl+Shift+K` — or right-click and
+   choose **New primer**. The form opens as a panel beside the sequence, so the plasmid
+   stays visible, and the binding site follows the selection as you drag.
 2. Click **Add to Cart** in the top right to pick primers. Ones you create are added
    automatically.
 3. Repeat in as many files as you like. The cart is global and survives restarts.
@@ -213,8 +214,9 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a light grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
-- `Cmd/Ctrl+Shift+K` creates a primer from the selection, next to Open Vector Editor's own
-  `mod+k` for a feature and `mod+l` for a part. **View → View Editor Hotkeys** lists them all
+- `oven.newPrimerHotkey` (default `mod+shift+k`) opens **New Primer**; the shortcut is shown
+  beside the entry in the right-click menu. Open Vector Editor's own `mod+k` and `mod+l`
+  still make a feature and a part — **View → View Editor Hotkeys** lists them all
 
 ## What this fork adds
 

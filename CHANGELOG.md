@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.22.0
+
+**New Primer is a side panel, not a modal.** It opens as a tab beside the sequence map, so
+the plasmid you are designing against stays on screen — the same move that took primer
+search out of a dialog. Highlight a region and the binding site follows as you drag; the
+pending primer is drawn on the map while you fill the form in.
+
+The form itself is Open Vector Editor's own, not a reimplementation. `wrapDialog` is the
+outermost HOC in its composition and the only thing making it a modal, so the bundle now
+also builds it without that wrapper. Same fields, same validation, same `upsertPrimer`, and
+`beforeAnnotationCreate` still fires — which is what keeps the primer cart picking these up.
+
+**The shortcut is `oven.newPrimerHotkey`**, default `mod+shift+k` (`mod` is Cmd on macOS,
+Ctrl elsewhere), and it is **shown next to New primer in the right-click menu**, so changing
+it is visible where you would look for it. It replaces the fixed hotkey added in 1.21.0.
+Avoid combinations VS Code binds at the workbench level, such as `mod+j` — those are
+resolved before a webview sees the key.
+
 ## 1.21.0
 
 **`Cmd/Ctrl+Shift+K` creates a primer** from the current selection. Open Vector Editor

@@ -110,7 +110,9 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
         disableBpEditing: ${Boolean(disableBpEditing)},
         showGCContentByDefault: ${Boolean(showSelectionStats)},
         ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
-        panelMap: window.OveSearch.panelMap,
+        // Merged, not replaced: OVE takes a single panelMap, so both of our
+        // panels have to arrive in the same object.
+        panelMap: Object.assign({}, window.OveSearch.panelMap, window.OveNewPrimer.panelMap),
 ` : ''}
         /*
          * Lights up OVE's own File > Save and its mod+s hotkey.
@@ -158,9 +160,10 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, pickerUri,
     searchUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
-    aminoAcidUri, aminoAcidCssUri, rowViewCssUri, sequenceJson, viewType, readOnly,
+    aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
+    sequenceJson, viewType, readOnly,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
-    cutSiteFilter } = opts;
+    cutSiteFilter, newPrimerHotkey } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -170,6 +173,7 @@ function buildEditorHtml(opts) {
     <link rel="stylesheet" href="${searchCssUri}" />
     <link rel="stylesheet" href="${strandCssUri}" />
     <link rel="stylesheet" href="${aminoAcidCssUri}" />
+    <link rel="stylesheet" href="${newPrimerCssUri}" />
     <link rel="stylesheet" href="${rowViewCssUri}" />
     <style>${BASE_STYLE}</style>
   </head>
@@ -198,6 +202,7 @@ function buildEditorHtml(opts) {
     <script src="${codonUsageUri}"></script>
     <script src="${codonEditUri}"></script>
     <script src="${aminoAcidUri}"></script>
+    <script src="${newPrimerUri}"></script>
     <script>
 ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter })}
       window.OveCart.init(vscode, editor);
@@ -205,6 +210,7 @@ ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreate
       window.OveStrandBar.init();
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
+      window.OveNewPrimer.init(editor, { hotkey: ${JSON.stringify(newPrimerHotkey || '')} });
     </script>
   </body>
 </html>`;

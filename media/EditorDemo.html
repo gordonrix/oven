@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>OVE editor demo</title>
     <link rel="stylesheet" href="ove.css" />
+    <link rel="stylesheet" href="newPrimer.css" />
     <link rel="stylesheet" href="aminoAcid.css" />
     <!--
       A real createVectorEditor mount, standing in for the custom editor tab.
@@ -78,6 +79,7 @@
         }
       });
     </script>
+    <script src="newPrimer.js"></script>
     <script>
       const SEQ = ('GAATTCGGATCCAAGCTTGCGGCCGCTCTAGAGTCGACCTGCAGGCATGCAAGCTTGGCACTGGCCGTCGTTTTAC' +
         'AACGTCGTGACTGGGAAAACCCTGGCGTTACCCAACTTAATCGCCTTGCAGCACATCCCCCTTTCGCCAGCTGGCGTAATAGCG').repeat(3);
@@ -85,6 +87,8 @@
         withPreviewMode: false, editorName: 'VectorEditor', showMenuBar: true,
         showReadOnly: true, disableSetReadOnly: false, disableBpEditing: false,
         rightClickOverrides: window.OveSearchStub || {},
+        // Mirrors src/editorHtml.js.
+        panelMap: window.OveNewPrimer.panelMap,
         // Mirrors src/editorHtml.js: this is what makes OVE's File > Save and
         // its mod+s hotkey available at all.
         onSave: function (opts, tidiedData, props, onSuccessfulSave) {
@@ -125,7 +129,11 @@
       const publish = () => {
         document.getElementById('editorState').textContent = JSON.stringify({
           restrictionEnzymes: editor.getState().restrictionEnzymes,
-          sequence: editor.getState().sequenceData.sequence
+          sequence: editor.getState().sequenceData.sequence,
+          // Bridged because patchright evaluates in an isolated world, where
+          // window.__oveEditor is not reachable.
+          primers: Object.values(editor.getState().sequenceData.primers || {})
+            .map((p) => ({ name: p.name, start: p.start, end: p.end, forward: p.forward }))
         });
       };
       publish();
@@ -145,6 +153,11 @@
     <script>
       window.OveCutSites.init(acquireVsCodeApi(), editor, null);
       window.OveAminoAcid.init(acquireVsCodeApi(), editor);
+      window.OveNewPrimer.init(editor, { hotkey: 'mod+shift+k' });
+      // DOM bridges: patchright evaluates in an isolated world, so a test
+      // can reach the DOM but not these globals.
+      document.addEventListener('__openNewPrimer', () => window.OveNewPrimer.open());
+      document.addEventListener('__closeNewPrimer', () => window.OveNewPrimer.hidePanel());
     </script>
   </body>
 </html>

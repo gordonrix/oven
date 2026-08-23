@@ -151235,17 +151235,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     newPrimer: {
       handler: (props) => props.handleNewPrimer(),
       isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.primers,
-      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
-      /*
-       * PATCH (oven): New Primer had no hotkey, though its two siblings do --
-       * newFeature is mod+k and newPart is mod+l. mod+shift+k rather than a
-       * plain letter because VS Code binds most of those at the workbench
-       * level, where they fire whatever a webview does with the event;
-       * cmd+shift+k is editor-scoped (deleteLines, when textInputFocus), so it
-       * never reaches us here. Shows up in View Editor Hotkeys like any other.
-       */
-      hotkey: "mod+shift+k",
-      hotkeyProps: { preventDefault: true }
+      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
     },
     rotateToCaretPosition: {
       isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
@@ -170751,6 +170741,71 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       RenderBases
     })
   });
+  /*
+   * PATCH (oven): the same New Primer form, without wrapDialog.
+   *
+   * wrapDialog is the outermost HOC in AddOrEditAnnotationDialog$1 and is the
+   * only thing that makes this a modal -- everything below it (withEditorProps,
+   * the reduxForm, the component's own Cancel/Save footer) is layout-agnostic.
+   * Dropping it yields the identical form as an ordinary component, which can
+   * live in a side panel so the sequence stays visible while you design against
+   * it. Same fields, same validation, same upsertPrimer, and
+   * beforeAnnotationCreate still fires -- which is what keeps the primer cart
+   * picking these up.
+   *
+   * Composed here rather than in our own code because AddOrEditAnnotationDialog$1
+   * and its dependencies are module-private.
+   *
+   * Two differences from the dialog, both forced by living in a panel:
+   *
+   *   initialValues are derived from selectionLayer rather than passed in once,
+   *   because the selection can change while a panel is open -- it cannot while
+   *   a modal is up. With enableReinitialize the form follows it.
+   *
+   *   hideModal is supplied by the panel, since wrapDialog is not there to.
+   */
+  const AddOrEditPrimerPanel = compose$1(
+    withEditorProps,
+    withProps((props) => {
+      const sel = props.selectionLayer || {};
+      const hasRange = typeof sel.start === "number" && sel.start > -1 && sel.end > -1;
+      return {
+        annotationTypePlural: "primers",
+        RenderBases,
+        upsertAnnotation: props.upsertPrimer,
+        initialValues: __spreadValues({
+          forward: true,
+          arrowheadType: "TOP"
+        }, hasRange ? convertRangeTo1Based({ start: sel.start, end: sel.end }) : {})
+      };
+    }),
+    reduxForm({
+      // Deliberately the dialog's own form name. Two other pieces of OVE key
+      // off it -- the annotationToAdd selector that draws the pending primer
+      // on the map, and the selection sync behind "You can also click or drag
+      // in the editor", which dispatches a redux-form CHANGE at
+      // annotationToAdd.formName -- and both are hard-coded to these three
+      // names, so a new one would render a form that previews nothing and
+      // follows nothing.
+      form: "AddOrEditPrimerDialog",
+      enableReinitialize: true,
+      keepDirtyOnReinitialize: true
+    }),
+    // Not optional: the component reads start/end/bases/forward as plain props,
+    // not from form state. Without this, Binding Site Length renders NaN and
+    // the strand radios do not reflect what is selected.
+    tgFormValues(
+      "start",
+      "end",
+      "type",
+      "overlapsSelf",
+      "locations",
+      "bases",
+      "useLinkedOligo",
+      "forward",
+      "primerBindsOn"
+    )
+  )(AddOrEditAnnotationDialog);
   const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
     "div",
     {
@@ -180536,6 +180591,8 @@ ${seqDataToCopy}\r
   }
   __name(createAlignmentView, "createAlignmentView");
   window.createVectorEditor = createVectorEditor;
+  // PATCH (oven): so media/newPrimer.js can mount the primer form in a panel.
+  window.oveAddOrEditPrimerPanel = AddOrEditPrimerPanel;
   window.createAlignmentView = createAlignmentView;
   window.createVersionHistoryView = createVersionHistoryView;
   function getGapMap(sequence2) {
