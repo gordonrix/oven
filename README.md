@@ -215,9 +215,13 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a light grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
-- `oven.newPrimerHotkey` (default `mod+shift+k`) opens **New Primer**; the shortcut is shown
-  beside the entry in the right-click menu. Open Vector Editor's own `mod+k` and `mod+l`
-  still make a feature and a part — **View → View Editor Hotkeys** lists them all
+- **Changing the New Primer shortcut:** `oven.newPrimerHotkey` in Settings (search "OVEN"),
+  default `mod+shift+k` — `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+`, so
+  `alt+p` or `mod+alt+n` are both fine. The new binding is shown next to **New Primer** in
+  the menus. **Reopen the file** for a change to take effect. Avoid combinations VS Code
+  binds at the workbench level, such as `mod+j`: those are resolved before a webview sees
+  the key. Open Vector Editor's own `mod+k` and `mod+l` still make a feature and a part, and
+  **View → View Editor Hotkeys** lists everything
 
 ## What this fork adds
 

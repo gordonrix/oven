@@ -217,7 +217,7 @@ ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreate
       window.OveStrandBar.init();
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
-      window.OveNewPrimer.init(editor, { hotkey: ${JSON.stringify(newPrimerHotkey || '')} });
+      window.OveNewPrimer.init(editor);
     </script>
   </body>
 </html>`;

@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN — Open Vector Editor with New Features",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.22.1",
+  "version": "1.22.2",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -269,7 +269,7 @@
         "oven.newPrimerHotkey": {
           "type": "string",
           "default": "mod+shift+k",
-          "markdownDescription": "Keyboard shortcut that opens the **New Primer** panel, in Open Vector Editor's own notation: `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+` — for example `mod+shift+k`, `alt+p`, `mod+alt+n`. The shortcut is shown next to **New primer** in the right-click menu, so a change here is visible there. Avoid combinations VS Code binds at the workbench level (`mod+j`, `mod+shift+n`): those are resolved before a webview sees the key. Set to an empty string for no shortcut."
+          "markdownDescription": "Keyboard shortcut that opens the **New Primer** panel, in Open Vector Editor's own notation: `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+` — for example `mod+shift+k`, `alt+p`, `mod+alt+n`. The binding is shown next to **New Primer** in the menus, so a change here is visible where you would look for it. **Reopen the file for a change to take effect.** Avoid combinations VS Code binds at the workbench level (`mod+j`, `mod+shift+n`): those are resolved before a webview sees the key. Set to an empty string for no shortcut."
         }
       }
     },
