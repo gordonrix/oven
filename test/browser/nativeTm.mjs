@@ -65,6 +65,43 @@ export default async function run(page) {
   out.again = await bar(page);
   if (!out.again.tmPresent) fail.push('the Tm item vanished on a second selection');
 
+  /* --- the length guard ---------------------------------------------------- */
+
+  /*
+   * Our own guard, patched into MeltingTemp. OVE computes a two-state Tm for
+   * any selection at all: -294.7 for one base, 102.4 for 6 kb, and 0 with
+   * nothing selected. This is the check that those never reach the status bar
+   * again -- it went missing once already, when selectionTm.js was deleted.
+   */
+  const tmAt = async (len) => {
+    await select(page, 100, 100 + len - 1);
+    return (await bar(page)).tmText;
+  };
+
+  out.guard = {};
+  for (const len of [1, 5, 8, 20, 100, 101, 2000]) out.guard[len] = await tmAt(len);
+
+  for (const len of [1, 5, 101, 2000]) {
+    if (!/\u2014/.test(out.guard[len] || '')) {
+      fail.push(`${len} bp should show a dash, got ${out.guard[len]}`);
+    }
+  }
+  // The bounds themselves are inclusive, and a real primer still gets a number.
+  for (const len of [8, 20, 100]) {
+    if (!/\d/.test(out.guard[len] || '') || /\u2014/.test(out.guard[len] || '')) {
+      fail.push(`${len} bp is in range and should show a number, got ${out.guard[len]}`);
+    }
+  }
+  // No selection is its own case: stock renders `Number(tm) || 0`, so the bug
+  // this replaced showed a confident "Melting Temp: 0".
+  await page.evaluate(() =>
+    document.dispatchEvent(new CustomEvent('__select', { detail: { start: 0, end: -1 } })));
+  await page.waitForTimeout(500);
+  out.guardNoSelection = (await bar(page)).tmText;
+  if (/Melting Temp: 0\b/.test(out.guardNoSelection || '')) {
+    fail.push(`an empty selection must not read as 0: ${out.guardNoSelection}`);
+  }
+
   out.FAILURES = fail; out.PASS = fail.length === 0;
   return out;
 }

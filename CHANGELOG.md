@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.19.1
+
+**Fixed: the status bar showed a melting temperature for selections that cannot have
+one.** Selecting a single base read `-294.7`, a whole 6 kb plasmid read `102.4`, and
+selecting nothing at all read a confident `0`. Outside 8–100 bp the status bar now shows
+`—`.
+
+This was a regression in 1.18.0. The bounds lived in `media/selectionTm.js`, which that
+release deleted along with our own Tm calculation — Open Vector Editor's `calculateNebTm`
+has no length guard of its own and its status bar renders `Number(tm) || 0`, so every
+out-of-range selection got a number anyway. The guard is now patched into OVE's
+`MeltingTemp` instead, where it cannot be separated from the thing it guards, and
+`test/browser/nativeTm.mjs` walks 1, 5, 8, 20, 100, 101 and 2000 bp plus the empty
+selection on every run.
+
+The lower bound matches the one used by the analysis scripts, so both refuse the same
+sequences.
+
 ## 1.19.0
 
 **Adding reads to an alignment no longer depends on drag-and-drop.** Right-click any

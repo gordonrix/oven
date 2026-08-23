@@ -170406,7 +170406,25 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       /* , setMonovalentCationConc */
     ] = React$2.useState(0.05);
     const [tmType, setTmType] = useTmType();
-    let tm = (tmType === "neb_tm" ? calculateNebTm : calculateTm)(sequence2, {
+    /*
+     * PATCH (oven): refuse to show a Tm outside the range the two-state
+     * nearest-neighbour model is about.
+     *
+     * Stock behaviour is to compute one for any selection and render
+     * `Number(tm) || 0`, which gives -294.7 for a single base, 102.4 for a
+     * 6 kb selection, and a flat 0 with nothing selected. None of those are
+     * temperatures; the model assumes a short duplex melting all-or-nothing,
+     * so below ~8 nt it returns nonsense and above ~100 bp it is answering a
+     * question nobody asked. This restores the guard that lived in our own
+     * selectionTm.js before 1.18.0, and OVE_TM_MIN_BP matches the same bound
+     * used on the Python side.
+     */
+    const OVE_TM_MIN_BP = 8;
+    const OVE_TM_MAX_BP = 100;
+    const oveTmLen = (sequence2 || "").length;
+    const oveTmOutOfRange = oveTmLen < OVE_TM_MIN_BP || oveTmLen > OVE_TM_MAX_BP;
+
+    let tm = oveTmOutOfRange ? null : (tmType === "neb_tm" ? calculateNebTm : calculateTm)(sequence2, {
       monovalentCationConc,
       primerConc
     });
@@ -170438,7 +170456,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           }
         ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
       },
-      /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(InnerWrapper, null, "Melting Temp: ", Number(tm) || 0, " "), hasWarning && /* @__PURE__ */ React$2.createElement(
+      /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(InnerWrapper, null, "Melting Temp: ", oveTmOutOfRange ? "\u2014" : Number(tm) || 0, " "), hasWarning && /* @__PURE__ */ React$2.createElement(
         Icon,
         {
           style: { marginLeft: 5, marginRight: 5 },
