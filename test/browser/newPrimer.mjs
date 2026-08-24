@@ -85,28 +85,63 @@ export default async function run(page) {
     fail.push(`no Save button: ${out.onOpen.buttons}`);
   }
 
-  /* --- it follows the selection ------------------------------------------- */
+  /* --- the fields move on the button, not on the drag --------------------- */
 
-  if (!await dragOver(page, 40, 240)) fail.push('could not find the sequence to drag over');
-  out.afterDrag = await fields(page);
+  /*
+   * Dragging used to feed the form's start/end on every pointer event, which
+   * cost ~84 ms an event against ~16 ms with nothing open, and would wipe a
+   * tail you had typed. Now the drag only selects, and Set From Selection is
+   * what moves the binding site -- taking its orientation from the Strand
+   * radio.
+   *
+   * The trap worth pinning: props.selectionLayer is not the user's selection
+   * once a form is open. mapStateToProps replaces it with the pending
+   * annotation's own range, so a button reading it sets its own values back and
+   * looks like it does nothing. ovenTrueSelectionLayer is the real one.
+   */
+  const selectionText = () => page.evaluate(() => {
+    const t = [...document.querySelectorAll('.veStatusBarItem')].map((x) => x.textContent).join(' ');
+    const m = /Selecting \d+ bps from (\d+) to (\d+)/.exec(t);
+    return m ? `${m[1]}..${m[2]}` : 'none';
+  });
+  const bindFields = async () => (await fields(page)).textInputs.slice(1).join('..');
 
-  const [, start1, end1] = (out.afterDrag && out.afterDrag.textInputs) || [];
-  if (!(Number(start1) > 1 && Number(end1) > Number(start1))) {
-    fail.push(`dragging did not set a range: ${JSON.stringify(out.afterDrag)}`);
+  out.fieldsAtOpen = await bindFields();
+  await dragOver(page, 350, 620);
+  out.selectionAfterDrag = await selectionText();
+  out.fieldsAfterDrag = await bindFields();
+
+  if (out.selectionAfterDrag === 'none') fail.push('the drag did not select anything');
+  if (out.fieldsAfterDrag !== out.fieldsAtOpen) {
+    fail.push(`the drag moved the fields on its own: ${out.fieldsAtOpen} -> ${out.fieldsAfterDrag}`);
   }
-  // The NaN regression: this is computed from props, not form state.
-  const len1 = Number(out.afterDrag && out.afterDrag.bindingLength);
-  if (!Number.isFinite(len1)) {
-    fail.push(`binding site length is not a number: ${out.afterDrag.bindingLength}`);
-  } else if (len1 !== Number(end1) - Number(start1) + 1) {
-    fail.push(`binding site length ${len1} does not match ${start1}..${end1}`);
+
+  out.setButtons = await page.evaluate(() =>
+    [...document.querySelectorAll('.ovenp-root button')]
+      .map((b) => b.textContent.trim()).filter((t) => /Set From Selection/i.test(t)).length);
+  if (out.setButtons !== 1) fail.push(`expected one Set From Selection button, got ${out.setButtons}`);
+
+  await page.locator('.ovenp-root button', { hasText: 'Set From Selection' }).click();
+  await page.waitForTimeout(800);
+  out.fieldsAfterButton = await bindFields();
+  if (out.fieldsAfterButton !== out.selectionAfterDrag) {
+    fail.push(`the button should adopt ${out.selectionAfterDrag}, got ${out.fieldsAfterButton}`);
   }
 
-  // A second drag has to move it again, or it latched rather than tracked.
-  await dragOver(page, 300, 460);
-  out.afterSecondDrag = await fields(page);
-  const [, start2] = (out.afterSecondDrag && out.afterSecondDrag.textInputs) || [];
-  if (start2 === start1) fail.push('the panel stopped following the selection after the first drag');
+  // Field order: Strand sits below the coordinates, since it decides which way
+  // the button reads the bases.
+  out.visualOrder = await page.evaluate(() => {
+    const body = document.querySelector('.ovenp-root .bp3-dialog-body');
+    return [...body.children]
+      .map((n) => ({ y: n.getBoundingClientRect().top, t: (n.innerText || '').split('\n')[0] }))
+      .filter((x) => x.t)
+      .sort((a2, b2) => a2.y - b2.y)
+      .map((x) => x.t)
+      .slice(0, 4);
+  });
+  if (JSON.stringify(out.visualOrder) !== JSON.stringify(['Name', 'Bind Start', 'Bind End', 'Strand'])) {
+    fail.push(`field order wrong: ${JSON.stringify(out.visualOrder)}`);
+  }
 
   /* --- the bases box, and 5' tails ---------------------------------------- */
 
@@ -134,15 +169,15 @@ export default async function run(page) {
 
   if (out.hasBasesBox) {
     /*
-     * The box seeds itself once and then stops following the selection -- by
-     * design, or a tail you had typed would be wiped by any nudge of the
-     * selection. OVE's own "Set From Selection" button is the way back in sync,
-     * so that is what is exercised here.
+     * Nothing here follows the selection on its own any more, bases included.
+     * Set From Selection is the one way in, which is what keeps a typed tail
+     * safe from a stray click.
      */
-    await page.locator('.ovenp-root button.dropdown-button').first().click();
-    await page.waitForTimeout(600);
-    // The dropdown offers the orientation to take the bases in.
-    await page.locator('.bp3-menu-item').filter({ hasText: 'Forward' }).first().click();
+    // A short, single-line selection: the tail is typed at the very start
+    // below, and a wrapped field would make caret placement the thing under
+    // test rather than the feature.
+    await dragOver(page, 40, 180);
+    await page.locator('.ovenp-root button', { hasText: 'Set From Selection' }).click();
     await page.waitForTimeout(800);
 
     out.basesFromSelection = (await editable.textContent()).trim();
@@ -156,8 +191,18 @@ export default async function run(page) {
     }
 
     // A 5' tail: bases that are deliberately not in the template.
-    await editable.click();
-    await page.keyboard.press('Home');
+    // Caret to the very start of the field. Home only reaches the start of a
+    // visual line, which in a wrapped sequence is not the same thing.
+    await page.evaluate(() => {
+      const el = document.querySelector('.ovenp-root .tg-custom-sequence-editable');
+      el.focus();
+      const range = document.createRange();
+      range.setStart(el, 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
     await page.keyboard.type(TAIL);
     await page.waitForTimeout(900);
 
@@ -218,9 +263,9 @@ export default async function run(page) {
     fail.push(`Save should add one primer: ${out.primersBefore} -> ${out.primersAfter}`);
   } else if (!out.created || out.created.name !== 'QA_PANEL_PRIMER') {
     fail.push(`the created primer kept the wrong name: ${JSON.stringify(out.created)}`);
-  } else if (out.created.start !== Number(start2) - 1) {
+  } else if (out.created.start !== Number(out.fieldsAfterButton.split('..')[0]) - 1) {
     // 1-based in the form, 0-based in the data.
-    fail.push(`created at ${out.created.start}, expected ${Number(start2) - 1}`);
+    fail.push(`created at ${out.created.start}, expected ${out.fieldsAfterButton}`);
   } else if (out.hasBasesBox && out.created.bases !== out.basesWithTail) {
     // The whole point of a tail is that it survives to the ordered oligo, even
     // though the annotation itself only covers the annealing footprint.
@@ -268,81 +313,6 @@ export default async function run(page) {
   out.dialogFromMenu = await page.locator('.bp3-dialog').count();
   if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
   if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
-
-  /* --- the drag itself stays cheap ----------------------------------------- */
-
-  /*
-   * The fields are filled when the drag ends, not on every mousemove: stock
-   * dispatched two redux-form CHANGEs per pointer event, each re-rendering the
-   * whole form, which made selecting against an open panel feel heavy.
-   *
-   * Two things have to hold. The selection must actually be applied while
-   * dragging -- the editor now shows it, which stock never did with a form open
-   * -- and its start must be the point the drag began. Writing the selection
-   * back mid-drag destroys OVE's own anchor, so an earlier attempt at this had
-   * every event after the first arrive with start collapsed to 0, and Bind
-   * Start stuck at 1 no matter where you dragged from.
-   */
-  const selectionText = () => page.evaluate(() => {
-    const t = [...document.querySelectorAll('.veStatusBarItem')].map((x) => x.textContent).join(' ');
-    const m = /Selecting (\d+) bps from (\d+) to (\d+)/.exec(t);
-    return m ? `${m[2]}..${m[3]}` : 'none';
-  });
-
-  await dragOver(page, 40, 300);
-  out.selectionDuringDrag = await selectionText();
-  out.fieldsAfterDrag = (await fields(page)).textInputs;
-
-  if (out.selectionDuringDrag === 'none') {
-    fail.push('dragging with the panel open left no selection in the editor');
-  } else {
-    const [selStart] = out.selectionDuringDrag.split('..');
-    const [, fieldStart] = out.fieldsAfterDrag;
-    if (selStart !== fieldStart) {
-      fail.push(`Bind Start ${fieldStart} does not match the selection ${out.selectionDuringDrag}`);
-    }
-    // The anchor regression showed up as exactly this.
-    if (fieldStart === '1') fail.push('Bind Start collapsed to 1 -- the drag anchor was lost');
-  }
-
-  /* --- the bar follows the drag ------------------------------------------- */
-
-  /*
-   * The bar drawn over the sequence during a drag comes from the form's own
-   * values, not from the selection layer. That is why holding those values back
-   * until mouseup holds the bar back too, and why oven.newPrimerLiveSelection
-   * is a choice rather than something that can be optimised away: live costs a
-   * whole-form re-render per pointer event (~3800 ms for a 60-step drag in this
-   * editor, against ~1855 ms deferred).
-   *
-   * Only the live default is exercised here. The deferred path is a page global
-   * this world cannot reach, so it is covered where it is set instead --
-   * test/unit/editorHtml.test.js.
-   */
-  const highlightWidth = () => page.evaluate(() => {
-    const n = document.querySelector('.veSelectionLayer.veRowViewSelectionLayer');
-    return n ? Math.round(n.getBoundingClientRect().width) : 0;
-  });
-
-  const b = await page.locator('.veRowItem, .veLinearView, .veVectorInteractionWrapper')
-    .first().boundingBox();
-  const dragY = b.y + b.height / 2;
-  await page.mouse.move(b.x + 40, dragY);
-  await page.mouse.down();
-  await page.mouse.move(b.x + 150, dragY, { steps: 6 });
-  await page.waitForTimeout(400);
-  out.barEarly = await highlightWidth();
-  await page.mouse.move(b.x + 500, dragY, { steps: 12 });
-  await page.waitForTimeout(400);
-  out.barLate = await highlightWidth();
-  await page.mouse.up();
-  await page.waitForTimeout(500);
-
-  // Growing mid-drag is the whole point -- frozen until mouseup is the bug.
-  if (!(out.barEarly > 20)) fail.push(`no bar during the drag: ${out.barEarly}px`);
-  if (!(out.barLate > out.barEarly)) {
-    fail.push(`the bar did not follow the drag: ${out.barEarly}px then ${out.barLate}px`);
-  }
 
   /* --- the tab closes from its own cross ----------------------------------- */
 

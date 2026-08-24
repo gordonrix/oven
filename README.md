@@ -40,7 +40,7 @@ command palette (`Cmd/Ctrl+Shift+P`) and add entries like:
 ```
 
 Most take effect immediately; the ones that change how the editor is built —
-`oven.newPrimerHotkey`, `oven.newPrimerLiveSelection`, `oven.readOnly`, `oven.viewType` —
+`oven.newPrimerHotkey`, `oven.readOnly`, `oven.viewType` —
 need the file reopened.
 
 ## Primer cart
@@ -53,12 +53,18 @@ spreadsheet or an oligo order.
    sequence, so the plasmid stays visible, and the binding site follows the selection as
    you drag.
 
-   The **Bases** box holds the oligo itself, seeded from the selection and reverse-
-   complemented on the bottom strand. Type on the front to add a **5′ tail** — an overhang,
-   a restriction site, a barcode — and any base that does not match the template turns red,
-   so the tail shows as the part that will not anneal. The annotation still covers only the
-   annealing footprint; the full ordered sequence goes to the cart. Use **Set From
-   Selection** to re-seed the box after changing the selection.
+   **Set From Selection** fills in the binding site and the bases from whatever is
+   highlighted, reading it on the strand the **Strand** radio names. Nothing follows the
+   selection on its own, so dragging around costs nothing and never overwrites what you have
+   typed.
+
+   The **Bases** box holds the oligo itself. Type on the front to add a **5′ tail** — an
+   overhang, a restriction site, a barcode — and any base that does not match the template
+   turns red, so the tail shows as the part that will not anneal. The annotation still covers
+   only the annealing footprint; the full ordered sequence goes to the cart and the file.
+
+   Under **Advanced**, *Oligo Binds On* says which end of the oligo anneals (3′ by default,
+   which is what puts a 5′ tail on the front).
 2. Click **Add to Cart** in the top right to pick primers. Ones you create are added
    automatically.
 3. Repeat in as many files as you like. The cart is global and survives restarts.

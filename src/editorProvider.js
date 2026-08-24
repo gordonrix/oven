@@ -286,7 +286,6 @@ class DNAViewerProvider {
       newPrimerUri: this.mediaUri(webview, 'newPrimer.js'),
       newPrimerCssUri: this.mediaUri(webview, 'newPrimer.css'),
       newPrimerHotkey: config.newPrimerHotkey(),
-      newPrimerLiveSelection: config.newPrimerLiveSelection(),
       rowViewCssUri: this.mediaUri(webview, 'rowView.css'),
       cutSiteFilter: this.context.globalState.get(CUT_SITES_KEY, null),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),

@@ -1,127 +1,70 @@
 --- a/media/index.umd.js
 +++ b/media/index.umd.js
-@@ -135303,6 +135303,25 @@
-     FileSaver.saveAs(blob, filename);
-     window.toastr.success("File Downloaded Successfully");
-   }, "exportSequenceToFile");
-+  let ovenDragging = false;
-+  let ovenLastSel = null;
-+  let ovenAnchor = null;
-+  let ovenLastSyncAt = 0;
-+  const OVEN_SYNC_MS = 100;
-+  let ovenFlush = null;
-+  if (typeof window !== "undefined") {
-+    window.addEventListener("mousedown", () => {
-+      ovenDragging = true;
-+      ovenAnchor = null;
-+      ovenLastSyncAt = 0;
-+    }, true);
-+    window.addEventListener("mouseup", () => {
-+      ovenDragging = false;
-+      const flush = ovenFlush;
-+      ovenFlush = null;
-+      if (flush) setTimeout(flush, 0);
-+    }, true);
-+  }
-   const withEditorProps = compose(
-     connect(
-       mapStateToProps,
-@@ -135311,7 +135330,8 @@
+@@ -135309,31 +135309,24 @@
+       mapDispatchToActions,
+       (mapProps2, dispatchProps, ownProps) => {
          const toSpread = {};
++        /*
++         * PATCH (oven): stock replaced selectionLayerUpdate here so that, while
++         * an annotation form was open, dragging fed the form's start/end
++         * instead of moving the selection -- two redux-form dispatches per
++         * pointer event, each re-rendering the whole form. In a modal that was
++         * free, since a modal covers the sequence and there is nothing to drag.
++         * In the New Primer panel it cost ~84 ms an event against ~16 ms with
++         * nothing open.
++         *
++         * The fields are set from the Set From Selection button instead, so
++         * dragging is left alone entirely: it selects, at normal speed, and a
++         * tail you have typed is not overwritten by a stray click.
++         *
++         * original_selectionLayerUpdate is still handed over, because the
++         * form's submit handler calls it to select what it just created.
++         */
          if (mapProps2.annotationToAdd) {
            toSpread.original_selectionLayerUpdate = dispatchProps.selectionLayerUpdate;
 -          toSpread.selectionLayerUpdate = (sel) => {
-+          const ovenSyncFields = (sel) => {
-+            if (!sel || typeof sel.start !== "number" || typeof sel.end !== "number") return;
-             dispatchProps.dispatch({
-               type: "@@redux-form/CHANGE",
-               meta: {
-@@ -135333,6 +135353,84 @@
-               payload: sel.end + 1
-             });
-           };
-+          /*
-+           * PATCH (oven): fill the fields when the drag ends, not on every
-+           * mousemove.
-+           *
-+           * Stock dispatches these two CHANGEs per pointer event and each one
-+           * re-renders the whole annotation form. That never showed while this
-+           * form could only be a modal -- a modal covers the sequence, so there
-+           * was no dragging to pay for -- but the New Primer panel is dragged
-+           * against, and there it cost ~35 ms per event on top of the ~33 ms
-+           * the editor already spends.
-+           *
-+           * Mid-drag the original selectionLayerUpdate runs instead, so the
-+           * highlight tracks the pointer exactly as it does with nothing open.
-+           * The flush is deferred one tick past mouseup rather than run inside
-+           * it: the listener is on the capture phase and so fires before the
-+           * editor's own mouseup handler, and reading the selection any earlier
-+           * catches it mid-update -- which is what left Bind Start stuck at 1
-+           * in an earlier attempt.
-+           */
-+          toSpread.selectionLayerUpdate = (sel) => {
-+            if (!ovenDragging) {
-+              ovenLastSel = sel;
-+              return ovenSyncFields(sel);
-+            }
-+            /*
-+             * The anchor has to be held here. OVE derives a drag's fixed edge
-+             * from the stored selection, which stock never updates while a form
-+             * is open -- so writing the real selection back mid-drag destroys
-+             * it, and every event after the first arrives with start collapsed
-+             * to 0. Keeping the first event's start and moving only the far
-+             * edge reproduces what the drag meant.
-+             */
-+            if (ovenAnchor === null) ovenAnchor = sel.start;
-+            const fixed = __spreadProps(__spreadValues({}, sel), { start: ovenAnchor });
-+            ovenLastSel = fixed;
-+            dispatchProps.selectionLayerUpdate(fixed);
-+            /*
-+             * Live or on release, and it is a real either/or.
-+             *
-+             * The bar you watch while dragging is the pending annotation OVE
-+             * draws from these form values -- not the selection layer. Holding
-+             * the values back therefore holds the bar back too: measured, the
-+             * highlight sits frozen until mouseup. Feeding them live is what
-+             * costs, since every one of these re-renders the whole form (~35 ms
-+             * an event in the demo editor, against ~33 ms for the drag itself).
-+             *
-+             * Throttling splits the difference badly rather than well -- per
-+             * frame or per 80 ms both measured slower than stock, because the
-+             * work is what slows the drag down, so a wall-clock window never
-+             * closes. So it is a choice, and oven.newPrimerLiveSelection makes
-+             * it. Either way the release lands on the exact final range.
-+             */
-+            /*
-+             * Throttled, not deferred.
-+             *
-+             * The bar you watch while dragging is drawn from these form values,
-+             * so holding them to mouseup leaves the drag with no feedback at
-+             * all. Feeding them per pointer event is what costs: the same form
-+             * renders at ~25 ms inside OVE's dialog portal and ~84 ms inside a
-+             * panel, which is a difference in where it mounts rather than in
-+             * the form or its composition -- rendering this exact composition
-+             * back inside wrapDialog measures 25 ms again.
-+             *
-+             * A wall-clock window is stable here even though the work is what
-+             * slows the drag: fewer syncs make the drag faster, which lets the
-+             * window cover more events, which settles. Measured per pointer
-+             * event: 84 ms unthrottled, 41 ms at 100 ms, 27 ms deferred
-+             * entirely, against 16 ms with no panel open.
-+             */
-+            if (typeof window === "undefined" || window.__ovenNewPrimerLiveSelection !== false) {
-+              const nowMs = Date.now();
-+              if (nowMs - ovenLastSyncAt >= OVEN_SYNC_MS) {
-+                ovenLastSyncAt = nowMs;
-+                ovenSyncFields(fixed);
-+              }
-+            }
-+            ovenFlush = () => ovenSyncFields(ovenLastSel);
-+          };
-           toSpread.caretPositionUpdate = noop$8;
+-            dispatchProps.dispatch({
+-              type: "@@redux-form/CHANGE",
+-              meta: {
+-                form: mapProps2.annotationToAdd.formName,
+-                field: "start",
+-                touch: false,
+-                persistentSubmitErrors: false
+-              },
+-              payload: sel.start + 1
+-            });
+-            dispatchProps.dispatch({
+-              type: "@@redux-form/CHANGE",
+-              meta: {
+-                form: mapProps2.annotationToAdd.formName,
+-                field: "end",
+-                touch: false,
+-                persistentSubmitErrors: false
+-              },
+-              payload: sel.end + 1
+-            });
+-          };
+-          toSpread.caretPositionUpdate = noop$8;
          }
          return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, ownProps), mapProps2), dispatchProps), toSpread);
-@@ -146231,6 +146329,26 @@
+       }
+@@ -135591,6 +135584,15 @@
+       meta,
+       annotationToAdd
+     }), newSelection && { selectionLayer: newSelection }), {
++      /*
++       * PATCH (oven): the user's actual selection.
++       *
++       * The line above replaces selectionLayer with the pending annotation's
++       * own range whenever a form is open, so from inside that form
++       * props.selectionLayer is its own start/end -- which made New Primer's
++       * Set From Selection read its values back and do nothing.
++       */
++      ovenTrueSelectionLayer: editorState.selectionLayer,
+       selectedCutsites,
+       sequenceLength,
+       allCutsites,
+@@ -146231,6 +146233,26 @@
      }
      charWN = arrowPointiness * charWN;
      const widthMinusOne = width - charWN;
@@ -148,7 +91,7 @@
      let path2;
      let hasAPoint = false;
      const endLine = annotation.overlapsSelf ? `L 0,${height2 / 2}
-@@ -146263,10 +146381,10 @@
+@@ -146263,10 +146285,10 @@
        hasAPoint = true;
        path2 = `
          ${startLines}
@@ -162,7 +105,7 @@
          ${bottomLine}
          ${endLine}
          z`;
-@@ -146274,10 +146392,10 @@
+@@ -146274,10 +146296,10 @@
        hasAPoint = true;
        path2 = `
        ${startLines}
@@ -176,7 +119,7 @@
        ${bottomLine}
        Q ${pointiness},${height2 / 2} ${0},${0}
        z`;
-@@ -146443,10 +146561,15 @@
+@@ -146443,10 +146465,15 @@
          }
        }
      }
@@ -195,7 +138,7 @@
      };
      const r2 = {
        aRange,
-@@ -146613,7 +146736,7 @@
+@@ -146613,7 +146640,7 @@
            );
          }
        });
@@ -204,7 +147,7 @@
        basesToShow.baseEl = /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(
          "text",
          __spreadProps(__spreadValues({}, {
-@@ -146807,7 +146930,18 @@
+@@ -146807,7 +146834,18 @@
                  annotation,
                  annotation.forward
                )
@@ -224,7 +167,7 @@
                height: annotationRange.containsLocations && !disregardLocations ? anotationHeightNoSpace / 8 : anotationHeightNoSpace,
                hideName: type2 === "primer" && annotation.bases || annotationRange.containsLocations && !disregardLocations,
                name: annotation.name
-@@ -147871,6 +148005,125 @@
+@@ -147871,6 +147909,125 @@
      component: ShowChromQualScoresMenu(),
      shouldDismissPopover: false
    };
@@ -350,7 +293,7 @@
    function Chromatogram(props) {
      const { isRowView, chromatogramData, row, getGaps, charWidth: charWidth2 } = props;
      const [showChromQualScores] = useShowChromQualScores();
-@@ -147881,6 +148134,7 @@
+@@ -147881,6 +148038,7 @@
      if (props.setScalePct)
        setScalePct = props.setScalePct;
      const canvasRef = reactExports.useRef();
@@ -358,7 +301,7 @@
      const gapsBeforeRow = getGaps(row.start).gapsBefore;
      reactExports.useEffect(() => {
        if (!chromatogramData || !chromatogramData.baseTraces || !canvasRef.current) {
-@@ -147984,7 +148238,7 @@
+@@ -147984,7 +148142,7 @@
              display: "inline-block"
            }
          },
@@ -367,7 +310,7 @@
        )
      );
    }
-@@ -151077,9 +151331,33 @@
+@@ -151077,9 +151235,33 @@
        hotkeyProps: { preventDefault: true }
      },
      newPrimer: {
@@ -403,7 +346,7 @@
      },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
-@@ -151354,7 +151632,14 @@
+@@ -151354,7 +151536,14 @@
      },
      simulatePCR: {
        handler: (props) => props.createNewPCR(),
@@ -419,13 +362,14 @@
        hotkeyProps: { preventDefault: true },
        isHidden: (props) => isProtein(props)
      },
-@@ -155777,9 +156062,16 @@
+@@ -155777,9 +155966,16 @@
              range2,
              charWidth2
            );
 -          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
-           if (!range2.isMatch) {
+-          if (!range2.isMatch) {
 -            redPath += toAdd;
++          if (!range2.isMatch) {
 +            // ove-vscode patch: a one-base difference is a fraction of a pixel
 +            // wide at minimap scale, so widen the mark -- horizontally only,
 +            // and centred on the position it actually marks. Stroking the path
@@ -438,7 +382,25 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -170224,9 +170516,14 @@
+@@ -169668,7 +169864,7 @@
+           {
+             style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
+           },
+-          "You can also click or drag in the editor to change the selection",
++          "Highlight a region, then press Set From Selection",
+           " "
+         ), /* @__PURE__ */ React$2.createElement(
+           NumericInputField,
+@@ -169724,6 +169920,8 @@
+             sequenceLength,
+             primerBindsOn,
+             forward,
++            // PATCH (oven): for Set From Selection.
++            ovenTrueSelectionLayer: this.props.ovenTrueSelectionLayer,
+             linkedOligo: initialValues2.linkedOligo,
+             useLinkedOligo,
+             change: change2
+@@ -170224,9 +170422,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -454,7 +416,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +170540,25 @@
+@@ -170243,7 +170446,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -481,7 +443,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170570,13 @@
+@@ -170255,21 +170476,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -506,7 +468,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170590,7 @@
+@@ -170283,7 +170496,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -515,7 +477,91 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170563,6 +170870,75 @@
+@@ -170410,6 +170623,9 @@
+       bases,
+       forward,
+       defaultLinkedOligoMessage,
++      // PATCH (oven): the live selection, for Set From Selection. Not
++      // selectionLayer -- see ovenTrueSelectionLayer in mapStateToProps.
++      ovenTrueSelectionLayer,
+       change: change2
+     } = props;
+     let defaultValue2;
+@@ -170488,46 +170704,38 @@
+           defaultValue: bases != null ? bases : defaultValue2,
+           name: "bases",
+           label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
+-            DropdownButton,
++            Button,
+             {
+               disabled: readOnly2,
+               intent: "primary",
+               small: true,
+-              menu: /* @__PURE__ */ React$2.createElement(Menu, null, /* @__PURE__ */ React$2.createElement(
+-                MenuItem,
+-                {
+-                  onClick: () => {
+-                    change2("forward", true);
+-                    change2(
+-                      "bases",
+-                      getSequenceWithinRange(
+-                        normalizedSelection,
+-                        sequenceData2.sequence
+-                      )
+-                    );
+-                  },
+-                  key: "forward",
+-                  text: "Forward"
++              /*
++               * PATCH (oven): one button, taking its orientation from the
++               * Strand radio, instead of a Forward/Reverse dropdown.
++               *
++               * This is also the only thing that moves the binding site now.
++               * The fields used to follow the selection on every mousemove,
++               * which is what made dragging against an open panel expensive --
++               * ~84 ms a pointer event against ~16 ms with nothing open. They
++               * are set here instead, from the live selection, so a drag costs
++               * nothing and a typed tail survives until you ask for it to be
++               * replaced.
++               */
++              onClick: () => {
++                const sel = ovenTrueSelectionLayer || {};
++                if (typeof sel.start !== "number" || sel.start < 0 || sel.end < 0) {
++                  return window.toastr && window.toastr.warning(
++                    "Highlight a region in the sequence first"
++                  );
+                 }
+-              ), /* @__PURE__ */ React$2.createElement(
+-                MenuItem,
+-                {
+-                  onClick: () => {
+-                    change2("forward", false);
+-                    change2(
+-                      "bases",
+-                      getReverseComplementSequenceString(
+-                        getSequenceWithinRange(
+-                          normalizedSelection,
+-                          sequenceData2.sequence
+-                        )
+-                      )
+-                    );
+-                  },
+-                  key: "reverse",
+-                  text: "Reverse"
+-                }
+-              ))
++                change2("start", sel.start + 1);
++                change2("end", sel.end + 1);
++                const bps = getSequenceWithinRange(
++                  { start: sel.start, end: sel.end },
++                  sequenceData2.sequence
++                );
++                change2("bases", forward ? bps : getReverseComplementSequenceString(bps));
++              }
+             },
+             "Set From Selection"
+           )))
+@@ -170563,6 +170771,75 @@
        RenderBases
      })
    });
@@ -591,7 +637,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180724,8 @@
+@@ -180348,6 +180625,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

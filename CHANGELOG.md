@@ -4,6 +4,30 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.26.0
+
+**The New Primer fields no longer follow the selection — **Set From Selection** moves them.**
+Drag to select as much as you like; **Bind Start**, **Bind End** and the bases only change
+when you press the button. That protects a tail you have typed from a stray click, and it
+makes dragging cost what it costs with nothing open: ~17 ms per pointer event, against 84 ms
+when the fields tracked every event.
+
+**Set From Selection is one button now**, not a Forward/Reverse dropdown. It takes its
+orientation from the **Strand** radio, which has moved below **Bind End** — it decides how the
+button reads the bases, so it belongs beside it rather than above the coordinates.
+
+`oven.newPrimerLiveSelection` is gone, since there is no longer a live path to turn off.
+
+One trap fixed on the way: `props.selectionLayer` is not the user's selection while a form is
+open — `mapStateToProps` replaces it with the pending annotation's own range, so the button
+first read its own values straight back and appeared to do nothing.
+
+**Oligo Binds On** (under Advanced) now defaults to **3′ End** rather than being unset. It says
+which end of the oligo anneals, which is what places a 5′ tail: annealing bases over the
+binding site, tail hanging off the front, both on the map and in the red mismatch marking. 3′
+is the ordinary case, and the previous unset value behaved the same way while showing the
+radio with neither option picked.
+
 ## 1.25.0
 
 **The New Primer panel has an editable bases box, so a primer can carry a 5' tail.** It seeds

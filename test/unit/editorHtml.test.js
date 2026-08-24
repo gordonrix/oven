@@ -83,26 +83,3 @@ test('the button row is the three panels, in order', () => {
   assert.deepStrictEqual(labels, ['Align', 'Primer Search', 'Primer Cart']);
 });
 
-/*
- * The live-selection flag has to be a page global set before the bundle
- * evaluates, and the browser suite runs in an isolated world that cannot reach
- * page globals -- so this is where the off path is checked.
- */
-test('newPrimerLiveSelection reaches the webview as a global, before the bundle', () => {
-  const off = buildEditorHtml({ sequenceJson: '{}', viewType: 'sequence', newPrimerLiveSelection: false });
-  assert.match(off, /__ovenNewPrimerLiveSelection = false;/);
-
-  const on = buildEditorHtml({ sequenceJson: '{}', viewType: 'sequence', newPrimerLiveSelection: true });
-  assert.match(on, /__ovenNewPrimerLiveSelection = true;/);
-
-  // Unset must not read as off -- the default is live.
-  const missing = buildEditorHtml({ sequenceJson: '{}', viewType: 'sequence' });
-  assert.match(missing, /__ovenNewPrimerLiveSelection = true;/);
-
-  // OVE builds its command definitions as the bundle evaluates, so both globals
-  // are worthless if they land after it.
-  assert.ok(
-    missing.indexOf('__ovenNewPrimerLiveSelection') < missing.indexOf('<script src="undefined"></script>'),
-    'the flag must be declared before the bundle script tag'
-  );
-});

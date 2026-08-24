@@ -42,3 +42,22 @@
    underlined; this only stops the underline sitting on top of the glyphs in a
    dense run of bases. */
 .ovenp-root .tg-no-match-seq { text-underline-offset: 2px; }
+
+/*
+ * Field order: Name, Bind Start, Bind End, then Strand.
+ *
+ * Strand sits second in OVE's markup, but it now decides which way Set From
+ * Selection reads the bases, so it belongs next to the button rather than above
+ * the coordinates. Done with flex order because the fields are OVE's own
+ * markup; the tg-test-* classes are what its own tests hang off, so they are
+ * the stable handles here.
+ *
+ * Everything unnamed keeps its document order behind them at order 5 -- without
+ * that default, unordered children would jump to the front.
+ */
+.ovenp-root .bp3-dialog-body { display: flex; flex-direction: column; }
+.ovenp-root .bp3-dialog-body > * { order: 5; }
+.ovenp-root .bp3-dialog-body > .tg-test-name { order: 1; }
+.ovenp-root .bp3-dialog-body > .tg-test-start { order: 2; }
+.ovenp-root .bp3-dialog-body > .tg-test-end { order: 3; }
+.ovenp-root .bp3-dialog-body > .tg-test-forward { order: 4; }

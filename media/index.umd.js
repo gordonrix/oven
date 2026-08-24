@@ -135303,135 +135303,30 @@ ${seq.sequence}
     FileSaver.saveAs(blob, filename);
     window.toastr.success("File Downloaded Successfully");
   }, "exportSequenceToFile");
-  let ovenDragging = false;
-  let ovenLastSel = null;
-  let ovenAnchor = null;
-  let ovenLastSyncAt = 0;
-  const OVEN_SYNC_MS = 100;
-  let ovenFlush = null;
-  if (typeof window !== "undefined") {
-    window.addEventListener("mousedown", () => {
-      ovenDragging = true;
-      ovenAnchor = null;
-      ovenLastSyncAt = 0;
-    }, true);
-    window.addEventListener("mouseup", () => {
-      ovenDragging = false;
-      const flush = ovenFlush;
-      ovenFlush = null;
-      if (flush) setTimeout(flush, 0);
-    }, true);
-  }
   const withEditorProps = compose(
     connect(
       mapStateToProps,
       mapDispatchToActions,
       (mapProps2, dispatchProps, ownProps) => {
         const toSpread = {};
+        /*
+         * PATCH (oven): stock replaced selectionLayerUpdate here so that, while
+         * an annotation form was open, dragging fed the form's start/end
+         * instead of moving the selection -- two redux-form dispatches per
+         * pointer event, each re-rendering the whole form. In a modal that was
+         * free, since a modal covers the sequence and there is nothing to drag.
+         * In the New Primer panel it cost ~84 ms an event against ~16 ms with
+         * nothing open.
+         *
+         * The fields are set from the Set From Selection button instead, so
+         * dragging is left alone entirely: it selects, at normal speed, and a
+         * tail you have typed is not overwritten by a stray click.
+         *
+         * original_selectionLayerUpdate is still handed over, because the
+         * form's submit handler calls it to select what it just created.
+         */
         if (mapProps2.annotationToAdd) {
           toSpread.original_selectionLayerUpdate = dispatchProps.selectionLayerUpdate;
-          const ovenSyncFields = (sel) => {
-            if (!sel || typeof sel.start !== "number" || typeof sel.end !== "number") return;
-            dispatchProps.dispatch({
-              type: "@@redux-form/CHANGE",
-              meta: {
-                form: mapProps2.annotationToAdd.formName,
-                field: "start",
-                touch: false,
-                persistentSubmitErrors: false
-              },
-              payload: sel.start + 1
-            });
-            dispatchProps.dispatch({
-              type: "@@redux-form/CHANGE",
-              meta: {
-                form: mapProps2.annotationToAdd.formName,
-                field: "end",
-                touch: false,
-                persistentSubmitErrors: false
-              },
-              payload: sel.end + 1
-            });
-          };
-          /*
-           * PATCH (oven): fill the fields when the drag ends, not on every
-           * mousemove.
-           *
-           * Stock dispatches these two CHANGEs per pointer event and each one
-           * re-renders the whole annotation form. That never showed while this
-           * form could only be a modal -- a modal covers the sequence, so there
-           * was no dragging to pay for -- but the New Primer panel is dragged
-           * against, and there it cost ~35 ms per event on top of the ~33 ms
-           * the editor already spends.
-           *
-           * Mid-drag the original selectionLayerUpdate runs instead, so the
-           * highlight tracks the pointer exactly as it does with nothing open.
-           * The flush is deferred one tick past mouseup rather than run inside
-           * it: the listener is on the capture phase and so fires before the
-           * editor's own mouseup handler, and reading the selection any earlier
-           * catches it mid-update -- which is what left Bind Start stuck at 1
-           * in an earlier attempt.
-           */
-          toSpread.selectionLayerUpdate = (sel) => {
-            if (!ovenDragging) {
-              ovenLastSel = sel;
-              return ovenSyncFields(sel);
-            }
-            /*
-             * The anchor has to be held here. OVE derives a drag's fixed edge
-             * from the stored selection, which stock never updates while a form
-             * is open -- so writing the real selection back mid-drag destroys
-             * it, and every event after the first arrives with start collapsed
-             * to 0. Keeping the first event's start and moving only the far
-             * edge reproduces what the drag meant.
-             */
-            if (ovenAnchor === null) ovenAnchor = sel.start;
-            const fixed = __spreadProps(__spreadValues({}, sel), { start: ovenAnchor });
-            ovenLastSel = fixed;
-            dispatchProps.selectionLayerUpdate(fixed);
-            /*
-             * Live or on release, and it is a real either/or.
-             *
-             * The bar you watch while dragging is the pending annotation OVE
-             * draws from these form values -- not the selection layer. Holding
-             * the values back therefore holds the bar back too: measured, the
-             * highlight sits frozen until mouseup. Feeding them live is what
-             * costs, since every one of these re-renders the whole form (~35 ms
-             * an event in the demo editor, against ~33 ms for the drag itself).
-             *
-             * Throttling splits the difference badly rather than well -- per
-             * frame or per 80 ms both measured slower than stock, because the
-             * work is what slows the drag down, so a wall-clock window never
-             * closes. So it is a choice, and oven.newPrimerLiveSelection makes
-             * it. Either way the release lands on the exact final range.
-             */
-            /*
-             * Throttled, not deferred.
-             *
-             * The bar you watch while dragging is drawn from these form values,
-             * so holding them to mouseup leaves the drag with no feedback at
-             * all. Feeding them per pointer event is what costs: the same form
-             * renders at ~25 ms inside OVE's dialog portal and ~84 ms inside a
-             * panel, which is a difference in where it mounts rather than in
-             * the form or its composition -- rendering this exact composition
-             * back inside wrapDialog measures 25 ms again.
-             *
-             * A wall-clock window is stable here even though the work is what
-             * slows the drag: fewer syncs make the drag faster, which lets the
-             * window cover more events, which settles. Measured per pointer
-             * event: 84 ms unthrottled, 41 ms at 100 ms, 27 ms deferred
-             * entirely, against 16 ms with no panel open.
-             */
-            if (typeof window === "undefined" || window.__ovenNewPrimerLiveSelection !== false) {
-              const nowMs = Date.now();
-              if (nowMs - ovenLastSyncAt >= OVEN_SYNC_MS) {
-                ovenLastSyncAt = nowMs;
-                ovenSyncFields(fixed);
-              }
-            }
-            ovenFlush = () => ovenSyncFields(ovenLastSel);
-          };
-          toSpread.caretPositionUpdate = noop$8;
         }
         return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, ownProps), mapProps2), dispatchProps), toSpread);
       }
@@ -135689,6 +135584,15 @@ ${seq.sequence}
       meta,
       annotationToAdd
     }), newSelection && { selectionLayer: newSelection }), {
+      /*
+       * PATCH (oven): the user's actual selection.
+       *
+       * The line above replaces selectionLayer with the pending annotation's
+       * own range whenever a form is open, so from inside that form
+       * props.selectionLayer is its own start/end -- which made New Primer's
+       * Set From Selection read its values back and do nothing.
+       */
+      ovenTrueSelectionLayer: editorState.selectionLayer,
       selectedCutsites,
       sequenceLength,
       allCutsites,
@@ -169960,7 +169864,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           {
             style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
           },
-          "You can also click or drag in the editor to change the selection",
+          "Highlight a region, then press Set From Selection",
           " "
         ), /* @__PURE__ */ React$2.createElement(
           NumericInputField,
@@ -170016,6 +169920,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             sequenceLength,
             primerBindsOn,
             forward,
+            // PATCH (oven): for Set From Selection.
+            ovenTrueSelectionLayer: this.props.ovenTrueSelectionLayer,
             linkedOligo: initialValues2.linkedOligo,
             useLinkedOligo,
             change: change2
@@ -170717,6 +170623,9 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       bases,
       forward,
       defaultLinkedOligoMessage,
+      // PATCH (oven): the live selection, for Set From Selection. Not
+      // selectionLayer -- see ovenTrueSelectionLayer in mapStateToProps.
+      ovenTrueSelectionLayer,
       change: change2
     } = props;
     let defaultValue2;
@@ -170795,46 +170704,38 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           defaultValue: bases != null ? bases : defaultValue2,
           name: "bases",
           label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
-            DropdownButton,
+            Button,
             {
               disabled: readOnly2,
               intent: "primary",
               small: true,
-              menu: /* @__PURE__ */ React$2.createElement(Menu, null, /* @__PURE__ */ React$2.createElement(
-                MenuItem,
-                {
-                  onClick: () => {
-                    change2("forward", true);
-                    change2(
-                      "bases",
-                      getSequenceWithinRange(
-                        normalizedSelection,
-                        sequenceData2.sequence
-                      )
-                    );
-                  },
-                  key: "forward",
-                  text: "Forward"
+              /*
+               * PATCH (oven): one button, taking its orientation from the
+               * Strand radio, instead of a Forward/Reverse dropdown.
+               *
+               * This is also the only thing that moves the binding site now.
+               * The fields used to follow the selection on every mousemove,
+               * which is what made dragging against an open panel expensive --
+               * ~84 ms a pointer event against ~16 ms with nothing open. They
+               * are set here instead, from the live selection, so a drag costs
+               * nothing and a typed tail survives until you ask for it to be
+               * replaced.
+               */
+              onClick: () => {
+                const sel = ovenTrueSelectionLayer || {};
+                if (typeof sel.start !== "number" || sel.start < 0 || sel.end < 0) {
+                  return window.toastr && window.toastr.warning(
+                    "Highlight a region in the sequence first"
+                  );
                 }
-              ), /* @__PURE__ */ React$2.createElement(
-                MenuItem,
-                {
-                  onClick: () => {
-                    change2("forward", false);
-                    change2(
-                      "bases",
-                      getReverseComplementSequenceString(
-                        getSequenceWithinRange(
-                          normalizedSelection,
-                          sequenceData2.sequence
-                        )
-                      )
-                    );
-                  },
-                  key: "reverse",
-                  text: "Reverse"
-                }
-              ))
+                change2("start", sel.start + 1);
+                change2("end", sel.end + 1);
+                const bps = getSequenceWithinRange(
+                  { start: sel.start, end: sel.end },
+                  sequenceData2.sequence
+                );
+                change2("bases", forward ? bps : getReverseComplementSequenceString(bps));
+              }
             },
             "Set From Selection"
           )))

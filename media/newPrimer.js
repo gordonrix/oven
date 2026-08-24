@@ -41,7 +41,19 @@
   // useLinkedOligo gates the bases box in OVE's form. It is a Teselagen-platform
   // idea (an oligo library this fork has no notion of), but the field it guards
   // is the one we want, so it is forced on and its chrome hidden in CSS.
-  const BASE_VALUES = { forward: true, arrowheadType: 'TOP', useLinkedOligo: true };
+  const BASE_VALUES = {
+    forward: true,
+    arrowheadType: 'TOP',
+    useLinkedOligo: true,
+    /*
+     * Which end of the oligo anneals. 3' is the ordinary case and the one that
+     * makes a 5' tail behave: the annealing bases line up with the binding site
+     * and the tail hangs off the front, both on the map and in the red
+     * mismatch marking. OVE leaves this unset, which happens to behave the same
+     * way, but then shows the radio under Advanced with neither option picked.
+     */
+    primerBindsOn: '3prime'
+  };
   let initialValues = Object.assign({}, BASE_VALUES);
 
   function selectionValues() {
