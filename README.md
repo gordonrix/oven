@@ -52,6 +52,13 @@ spreadsheet or an oligo order.
    the right-click menu, or `Cmd/Ctrl+Shift+K`. The form opens as a panel beside the
    sequence, so the plasmid stays visible, and the binding site follows the selection as
    you drag.
+
+   The **Bases** box holds the oligo itself, seeded from the selection and reverse-
+   complemented on the bottom strand. Type on the front to add a **5′ tail** — an overhang,
+   a restriction site, a barcode — and any base that does not match the template turns red,
+   so the tail shows as the part that will not anneal. The annotation still covers only the
+   annealing footprint; the full ordered sequence goes to the cart. Use **Set From
+   Selection** to re-seed the box after changing the selection.
 2. Click **Add to Cart** in the top right to pick primers. Ones you create are added
    automatically.
 3. Repeat in as many files as you like. The cart is global and survives restarts.

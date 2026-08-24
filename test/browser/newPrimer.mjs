@@ -46,6 +46,8 @@ const dragOver = async (page, fromX, toX) => {
   return true;
 };
 
+const TAIL = 'GGGGCATATG'; // not in the fixture, so every base of it must flag
+
 export default async function run(page) {
   const out = {};
   const fail = [];
@@ -106,6 +108,94 @@ export default async function run(page) {
   const [, start2] = (out.afterSecondDrag && out.afterSecondDrag.textInputs) || [];
   if (start2 === start1) fail.push('the panel stopped following the selection after the first drag');
 
+  /* --- the bases box, and 5' tails ---------------------------------------- */
+
+  /*
+   * OVE builds all of this already -- a field seeded from the selection,
+   * reverse-complemented on the bottom strand, that takes free text and marks
+   * any base not matching the template with .tg-no-match-seq, which ove.css
+   * paints red. It is gated behind allowPrimerBasesToBeEdited, which neither
+   * the dialog nor this panel used to pass.
+   *
+   * The gate in front of the gate is useLinkedOligo: a Teselagen oligo-library
+   * idea with no meaning here, forced on in BASE_VALUES and hidden in CSS. If
+   * that hiding ever stops matching, the checkbox reappears offering to link
+   * the primer to a library this fork does not have.
+   */
+  const editable = page.locator('.ovenp-root .tg-custom-sequence-editable');
+  out.hasBasesBox = await editable.count();
+  if (!out.hasBasesBox) fail.push('no bases box -- allowPrimerBasesToBeEdited is not getting through');
+
+  out.linkedOligoVisible = await page.evaluate(() => {
+    const row = document.querySelector('.ovenp-root .tg-no-fill-field:has(input[name="useLinkedOligo"])');
+    return row ? getComputedStyle(row).display !== 'none' : false;
+  });
+  if (out.linkedOligoVisible) fail.push('the Linked Oligo row is showing again');
+
+  if (out.hasBasesBox) {
+    /*
+     * The box seeds itself once and then stops following the selection -- by
+     * design, or a tail you had typed would be wiped by any nudge of the
+     * selection. OVE's own "Set From Selection" button is the way back in sync,
+     * so that is what is exercised here.
+     */
+    await page.locator('.ovenp-root button.dropdown-button').first().click();
+    await page.waitForTimeout(600);
+    // The dropdown offers the orientation to take the bases in.
+    await page.locator('.bp3-menu-item').filter({ hasText: 'Forward' }).first().click();
+    await page.waitForTimeout(800);
+
+    out.basesFromSelection = (await editable.textContent()).trim();
+    const [, selStart2, selEnd2] = (await fields(page)).textInputs;
+    const want = Number(selEnd2) - Number(selStart2) + 1;
+    if (out.basesFromSelection.length !== want) {
+      fail.push(`bases box holds ${out.basesFromSelection.length} bp for a ${want} bp selection`);
+    }
+    if (await page.locator('.ovenp-root .tg-no-match-seq').count()) {
+      fail.push('bases taken straight from the template should not be flagged as mismatches');
+    }
+
+    // A 5' tail: bases that are deliberately not in the template.
+    await editable.click();
+    await page.keyboard.press('Home');
+    await page.keyboard.type(TAIL);
+    await page.waitForTimeout(900);
+
+    out.basesWithTail = (await editable.textContent()).trim();
+    /*
+     * Length rather than prefix: typing into a contenteditable through the
+     * driver occasionally lands a character a position out as the field
+     * re-renders under the caret. That is the harness, not the field -- what
+     * has to hold is that the bases grew by the tail and that the extra bases
+     * are flagged.
+     */
+    if (out.basesWithTail.length !== out.basesFromSelection.length + TAIL.length) {
+      fail.push(`expected ${out.basesFromSelection.length + TAIL.length} bp after typing a ${TAIL.length} bp tail, got ${out.basesWithTail.length}`);
+    }
+    if (!out.basesWithTail.endsWith(out.basesFromSelection)) {
+      fail.push(`the annealing region should still end the primer: ${out.basesWithTail}`);
+    }
+    /*
+     * Not an exact string match against the tail: the flag is per base against
+     * the template at that offset, so a tail base can coincidentally match and
+     * go unflagged. What matters is that adding bases the template does not
+     * have produces flags, and that a clean selection produced none above.
+     */
+    out.flagged = await page.evaluate(() =>
+      [...document.querySelectorAll('.ovenp-root .tg-no-match-seq')].map((n) => n.textContent).join(''));
+    if (!out.flagged.length) fail.push('a tail produced no mismatch flags at all');
+    if (out.flagged.length > TAIL.length) {
+      fail.push(`more bases flagged (${out.flagged.length}) than the tail is long`);
+    }
+    out.flaggedColour = await page.evaluate(() => {
+      const n = document.querySelector('.ovenp-root .tg-no-match-seq');
+      return n ? getComputedStyle(n).color : null;
+    });
+    if (out.flaggedColour !== 'rgb(255, 0, 0)') {
+      fail.push(`mismatches should be red, got ${out.flaggedColour}`);
+    }
+  }
+
   /* --- Save writes a primer ----------------------------------------------- */
 
   const primers = async () => {
@@ -131,6 +221,10 @@ export default async function run(page) {
   } else if (out.created.start !== Number(start2) - 1) {
     // 1-based in the form, 0-based in the data.
     fail.push(`created at ${out.created.start}, expected ${Number(start2) - 1}`);
+  } else if (out.hasBasesBox && out.created.bases !== out.basesWithTail) {
+    // The whole point of a tail is that it survives to the ordered oligo, even
+    // though the annotation itself only covers the annealing footprint.
+    fail.push(`saved bases ${out.created.bases} do not match the box ${out.basesWithTail}`);
   }
 
   /* --- OVE's own Create > New Primer opens the panel, not a dialog --------- */

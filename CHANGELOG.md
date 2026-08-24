@@ -4,6 +4,30 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.25.0
+
+**The New Primer panel has an editable bases box, so a primer can carry a 5' tail.** It seeds
+itself from the selection — reverse-complemented on the bottom strand — and takes free text,
+so an overhang, a restriction site or a barcode can simply be typed on the front. **Bases that
+do not match the template render red and underlined**, which makes the tail visible as the
+part that does not anneal.
+
+The annotation still covers only the annealing footprint, while the full ordered sequence is
+stored on the primer and written out as a `/Sequence` qualifier — the same shape primer
+search's **Attach** produces, so the cart and an oligo order see what you would actually buy.
+
+None of this is new code: Open Vector Editor builds all of it, including the red marking,
+behind a prop called `allowPrimerBasesToBeEdited` that neither the stock dialog nor this panel
+was passing. Switching it on also brings its **Set From Selection** control (Forward or
+Reverse) and a melting temperature for the whole oligo.
+
+One quirk worth knowing: the box seeds once and then stops following the selection. That is
+deliberate — otherwise a tail you had typed would be wiped by any nudge of the selection —
+and **Set From Selection** is how you re-sync.
+
+Hidden with it: OVE's "Linked Oligo?" checkbox and its "Will Be Created On Save" note, which
+refer to a Teselagen oligo library this fork has no notion of.
+
 ## 1.24.2
 
 **Dragging a selection with the New Primer panel open is about half the cost, and the bar

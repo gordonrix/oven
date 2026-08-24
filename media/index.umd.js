@@ -170895,11 +170895,22 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
    */
   const AddOrEditPrimerPanel = compose$1(
     withEditorProps,
-    withProps({
+    withProps((props) => ({
+      upsertAnnotation: props.upsertPrimer,
       annotationTypePlural: "primers",
-      RenderBases
-    }),
-    withProps((props) => ({ upsertAnnotation: props.upsertPrimer })),
+      RenderBases,
+      /*
+       * PATCH (oven): show the editable bases box.
+       *
+       * OVE already builds everything needed for a 5' tail -- the field seeds
+       * itself from the selection (reverse-complemented on the bottom strand),
+       * takes free text, and marks any base that does not match the template
+       * with .tg-no-match-seq, which ove.css already paints red and underlined.
+       * It was simply never switched on here, because the prop that gates it is
+       * not one the dialog passes either.
+       */
+      allowPrimerBasesToBeEdited: true
+    })),
     reduxForm({
       /*
        * Deliberately the dialog's own form name: the annotationToAdd selector

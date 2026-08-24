@@ -138,7 +138,7 @@
           // Bridged because patchright evaluates in an isolated world, where
           // window.__oveEditor is not reachable.
           primers: Object.values(editor.getState().sequenceData.primers || {})
-            .map((p) => ({ name: p.name, start: p.start, end: p.end, forward: p.forward }))
+            .map((p) => ({ name: p.name, start: p.start, end: p.end, forward: p.forward, bases: p.bases }))
         });
       };
       publish();

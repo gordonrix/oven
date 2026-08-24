@@ -23,3 +23,22 @@
   font-size: 12px;
   color: #a82a2a;
 }
+
+/*
+ * The bases box is gated behind OVE's "Linked Oligo?" checkbox, which is a
+ * Teselagen-platform idea: it links the primer to an entry in their oligo
+ * library, and its status line reads "Will Be Created On Save". Neither exists
+ * in this fork, so the checkbox is forced on (see BASE_VALUES in newPrimer.js)
+ * and both are hidden rather than left to raise a question with no answer.
+ *
+ * :has() keeps this to the one row that actually holds that checkbox; every
+ * other tg-no-fill-field in the form is untouched.
+ */
+/* !important because ove.css declares .tg-no-fill-field { display: table !important }. */
+.ovenp-root .tg-no-fill-field:has(input[name="useLinkedOligo"]) { display: none !important; }
+.ovenp-root .tg-linked-oligo-holder { display: none; }
+
+/* Mismatches against the template. ove.css already paints these red and
+   underlined; this only stops the underline sitting on top of the glyphs in a
+   dense run of bases. */
+.ovenp-root .tg-no-match-seq { text-underline-offset: 2px; }

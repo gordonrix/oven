@@ -38,7 +38,11 @@
    * ends. Deriving them from the store instead put two mechanisms on the same
    * two fields.
    */
-  let initialValues = { forward: true, arrowheadType: 'TOP' };
+  // useLinkedOligo gates the bases box in OVE's form. It is a Teselagen-platform
+  // idea (an oligo library this fork has no notion of), but the field it guards
+  // is the one we want, so it is forced on and its chrome hidden in CSS.
+  const BASE_VALUES = { forward: true, arrowheadType: 'TOP', useLinkedOligo: true };
+  let initialValues = Object.assign({}, BASE_VALUES);
 
   function selectionValues() {
     const sel = seqState().selectionLayer || {};
@@ -138,7 +142,7 @@
   function open() {
     // Snapshot before mounting, so the form starts on whatever is already
     // highlighted rather than empty.
-    initialValues = Object.assign({ forward: true, arrowheadType: 'TOP' }, selectionValues());
+    initialValues = Object.assign({}, BASE_VALUES, selectionValues());
     showPanel();
   }
 
