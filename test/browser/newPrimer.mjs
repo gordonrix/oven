@@ -314,6 +314,60 @@ export default async function run(page) {
   if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
   if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
 
+  /* --- characters that are not bases never enter the box ------------------- */
+
+  /*
+   * The box is a contenteditable the user edits directly, and what they type
+   * only reaches the form after filterSequenceString drops anything invalid.
+   * Nothing put the box itself back in step, so a rejected character stayed on
+   * screen while the value did not have it -- and backspacing afterwards
+   * deleted what was visible while the value lost different characters, so real
+   * bases went missing. Filtering at entry means the drift cannot start.
+   *
+   * Y is deliberately in the junk string: it is a real IUPAC code for C-or-T,
+   * so it must survive while X, Z and Q do not.
+   */
+  const boxText = () => page.evaluate(() => {
+    const el = document.querySelector('.ovenp-root .tg-custom-sequence-editable');
+    return el ? el.textContent : null;
+  });
+  // The bases label reads "Bases   (Length: N)"; a bare /Length: (\d+)/ would
+  // match "Binding Site Length" first, which is a different number entirely.
+  const boxValueLength = () => page.evaluate(() =>
+    Number((document.querySelector('.ovenp-root').innerText.match(/\(Length: (\d+)\)/) || [])[1]));
+
+  await page.locator('.ovenp-root button', { hasText: 'Set From Selection' }).click();
+  await page.waitForTimeout(700);
+  out.junkBefore = await boxText();
+
+  const box = await page.locator('.ovenp-root .tg-custom-sequence-editable').boundingBox();
+  await page.mouse.click(box.x + 3, box.y + 8);
+  await page.waitForTimeout(250);
+  await page.keyboard.type('XYZQ', { delay: 80 });
+  await page.waitForTimeout(700);
+
+  out.junkAfterTyping = await boxText();
+  if (/[XZQ]/.test(out.junkAfterTyping)) {
+    fail.push(`X, Z and Q should never land in the box: ${out.junkAfterTyping}`);
+  }
+  if (!out.junkAfterTyping.startsWith('Y')) {
+    fail.push(`Y is a real ambiguity code and should survive: ${out.junkAfterTyping}`);
+  }
+  // The box and the value must agree, or deleting will take the wrong things.
+  if (out.junkAfterTyping.length !== await boxValueLength()) {
+    fail.push(`box shows ${out.junkAfterTyping.length} bases, value holds ${await boxValueLength()}`);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(200);
+  }
+  await page.waitForTimeout(600);
+  out.junkAfterDelete = await boxText();
+  if (out.junkAfterDelete !== out.junkBefore) {
+    fail.push(`deleting the junk lost real bases: ${out.junkBefore} -> ${out.junkAfterDelete}`);
+  }
+
   /* --- a primer over the origin is not all mismatches ---------------------- */
 
   /*
@@ -363,7 +417,10 @@ export default async function run(page) {
   out.crossCount = await page.locator('[class*=veTabActive] .bp3-icon-small-cross').count();
   if (!out.crossCount) fail.push('no close cross on the New Primer tab');
   else {
-    await page.locator('[class*=veTabActive] .bp3-icon-small-cross').first().click();
+    // Clicked through the DOM: with focus left in the bases box, Playwright's
+    // own click waits on an actionability check that never settles here.
+    await page.evaluate(() =>
+      document.querySelector('[class*=veTabActive] .bp3-icon-small-cross').click());
     await page.waitForTimeout(1000);
     out.panelAfterCross = await page.locator('.ovenp-root').count();
     out.tabsAfterCross = await page.evaluate(() =>

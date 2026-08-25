@@ -170601,6 +170601,36 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           className: classNames$1("bp3-input tg-custom-sequence-editable", {
             hasTempError
           }),
+          /*
+           * PATCH (oven): keep characters that are not bases out of the box.
+           *
+           * This is a contenteditable the user edits directly, and what they
+           * type only reaches the form after filterSequenceString has dropped
+           * anything invalid. Nothing puts the box itself back in step, so a
+           * rejected character stays on screen while the value does not have
+           * it, and the two drift apart -- after which backspacing deletes the
+           * characters you can see while the value loses different ones, and
+           * real bases go missing.
+           *
+           * Filtering at the point of entry means the drift cannot start. The
+           * valid part of a paste is kept rather than the whole thing being
+           * refused, and the same red flash already used for a rejected
+           * character still fires.
+           */
+          onBeforeInput: (e22) => {
+            const data = e22.data;
+            if (!data) return;
+            const [kept] = filterSequenceString(data, sequenceData2);
+            if (kept.length === data.length) return;
+            e22.preventDefault();
+            setTempError(true);
+            setTimeout(() => setTempError(false), 200);
+            if (kept) {
+              // execCommand keeps the browser's own caret and undo handling,
+              // which manual DOM surgery here would not.
+              document.execCommand("insertText", false, kept);
+            }
+          },
           onInput: emitChange,
           dangerouslySetInnerHTML: { __html: html2 }
         }

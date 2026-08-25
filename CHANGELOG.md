@@ -4,6 +4,25 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.26.2
+
+**Fixed: typing letters that are not bases into the New Primer bases box, then deleting them,
+destroyed part of the primer.**
+
+The box is a contenteditable the user edits directly, and what they type only reaches the form
+after `filterSequenceString` has dropped anything invalid. Nothing put the box itself back in
+step — so a rejected character stayed on screen while the value never had it, and the two
+drifted apart. Backspacing then deleted the characters you could see while the value lost
+different ones. Typing `XYZQ` and deleting it left an 18 base primer as 17, one base short at
+the 5' end, with no warning.
+
+Characters are filtered as they arrive now, so the drift cannot start. A paste keeps its valid
+part rather than being refused wholesale, and the existing red flash still marks a rejected
+character.
+
+Note that `Y` is a real IUPAC code (C or T) and is kept, as are the other ambiguity codes —
+only genuine non-bases such as `X`, `Z` and `Q` are turned away.
+
 ## 1.26.1
 
 **Fixed: a primer that runs over the origin showed matching bases as mismatches.** In the New

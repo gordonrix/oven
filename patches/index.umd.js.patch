@@ -387,8 +387,9 @@
              charWidth2
            );
 -          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
-           if (!range2.isMatch) {
+-          if (!range2.isMatch) {
 -            redPath += toAdd;
++          if (!range2.isMatch) {
 +            // ove-vscode patch: a one-base difference is a fraction of a pixel
 +            // wide at minimap scale, so widen the mark -- horizontally only,
 +            // and centred on the position it actually marks. Stroking the path
@@ -496,7 +497,44 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170410,6 +170634,9 @@
+@@ -170377,6 +170601,36 @@
+           className: classNames$1("bp3-input tg-custom-sequence-editable", {
+             hasTempError
+           }),
++          /*
++           * PATCH (oven): keep characters that are not bases out of the box.
++           *
++           * This is a contenteditable the user edits directly, and what they
++           * type only reaches the form after filterSequenceString has dropped
++           * anything invalid. Nothing puts the box itself back in step, so a
++           * rejected character stays on screen while the value does not have
++           * it, and the two drift apart -- after which backspacing deletes the
++           * characters you can see while the value loses different ones, and
++           * real bases go missing.
++           *
++           * Filtering at the point of entry means the drift cannot start. The
++           * valid part of a paste is kept rather than the whole thing being
++           * refused, and the same red flash already used for a rejected
++           * character still fires.
++           */
++          onBeforeInput: (e22) => {
++            const data = e22.data;
++            if (!data) return;
++            const [kept] = filterSequenceString(data, sequenceData2);
++            if (kept.length === data.length) return;
++            e22.preventDefault();
++            setTempError(true);
++            setTimeout(() => setTempError(false), 200);
++            if (kept) {
++              // execCommand keeps the browser's own caret and undo handling,
++              // which manual DOM surgery here would not.
++              document.execCommand("insertText", false, kept);
++            }
++          },
+           onInput: emitChange,
+           dangerouslySetInnerHTML: { __html: html2 }
+         }
+@@ -170410,6 +170664,9 @@
        bases,
        forward,
        defaultLinkedOligoMessage,
@@ -506,7 +544,7 @@
        change: change2
      } = props;
      let defaultValue2;
-@@ -170488,46 +170715,38 @@
+@@ -170488,46 +170745,38 @@
            defaultValue: bases != null ? bases : defaultValue2,
            name: "bases",
            label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
@@ -580,7 +618,7 @@
              },
              "Set From Selection"
            )))
-@@ -170563,6 +170782,75 @@
+@@ -170563,6 +170812,75 @@
        RenderBases
      })
    });
@@ -656,7 +694,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180636,8 @@
+@@ -180348,6 +180666,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;
