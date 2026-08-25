@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN — Open Vector Editor with New Features",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.28.0",
+  "version": "1.28.1",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",

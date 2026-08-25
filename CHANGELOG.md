@@ -4,6 +4,11 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.28.1
+
+The strand indicator is dark grey (`#555`) rather than black — the same weight against the
+letters without the hard edge.
+
 ## 1.28.0
 
 **Fixed: a read overhanging the origin came back as a mismatch when it matched perfectly.**

@@ -15,7 +15,7 @@
 
 const CARET = 2;   // .veRowViewCaret width, the X of the spec
 const THICK = 6;   // 3X
-const BAR_RGB = 'rgb(0, 0, 0)';
+const BAR_RGB = 'rgb(85, 85, 85)';
 
 /*
  * Absent from the top strand of the fixture but present on the bottom, so Find

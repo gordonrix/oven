@@ -1,5 +1,5 @@
 /*
- * Strand indicator: a black bar hugging the letters of a search hit,
+ * Strand indicator: a dark grey bar hugging the letters of a search hit,
  * above them for a top-strand match and below them for a bottom-strand one.
  *
  * It is an ::after on the highlight layer itself, which is the only hook OVE
@@ -38,7 +38,7 @@
   height: 6px;
   left: 0;
   right: 0;
-  background: #000;
+  background: #555;
   pointer-events: none;
   z-index: 11;
   /*
