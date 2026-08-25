@@ -48,10 +48,12 @@
          }
          return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, ownProps), mapProps2), dispatchProps), toSpread);
        }
-@@ -135591,6 +135584,15 @@
+@@ -135590,7 +135583,16 @@
+       readOnly: readOnly2 || editorState.readOnly,
        meta,
        annotationToAdd
-     }), newSelection && { selectionLayer: newSelection }), {
+-    }), newSelection && { selectionLayer: newSelection }), {
++    }), newSelection && !ovenKeepTrueSelection(annotationToAdd) && { selectionLayer: newSelection }), {
 +      /*
 +       * PATCH (oven): the user's actual selection.
 +       *
@@ -119,7 +121,53 @@
        ${bottomLine}
        Q ${pointiness},${height2 / 2} ${0},${0}
        z`;
-@@ -146443,10 +146465,15 @@
+@@ -146418,6 +146440,45 @@
+   }
+   __name(getYOffset, "getYOffset");
+   const { ambiguous_dna_values } = bioData;
++  /*
++   * PATCH (oven): take the binding site and the bases from the live selection.
++   *
++   * Shared by New Primer's Set From Selection button and its Strand radio --
++   * flipping the strand has to re-read the bases, or the box is left holding
++   * the sequence of the other strand.
++   */
++  function ovenSetFromSelection({ change: change2, selection, sequence, forward }) {
++    const sel = selection || {};
++    if (typeof sel.start !== "number" || sel.start < 0 || sel.end < 0) {
++      return window.toastr && window.toastr.warning(
++        "Highlight a region in the sequence first"
++      );
++    }
++    change2("start", sel.start + 1);
++    change2("end", sel.end + 1);
++    const bps = getSequenceWithinRange({ start: sel.start, end: sel.end }, sequence);
++    change2("bases", forward ? bps : getReverseComplementSequenceString(bps));
++  }
++  __name(ovenSetFromSelection, "ovenSetFromSelection");
++  /*
++   * PATCH (oven): let the user's own selection stay visible.
++   *
++   * While an annotation form is open, the line this guards replaces
++   * selectionLayer with the pending annotation's range -- so the map shows the
++   * primer being built and nothing at all while you drag out a new region.
++   * With New Primer as a panel you can reach the sequence, and no feedback
++   * while dragging is worse than the pending primer briefly not being outlined:
++   * the primer is still drawn, because getSeqDataWithAnnToAdd puts it into the
++   * sequence data regardless. The stock dialogs keep the old behaviour, since
++   * nothing can be dragged underneath them anyway.
++   */
++  function ovenKeepTrueSelection(annotationToAdd) {
++    return Boolean(
++      annotationToAdd && annotationToAdd.formName === "AddOrEditPrimerDialog" &&
++      typeof window !== "undefined" && window.OveNewPrimer
++    );
++  }
++  __name(ovenKeepTrueSelection, "ovenKeepTrueSelection");
+   function getStructuredBases({
+     annotationRange,
+     forward,
+@@ -146443,10 +146504,15 @@
          }
        }
      }
@@ -138,7 +186,7 @@
      };
      const r2 = {
        aRange,
-@@ -146477,7 +146504,18 @@
+@@ -146477,7 +146543,18 @@
      );
      r2.basesNoInsertsWithMetaData = basesForRange.split("").map((b3, i2) => {
        var _a2, _b2;
@@ -158,7 +206,27 @@
        let seqForBase = fullSequence && fullSequence[indexOfBase] || "";
        if (!forward) {
          seqForBase = getComplementSequenceString(seqForBase);
-@@ -146613,7 +146651,7 @@
+@@ -146563,9 +146640,18 @@
+           iTree.insert(xStart, xEnd, __spreadProps(__spreadValues({}, annotationRange), {
+             yOffset
+           }));
++          /*
++           * PATCH (oven): reserve what the tail mark actually occupies.
++           *
++           * getInsertPath draws it from -(5 + level*20) up to -(20 + level*20),
++           * so 15 + level*20 is short by exactly the 5px lead-in at every
++           * level. Above the sequence that only ate into the label gap and went
++           * unnoticed; below it, the mark of a reverse primer's 5' tail was
++           * drawn over the bottom-strand bases.
++           */
+           basesToShow.extraHeight = Math.max(
+             basesToShow.extraHeight,
+-            15 + yOffset * 20
++            20 + yOffset * 20
+           );
+           const insertStart = (indexToUse - (forward ? aRange.start : aRange.end)) * (!forward && primerBindsOn === "5prime" ? -1 : 1);
+           basesToShow.insertPaths += getInsertPath({
+@@ -146613,7 +146699,7 @@
            );
          }
        });
@@ -167,7 +235,7 @@
        basesToShow.baseEl = /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(
          "text",
          __spreadProps(__spreadValues({}, {
-@@ -146807,7 +146845,18 @@
+@@ -146807,7 +146893,18 @@
                  annotation,
                  annotation.forward
                )
@@ -187,7 +255,7 @@
                height: annotationRange.containsLocations && !disregardLocations ? anotationHeightNoSpace / 8 : anotationHeightNoSpace,
                hideName: type2 === "primer" && annotation.bases || annotationRange.containsLocations && !disregardLocations,
                name: annotation.name
-@@ -147871,6 +147920,125 @@
+@@ -147871,6 +147968,125 @@
      component: ShowChromQualScoresMenu(),
      shouldDismissPopover: false
    };
@@ -313,7 +381,7 @@
    function Chromatogram(props) {
      const { isRowView, chromatogramData, row, getGaps, charWidth: charWidth2 } = props;
      const [showChromQualScores] = useShowChromQualScores();
-@@ -147881,6 +148049,7 @@
+@@ -147881,6 +148097,7 @@
      if (props.setScalePct)
        setScalePct = props.setScalePct;
      const canvasRef = reactExports.useRef();
@@ -321,7 +389,7 @@
      const gapsBeforeRow = getGaps(row.start).gapsBefore;
      reactExports.useEffect(() => {
        if (!chromatogramData || !chromatogramData.baseTraces || !canvasRef.current) {
-@@ -147984,7 +148153,7 @@
+@@ -147984,7 +148201,7 @@
              display: "inline-block"
            }
          },
@@ -330,7 +398,7 @@
        )
      );
    }
-@@ -151077,9 +151246,33 @@
+@@ -151077,9 +151294,33 @@
        hotkeyProps: { preventDefault: true }
      },
      newPrimer: {
@@ -366,7 +434,7 @@
      },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
-@@ -151354,7 +151547,14 @@
+@@ -151354,7 +151595,14 @@
      },
      simulatePCR: {
        handler: (props) => props.createNewPCR(),
@@ -382,14 +450,13 @@
        hotkeyProps: { preventDefault: true },
        isHidden: (props) => isProtein(props)
      },
-@@ -155777,9 +155977,16 @@
+@@ -155777,9 +156025,16 @@
              range2,
              charWidth2
            );
 -          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
--          if (!range2.isMatch) {
+           if (!range2.isMatch) {
 -            redPath += toAdd;
-+          if (!range2.isMatch) {
 +            // ove-vscode patch: a one-base difference is a fraction of a pixel
 +            // wide at minimap scale, so widen the mark -- horizontally only,
 +            // and centred on the position it actually marks. Stroking the path
@@ -402,7 +469,32 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -169668,7 +169875,7 @@
+@@ -169480,6 +169735,24 @@
+           "Add Joined Feature Span"
+         ));
+       }, "renderLocations"));
++    }
++    componentDidUpdate(prevProps) {
++      /*
++       * PATCH (oven): flipping Strand re-reads the bases from the selection.
++       *
++       * Otherwise the box keeps the sequence of the strand it was taken on,
++       * which is the opposite of what the primer now says it is. Gated on
++       * allowPrimerBasesToBeEdited so only the New Primer panel does this --
++       * the stock dialogs never pass it.
++       */
++      if (!this.props.allowPrimerBasesToBeEdited) return;
++      if (prevProps.forward === this.props.forward) return;
++      ovenSetFromSelection({
++        change: this.props.change,
++        selection: this.props.ovenTrueSelectionLayer,
++        sequence: this.props.sequenceData && this.props.sequenceData.sequence,
++        forward: this.props.forward
++      });
+     }
+     componentDidMount() {
+       const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
+@@ -169668,7 +169941,7 @@
            {
              style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
            },
@@ -411,7 +503,7 @@
            " "
          ), /* @__PURE__ */ React$2.createElement(
            NumericInputField,
-@@ -169724,6 +169931,8 @@
+@@ -169724,6 +169997,8 @@
              sequenceLength,
              primerBindsOn,
              forward,
@@ -420,7 +512,7 @@
              linkedOligo: initialValues2.linkedOligo,
              useLinkedOligo,
              change: change2
-@@ -170224,9 +170433,14 @@
+@@ -170224,9 +170499,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -436,7 +528,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +170457,25 @@
+@@ -170243,7 +170523,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -463,7 +555,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170487,13 @@
+@@ -170255,21 +170553,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -488,7 +580,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170507,7 @@
+@@ -170283,7 +170573,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -497,7 +589,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170377,6 +170601,36 @@
+@@ -170377,6 +170667,36 @@
            className: classNames$1("bp3-input tg-custom-sequence-editable", {
              hasTempError
            }),
@@ -534,7 +626,7 @@
            onInput: emitChange,
            dangerouslySetInnerHTML: { __html: html2 }
          }
-@@ -170410,6 +170664,9 @@
+@@ -170410,6 +170730,9 @@
        bases,
        forward,
        defaultLinkedOligoMessage,
@@ -544,7 +636,7 @@
        change: change2
      } = props;
      let defaultValue2;
-@@ -170488,46 +170745,38 @@
+@@ -170488,46 +170811,29 @@
            defaultValue: bases != null ? bases : defaultValue2,
            name: "bases",
            label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
@@ -569,25 +661,7 @@
 -                  },
 -                  key: "forward",
 -                  text: "Forward"
-+              /*
-+               * PATCH (oven): one button, taking its orientation from the
-+               * Strand radio, instead of a Forward/Reverse dropdown.
-+               *
-+               * This is also the only thing that moves the binding site now.
-+               * The fields used to follow the selection on every mousemove,
-+               * which is what made dragging against an open panel expensive --
-+               * ~84 ms a pointer event against ~16 ms with nothing open. They
-+               * are set here instead, from the live selection, so a drag costs
-+               * nothing and a typed tail survives until you ask for it to be
-+               * replaced.
-+               */
-+              onClick: () => {
-+                const sel = ovenTrueSelectionLayer || {};
-+                if (typeof sel.start !== "number" || sel.start < 0 || sel.end < 0) {
-+                  return window.toastr && window.toastr.warning(
-+                    "Highlight a region in the sequence first"
-+                  );
-                 }
+-                }
 -              ), /* @__PURE__ */ React$2.createElement(
 -                MenuItem,
 -                {
@@ -607,18 +681,28 @@
 -                  text: "Reverse"
 -                }
 -              ))
-+                change2("start", sel.start + 1);
-+                change2("end", sel.end + 1);
-+                const bps = getSequenceWithinRange(
-+                  { start: sel.start, end: sel.end },
-+                  sequenceData2.sequence
-+                );
-+                change2("bases", forward ? bps : getReverseComplementSequenceString(bps));
-+              }
++              /*
++               * PATCH (oven): one button, taking its orientation from the
++               * Strand radio, instead of a Forward/Reverse dropdown.
++               *
++               * This is also the only thing that moves the binding site now.
++               * The fields used to follow the selection on every mousemove,
++               * which is what made dragging against an open panel expensive --
++               * ~84 ms a pointer event against ~16 ms with nothing open. They
++               * are set here instead, from the live selection, so a drag costs
++               * nothing and a typed tail survives until you ask for it to be
++               * replaced.
++               */
++              onClick: () => ovenSetFromSelection({
++                change: change2,
++                selection: ovenTrueSelectionLayer,
++                sequence: sequenceData2.sequence,
++                forward
++              })
              },
              "Set From Selection"
            )))
-@@ -170563,6 +170812,75 @@
+@@ -170563,6 +170869,75 @@
        RenderBases
      })
    });
@@ -694,7 +778,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180666,8 @@
+@@ -180348,6 +180723,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

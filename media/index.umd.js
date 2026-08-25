@@ -135583,7 +135583,7 @@ ${seq.sequence}
       readOnly: readOnly2 || editorState.readOnly,
       meta,
       annotationToAdd
-    }), newSelection && { selectionLayer: newSelection }), {
+    }), newSelection && !ovenKeepTrueSelection(annotationToAdd) && { selectionLayer: newSelection }), {
       /*
        * PATCH (oven): the user's actual selection.
        *
@@ -146440,6 +146440,45 @@ double click --> edit`}`;
   }
   __name(getYOffset, "getYOffset");
   const { ambiguous_dna_values } = bioData;
+  /*
+   * PATCH (oven): take the binding site and the bases from the live selection.
+   *
+   * Shared by New Primer's Set From Selection button and its Strand radio --
+   * flipping the strand has to re-read the bases, or the box is left holding
+   * the sequence of the other strand.
+   */
+  function ovenSetFromSelection({ change: change2, selection, sequence, forward }) {
+    const sel = selection || {};
+    if (typeof sel.start !== "number" || sel.start < 0 || sel.end < 0) {
+      return window.toastr && window.toastr.warning(
+        "Highlight a region in the sequence first"
+      );
+    }
+    change2("start", sel.start + 1);
+    change2("end", sel.end + 1);
+    const bps = getSequenceWithinRange({ start: sel.start, end: sel.end }, sequence);
+    change2("bases", forward ? bps : getReverseComplementSequenceString(bps));
+  }
+  __name(ovenSetFromSelection, "ovenSetFromSelection");
+  /*
+   * PATCH (oven): let the user's own selection stay visible.
+   *
+   * While an annotation form is open, the line this guards replaces
+   * selectionLayer with the pending annotation's range -- so the map shows the
+   * primer being built and nothing at all while you drag out a new region.
+   * With New Primer as a panel you can reach the sequence, and no feedback
+   * while dragging is worse than the pending primer briefly not being outlined:
+   * the primer is still drawn, because getSeqDataWithAnnToAdd puts it into the
+   * sequence data regardless. The stock dialogs keep the old behaviour, since
+   * nothing can be dragged underneath them anyway.
+   */
+  function ovenKeepTrueSelection(annotationToAdd) {
+    return Boolean(
+      annotationToAdd && annotationToAdd.formName === "AddOrEditPrimerDialog" &&
+      typeof window !== "undefined" && window.OveNewPrimer
+    );
+  }
+  __name(ovenKeepTrueSelection, "ovenKeepTrueSelection");
   function getStructuredBases({
     annotationRange,
     forward,
@@ -146601,9 +146640,18 @@ double click --> edit`}`;
           iTree.insert(xStart, xEnd, __spreadProps(__spreadValues({}, annotationRange), {
             yOffset
           }));
+          /*
+           * PATCH (oven): reserve what the tail mark actually occupies.
+           *
+           * getInsertPath draws it from -(5 + level*20) up to -(20 + level*20),
+           * so 15 + level*20 is short by exactly the 5px lead-in at every
+           * level. Above the sequence that only ate into the label gap and went
+           * unnoticed; below it, the mark of a reverse primer's 5' tail was
+           * drawn over the bottom-strand bases.
+           */
           basesToShow.extraHeight = Math.max(
             basesToShow.extraHeight,
-            15 + yOffset * 20
+            20 + yOffset * 20
           );
           const insertStart = (indexToUse - (forward ? aRange.start : aRange.end)) * (!forward && primerBindsOn === "5prime" ? -1 : 1);
           basesToShow.insertPaths += getInsertPath({
@@ -169688,6 +169736,24 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
         ));
       }, "renderLocations"));
     }
+    componentDidUpdate(prevProps) {
+      /*
+       * PATCH (oven): flipping Strand re-reads the bases from the selection.
+       *
+       * Otherwise the box keeps the sequence of the strand it was taken on,
+       * which is the opposite of what the primer now says it is. Gated on
+       * allowPrimerBasesToBeEdited so only the New Primer panel does this --
+       * the stock dialogs never pass it.
+       */
+      if (!this.props.allowPrimerBasesToBeEdited) return;
+      if (prevProps.forward === this.props.forward) return;
+      ovenSetFromSelection({
+        change: this.props.change,
+        selection: this.props.ovenTrueSelectionLayer,
+        sequence: this.props.sequenceData && this.props.sequenceData.sequence,
+        forward: this.props.forward
+      });
+    }
     componentDidMount() {
       const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
       this.notes = store$1(
@@ -170762,21 +170828,12 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
                * nothing and a typed tail survives until you ask for it to be
                * replaced.
                */
-              onClick: () => {
-                const sel = ovenTrueSelectionLayer || {};
-                if (typeof sel.start !== "number" || sel.start < 0 || sel.end < 0) {
-                  return window.toastr && window.toastr.warning(
-                    "Highlight a region in the sequence first"
-                  );
-                }
-                change2("start", sel.start + 1);
-                change2("end", sel.end + 1);
-                const bps = getSequenceWithinRange(
-                  { start: sel.start, end: sel.end },
-                  sequenceData2.sequence
-                );
-                change2("bases", forward ? bps : getReverseComplementSequenceString(bps));
-              }
+              onClick: () => ovenSetFromSelection({
+                change: change2,
+                selection: ovenTrueSelectionLayer,
+                sequence: sequenceData2.sequence,
+                forward
+              })
             },
             "Set From Selection"
           )))

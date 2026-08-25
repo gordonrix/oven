@@ -251,6 +251,9 @@ export default async function run(page) {
   };
 
   out.primersBefore = (await primers()).length;
+  // Read the binding site now: earlier sections move it, so an older value is
+  // not what this primer will be created at.
+  out.fieldsAtSave = (await fields(page)).textInputs.slice(1).join('..');
   await page.locator('.ovenp-root input[type=text]').first().fill('QA_PANEL_PRIMER');
   await page.waitForTimeout(300);
   await page.locator('.ovenp-root button', { hasText: 'Save' }).click();
@@ -263,9 +266,9 @@ export default async function run(page) {
     fail.push(`Save should add one primer: ${out.primersBefore} -> ${out.primersAfter}`);
   } else if (!out.created || out.created.name !== 'QA_PANEL_PRIMER') {
     fail.push(`the created primer kept the wrong name: ${JSON.stringify(out.created)}`);
-  } else if (out.created.start !== Number(out.fieldsAfterButton.split('..')[0]) - 1) {
+  } else if (out.created.start !== Number(out.fieldsAtSave.split('..')[0]) - 1) {
     // 1-based in the form, 0-based in the data.
-    fail.push(`created at ${out.created.start}, expected ${out.fieldsAfterButton}`);
+    fail.push(`created at ${out.created.start}, expected ${out.fieldsAtSave}`);
   } else if (out.hasBasesBox && out.created.bases !== out.basesWithTail) {
     // The whole point of a tail is that it survives to the ordered oligo, even
     // though the annotation itself only covers the annealing footprint.
@@ -313,6 +316,77 @@ export default async function run(page) {
   out.dialogFromMenu = await page.locator('.bp3-dialog').count();
   if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
   if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
+
+  /* --- flipping Strand re-reads the bases ---------------------------------- */
+
+  /*
+   * The strand decides which way Set From Selection reads the selection, so
+   * changing it has to re-read: otherwise the box keeps the sequence of the
+   * strand the primer no longer claims to be on.
+   */
+  const rcOf = (seq) => seq.split('').reverse()
+    .map((c) => ({ A: 'T', T: 'A', G: 'C', C: 'G' }[c] || c)).join('');
+  const boxNow = () => page.evaluate(() => {
+    const el = document.querySelector('.ovenp-root .tg-custom-sequence-editable');
+    return el ? el.textContent.trim() : null;
+  });
+  const setStrand = (fwd) => page.evaluate((f) =>
+    document.querySelector(`.ovenp-root input[type=radio][value="${f}"]`).click(), String(fwd));
+
+  // Its own selection: earlier sections leave whatever they left, and a single
+  // base is its own reverse complement often enough to prove nothing.
+  await dragOver(page, 40, 260);
+  await page.locator('.ovenp-root button', { hasText: 'Set From Selection' }).click();
+  await page.waitForTimeout(700);
+  out.strandForward = await boxNow();
+  if (!out.strandForward || out.strandForward.length < 5) {
+    fail.push(`expected a real selection to flip, got "${out.strandForward}"`);
+  }
+
+  await setStrand(false);
+  await page.waitForTimeout(900);
+  out.strandReverse = await boxNow();
+  if (out.strandReverse !== rcOf(out.strandForward)) {
+    fail.push(`flipping to Negative should give the reverse complement: ${out.strandReverse}`);
+  }
+
+  await setStrand(true);
+  await page.waitForTimeout(900);
+  out.strandBack = await boxNow();
+  if (out.strandBack !== out.strandForward) {
+    fail.push(`flipping back should restore the bases: ${out.strandBack}`);
+  }
+
+  /* --- the selection stays visible while a primer is being made ------------ */
+
+  /*
+   * mapStateToProps replaces selectionLayer with the pending annotation's range
+   * whenever an annotation form is open, so dragging out a new region showed no
+   * highlight at all -- only the primer being built. Harmless for the modal,
+   * which nothing can be dragged under; useless for a panel, where dragging is
+   * the point.
+   */
+  const highlight = () => page.evaluate(() => {
+    const n = document.querySelector('.veSelectionLayer.veRowViewSelectionLayer');
+    return n ? Math.round(n.getBoundingClientRect().width) : 0;
+  });
+  const seqBox2 = await page.locator('.veRowItemSequenceContainer').first().boundingBox();
+  const dragY = seqBox2.y + seqBox2.height / 2;
+  await page.mouse.move(seqBox2.x + 30, dragY);
+  await page.mouse.down();
+  await page.mouse.move(seqBox2.x + 200, dragY, { steps: 10 });
+  await page.waitForTimeout(400);
+  out.highlightEarly = await highlight();
+  await page.mouse.move(seqBox2.x + 450, dragY, { steps: 10 });
+  await page.waitForTimeout(400);
+  out.highlightLate = await highlight();
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+
+  if (!(out.highlightEarly > 20)) fail.push(`no highlight while dragging: ${out.highlightEarly}px`);
+  if (!(out.highlightLate > out.highlightEarly)) {
+    fail.push(`the highlight did not follow the drag: ${out.highlightEarly} then ${out.highlightLate}`);
+  }
 
   /* --- characters that are not bases never enter the box ------------------- */
 

@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.27.0
+
+**You can see what you are highlighting while making a primer.** With an annotation form open,
+`mapStateToProps` replaced `selectionLayer` with the pending annotation's own range, so
+dragging out a new region drew no highlight at all — only the primer being built. That was
+harmless for a modal, which nothing can be dragged under, and useless for a panel, where
+dragging is the point. The real selection is left alone for New Primer now; the primer is
+still drawn, because it goes into the sequence data regardless.
+
+**Flipping Strand re-reads the bases.** Positive/Negative now runs the same action as **Set
+From Selection**, so the box holds the sequence of the strand the primer actually claims —
+rather than keeping the other strand's until you press the button again.
+
+Also fixed: the reserved height for a primer's 5' tail marker was `15 + level*20` while the
+marker is drawn from `-(5 + level*20)` to `-(20 + level*20)` — short by the 5px lead-in at
+every level. Above the sequence that only ate into the label gap; below it, a reverse primer's
+marker had 5px less clearance than it needed.
+
 ## 1.26.2
 
 **Fixed: typing letters that are not bases into the New Primer bases box, then deleting them,
