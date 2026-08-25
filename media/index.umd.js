@@ -146651,7 +146651,7 @@ double click --> edit`}`;
            */
           basesToShow.extraHeight = Math.max(
             basesToShow.extraHeight,
-            20 + yOffset * 20
+            26 + yOffset * 20
           );
           const insertStart = (indexToUse - (forward ? aRange.start : aRange.end)) * (!forward && primerBindsOn === "5prime" ? -1 : 1);
           basesToShow.insertPaths += getInsertPath({
@@ -148293,7 +148293,11 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     translations: { spaceBetweenAnnotations: 2, marginTop: 5, height: 17 },
     chromatogram: { height: 134 },
     parts: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
-    primers: { spaceBetweenAnnotations: 2, marginTop: 5, height: 18 },
+    // PATCH (oven): 5 -> 9. The reverse primer track reads much tighter than
+    // the forward one, which has a labels container above it as well. Set here
+    // rather than in a stylesheet because OVE adds a tail marker's reserved
+    // height to this same margin, and a CSS override would discard that.
+    primers: { spaceBetweenAnnotations: 2, marginTop: 9, height: 18 },
     features: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
     warnings: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
     assemblyPieces: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },

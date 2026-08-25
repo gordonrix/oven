@@ -4,6 +4,23 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.27.1
+
+**Fixed: a reverse primer carrying a 5' tail was drawn across the bottom-strand letters.**
+
+The cause was our own spacing rule. Since 1.11 a stylesheet rule set the reverse primer
+track's `margin-top` to a flat 9px with `!important`, to stop reverse primers crowding the
+sequence. That margin is not a constant: a primer whose bases run past its binding site draws
+a tail marker that juts up out of its own track, and Open Vector Editor reserves room for it
+by *adding to that same margin*. Overriding it threw the reservation away, so the marker had
+nowhere to go but over the letters — visible only once tails existed, in 1.25.0.
+
+The spacing moved into the bundle instead (`rowHeights.primers.marginTop`, 5 → 9), where it
+composes with the reservation rather than replacing it. The reservation was also short: it
+allowed `15 + level*20` where the marker occupies 26px above its track.
+
+A reverse primer with a tail now clears the letters by 3px, where it used to overlap by 1.
+
 ## 1.27.0
 
 **You can see what you are highlighting while making a primer.** With an annotation form open,

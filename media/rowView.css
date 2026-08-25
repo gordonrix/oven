@@ -8,28 +8,13 @@
  */
 
 /*
- * Breathing room between the letters and the reverse-strand primers.
+ * The reverse-primer spacing that used to live here is now in the bundle --
+ * `rowHeights.primers.marginTop`, patched from 5 to 9.
  *
- * Both primer tracks carry the same class and get the same 5px margin, but the
- * forward one also has a labels container above it, so the bottom reads as much
- * tighter than the top. The two are told apart by position: the forward track is
- * always rendered before the letters, the reverse track always after.
- *
- * The margin goes on the track, deliberately, and not as padding on the letters.
- * media/strandBar.js derives the reverse strand-indicator bar's position from
- * `.veRowItemSequenceContainer`'s offsetHeight -- padding there would push the
- * bar off the letters it is supposed to be hugging. Margin on a later sibling
- * changes neither that offsetHeight nor its offsetTop.
- *
- * `!important` is required: the 5px is an inline style written by React, and an
- * inline style beats any stylesheet rule without it.
- *
- * Safe against the virtualised row list: ReactList measures each rendered row's
- * real offsetHeight and overwrites its arithmetic estimate, and rows are
- * block-flow siblings, so nothing can overlap. Only the estimate for rows never
- * yet scrolled to is short by this much, which is a scrollbar nicety and already
- * inexact upstream.
+ * It had to move. That margin is written inline by React and is not a constant:
+ * a primer whose bases run past its binding site draws a tail marker that juts
+ * up out of its own track, and OVE reserves room for it by adding to this very
+ * margin. Overriding margin-top from a stylesheet threw that reservation away,
+ * so the marker of a reverse primer's 5' tail was drawn across the
+ * bottom-strand letters -- this rule was itself the cause of that overlap.
  */
-.veRowItem .veRowItemSequenceContainer ~ .veRowViewPrimersContainer {
-  margin-top: 9px !important;
-}
