@@ -247,7 +247,7 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - Select a DNA file → **Open With → OVEN**, and set it as the default if you like
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
-- Search hits are marked with a light grey bar showing which strand they matched
+- Search hits are marked with a black bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
 - **Changing the New Primer shortcut:** `oven.newPrimerHotkey` — see [Settings](#settings),
   default `mod+shift+k` — `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+`, so

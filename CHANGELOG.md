@@ -4,6 +4,12 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.27.2
+
+The strand indicator — the bar marking which strand a search hit is on — is **black** rather
+than light grey, and sits **1px closer to the letters**, so it reads as belonging to that
+strand rather than floating between the two.
+
 ## 1.27.1
 
 **Fixed: a reverse primer carrying a 5' tail was drawn across the bottom-strand letters.**

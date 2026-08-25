@@ -15,7 +15,7 @@
 
 const CARET = 2;   // .veRowViewCaret width, the X of the spec
 const THICK = 6;   // 3X
-const BAR_RGB = 'rgb(189, 189, 189)';
+const BAR_RGB = 'rgb(0, 0, 0)';
 
 /*
  * Absent from the top strand of the fixture but present on the bottom, so Find
@@ -118,8 +118,9 @@ export default async function run(page) {
     if (b.content === 'none') fail.push('forward bar has no ::after');
     if (!near(b.height, THICK, 0.5)) fail.push(`forward bar is ${b.height}px thick, want ${THICK}`);
     if (b.layerOpacity !== 1) fail.push(`forward layer opacity ${b.layerOpacity}, the bar would be washed out`);
-    // Measured, not hardcoded: the bar's bottom edge meets the top of the letters.
-    if (!near(b.barTop + b.height, b.seqTop)) {
+    // Measured, not hardcoded. NUDGE overlaps the letters' box by 1px, so the
+    // bar's bottom edge lands just inside the top of the letters.
+    if (!near(b.barTop + b.height, b.seqTop + 1)) {
       fail.push(`forward bar bottom ${b.barTop + b.height} does not meet letters top ${b.seqTop}`);
     }
     if (/isTrueStart/.test(b.cls) && !near(b.left, CARET, 0.5)) {
@@ -152,7 +153,7 @@ export default async function run(page) {
   for (const b of out.reverse) {
     if (!/ove-strand-rev/.test(b.cls)) fail.push(`reverse reveal tagged ${b.cls}`);
     if (!near(b.height, THICK, 0.5)) fail.push(`reverse bar is ${b.height}px thick`);
-    if (!near(b.barTop, b.seqBottom)) {
+    if (!near(b.barTop, b.seqBottom - 1)) {
       fail.push(`reverse bar top ${b.barTop} does not meet letters bottom ${b.seqBottom}`);
     }
   }
@@ -205,8 +206,9 @@ export default async function run(page) {
       const seq = r.querySelector('.veRowItemSequenceContainer');
       return {
         published: r.style.getPropertyValue('--ovestrand-top'),
-        // 2px layer offset, 6px bar: what the value should be right now.
-        expected: seq ? `${seq.offsetTop - 4}px` : null
+        // 2px layer offset, 6px bar, 1px nudge towards the letters: what the
+        // value should be right now.
+        expected: seq ? `${seq.offsetTop - 3}px` : null
       };
     }));
   const stale = out.reflow.filter((r) => r.expected && r.published !== r.expected);

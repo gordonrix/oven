@@ -24,6 +24,9 @@
 
   const BAR_HEIGHT = 6;   // 3X, where X is the 2px caret width
   const LAYER_OFFSET = 2; // layers sit at top:-2px relative to the row
+  // Pulls the bar 1px towards the letters, so it reads as belonging to that
+  // strand rather than floating between the two.
+  const NUDGE = 1;
   const FIND_ROW_MS = 300;
 
   let rowView = null;
@@ -37,8 +40,8 @@
     // Protein and oligo views have no letters container; the CSS fallbacks apply.
     if (!seq || !seq.offsetHeight) return;
     const top = seq.offsetTop;
-    row.style.setProperty('--ovestrand-top', `${top + LAYER_OFFSET - BAR_HEIGHT}px`);
-    row.style.setProperty('--ovestrand-bottom', `${top + seq.offsetHeight + LAYER_OFFSET}px`);
+    row.style.setProperty('--ovestrand-top', `${top + LAYER_OFFSET - BAR_HEIGHT + NUDGE}px`);
+    row.style.setProperty('--ovestrand-bottom', `${top + seq.offsetHeight + LAYER_OFFSET - NUDGE}px`);
   }
 
   function measure() {
