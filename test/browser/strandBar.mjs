@@ -253,6 +253,37 @@ export default async function run(page) {
     }
   }
 
+  /* --- the bar sits under the annotation tracks ---------------------------- */
+
+  /*
+   * Stacking here is document order: every row child is position:relative with
+   * z-index auto, and the selection layer is the row's first child. So the bar
+   * paints under the primer and feature tracks as long as nothing gives it an
+   * explicit z-index -- which it used to have, and which put it across any
+   * primer drawn over the same bases.
+   */
+  out.stacking = await page.evaluate(() => {
+    const layer = document.querySelector('.veRowView .veSearchLayer.notCaret, .veRowView .ove-strand-rev.notCaret, .veRowView .ove-strand-fwd.notCaret');
+    if (!layer) return null;
+    const row = layer.closest('.veRowItem');
+    const kids = [...row.children];
+    const layerAt = kids.findIndex((n) => n === layer || n.contains(layer));
+    const trackAt = kids.findIndex((n) => /PrimersContainer|FeaturesContainer/.test(n.className));
+    return {
+      barZ: getComputedStyle(layer, '::after').zIndex,
+      layerAt,
+      trackAt
+    };
+  });
+  if (out.stacking) {
+    if (out.stacking.barZ !== 'auto') {
+      fail.push(`the bar has z-index ${out.stacking.barZ}; that lifts it over the primer track`);
+    }
+    if (out.stacking.trackAt >= 0 && !(out.stacking.layerAt < out.stacking.trackAt)) {
+      fail.push(`selection layer at ${out.stacking.layerAt} is not before the track at ${out.stacking.trackAt}`);
+    }
+  }
+
   out.failures = fail;
   out.ok = fail.length === 0;
   return out;

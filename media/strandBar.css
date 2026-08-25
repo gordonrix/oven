@@ -40,7 +40,13 @@
   right: 0;
   background: #555;
   pointer-events: none;
-  z-index: 11;
+  /*
+   * No z-index, deliberately. The selection layer is the row's first child and
+   * every track after it stacks by document order, so leaving the bar in that
+   * order puts it behind the primers and features drawn over the same rows --
+   * which is what stops it cutting across a primer that happens to sit there.
+   * An explicit z-index here lifted it above all of them.
+   */
   /*
    * Undoing OVE's bottom-strand triangle, which lives on this same ::after as
    * a zero-sized box with 15px borders. Repositioning it is not enough --

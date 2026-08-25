@@ -4,6 +4,15 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.28.2
+
+The strand indicator now sits **behind** the primer and feature tracks instead of over them,
+so it no longer cuts across a primer drawn on the same bases. Same position, same colour.
+
+Stacking in a row is document order — every child is `position: relative` with `z-index: auto`,
+and the selection layer is the row's first child — so this was only a matter of dropping the
+explicit `z-index` that had been lifting the bar above everything.
+
 ## 1.28.1
 
 The strand indicator is dark grey (`#555`) rather than black — the same weight against the

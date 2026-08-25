@@ -108,7 +108,14 @@
       });
       document.addEventListener('__select', (e) => {
         window.__oveEditor.updateEditor({
-          selectionLayer: { start: e.detail.start, end: e.detail.end }, caretPosition: -1
+          selectionLayer: {
+            start: e.detail.start,
+            end: e.detail.end,
+            // Carries the strand class our reveal uses, so a test can put a
+            // strand bar over a known primer.
+            ...(e.detail.className ? { className: e.detail.className } : {})
+          },
+          caretPosition: -1
         });
       });
     </script>
