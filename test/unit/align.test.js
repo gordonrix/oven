@@ -236,3 +236,69 @@ test('a missing MAFFT is reported as something the user can act on', async () =>
     }
   );
 });
+
+/*
+ * A read that wraps the origin covers an arc crossing 0, so against a reference
+ * drawn from 0 its two halves land at opposite ends and the arc it never saw
+ * sits between them. That is absence of coverage, exactly like the leading and
+ * trailing gaps already discounted -- but it is interior, so it was counted as
+ * a deletion and the read came back red.
+ *
+ * No rotation fixes it: the uncovered arc is in the middle whichever base is
+ * called first. Rotating only helps a read that covers the whole plasmid.
+ *
+ * Found on a real 3076 bp read of a 3889 bp plasmid overhanging the origin by
+ * 126 bp: 0 substitutions, 100% identity, reported as a mismatch.
+ */
+/*
+ * The wrap itself has to be detected first, and that test used to scale with
+ * the read: the second diagonal needed 5% of the read's seeds. The tail past
+ * the origin is however long the overhang happens to be, which has nothing to
+ * do with read length -- 126 bp of a 3076 bp read put 22 seeds on the wrap
+ * diagonal where 30 were demanded, so the wrap was missed entirely.
+ */
+test('a short wrap is detected however long the read is', () => {
+  // Deterministic and non-repetitive: a repeated motif would make k-mers
+  // ambiguous and send seeds to the wrong diagonal, which is a property of the
+  // fixture rather than of the code under test.
+  let seed = 7;
+  const ref = Array.from({ length: 400 }, () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    // High bits: an LCG's low bits are strongly periodic, which would make
+    // the sequence repeat and the k-mers ambiguous.
+    return 'ACGT'[(seed >>> 16) % 4];
+  }).join('');
+  // Starts most of the way in and runs 40 bp past the origin: a short wrap on
+  // a long read, which is exactly what the proportional rule could not see.
+  const from = 340;
+  const read = ref.slice(from) + ref.slice(0, 40);
+  const hit = anchor(ref, read, { k: 12, circular: true });
+  assert.ok(hit, 'the read should anchor at all');
+  assert.strictEqual(hit.wraps, true, 'the overhang past the origin is a wrap');
+  assert.strictEqual(hit.offset, from);
+});
+
+test('a wrapping read is not charged for the arc it never covered', () => {
+  const ref = 'AAAACCCCGGGGTTTT';
+
+  const wrapped = countDifferences(ref, 'AAAA--------TTTT', { wraps: true });
+  assert.strictEqual(wrapped.gaps, 0, 'the uncovered arc is coverage, not a deletion');
+  assert.strictEqual(wrapped.substitutions, 0);
+  assert.strictEqual(wrapped.compared, 8);
+
+  // The identical shape from a read that does not wrap is a real 8 bp deletion.
+  const deletion = countDifferences(ref, 'AAAA--------TTTT');
+  assert.strictEqual(deletion.gaps, 8);
+});
+
+test('a wrapping read still reports its real differences', () => {
+  // Only the longest run is coverage; a separate deletion stays counted.
+  const alsoDeleted = countDifferences(
+    'AAAACCCCGGGGTTTTAAAA', 'AAAA--------TT-TAAAA', { wraps: true });
+  assert.strictEqual(alsoDeleted.gaps, 1);
+
+  const substituted = countDifferences(
+    'AAAACCCCGGGGTTTT', 'AAAG--------TTTT', { wraps: true });
+  assert.strictEqual(substituted.substitutions, 1);
+  assert.strictEqual(substituted.gaps, 0);
+});

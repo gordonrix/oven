@@ -4,6 +4,30 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.28.0
+
+**Fixed: a read overhanging the origin came back as a mismatch when it matched perfectly.**
+Two separate faults, both only reachable by a read that wraps and does *not* cover the whole
+plasmid. The reference origin is untouched by either.
+
+**The wrap was not detected.** The second diagonal had to carry 5% of the read's seeds — a
+share of the *read*, when the tail past the origin is however long the overhang happens to
+be. A 3076 bp read of a 3889 bp plasmid overhanging by 126 bp put 22 seeds on the wrap
+diagonal against a threshold of 30, so the wrap was missed and the read never rotated. The
+test is now a flat three seeds, which exact 20-mers landing one reference length from the
+start diagonal make convincing on their own.
+
+**The arc the read never covered was counted as a deletion.** A wrapping read covers an arc
+crossing 0, so against a reference drawn from 0 its two halves land at opposite ends and the
+part it never saw sits *between* them — interior by position, but absence of coverage all the
+same, exactly like the leading and trailing gaps already discounted. No rotation fixes this:
+the uncovered arc is in the middle whichever base is called first, which is why rotating alone
+was never enough. Only the longest such run is discounted, so a real deletion elsewhere in the
+read stays counted.
+
+On the read that prompted this: **0 substitutions, 0 gaps, 100% identity, "partial match"**,
+where it previously read 126 gapped columns and "mismatch".
+
 ## 1.27.2
 
 The strand indicator — the bar marking which strand a search hit is on — is **black** rather

@@ -58,7 +58,24 @@ function buildIndex(seq, k) {
  * two cases never get confused.
  */
 const WRAP_SLOP = 100;
-const WRAP_MIN_SUPPORT = 0.05;
+/*
+ * How many seeds the second diagonal needs, as a flat count rather than a share
+ * of the read's total.
+ *
+ * A share is the wrong shape for this test: the tail past the origin is however
+ * long the read happens to overhang by, which has nothing to do with how long
+ * the read is. A 3076 bp read of a 3889 bp plasmid overhanging by 126 bp puts
+ * ~22 seeds on the wrap diagonal against 587 on the main one -- real, exact,
+ * and unreachable under a 5% rule that wanted 30. The wrap went undetected, the
+ * read was never rotated, and the overhang came back as a block of mismatches.
+ *
+ * A flat count is safe here because the seeds are exact 20-mers landing on a
+ * diagonal exactly one reference length from the start diagonal. Three of those
+ * agreeing is not something noise produces; a chance 20-mer hit in a few
+ * kilobases is already unlikely, and three of them collinear at precisely that
+ * offset far more so.
+ */
+const WRAP_MIN_SEEDS = 3;
 
 /** Median of the diagonals of the earliest seeds -- i.e. where the read starts. */
 const START_SAMPLE = 9;
@@ -115,9 +132,8 @@ function anchor(reference, read, { k = DEFAULT_K, circular = true } = {}) {
 
   let wraps = false;
   if (circular) {
-    const support = Math.max(1, Math.floor(best.total * WRAP_MIN_SUPPORT));
     for (const [d, n] of best.votes) {
-      if (n < support) continue;
+      if (n < WRAP_MIN_SEEDS) continue;
       if (Math.abs(startDiagonal - d - len) <= WRAP_SLOP) { wraps = true; break; }
     }
   }
@@ -249,15 +265,49 @@ function splitPairs(aligned) {
 }
 
 /** Substitutions and gapped columns between two equal-length aligned rows. */
-function countDifferences(referenceRow, readRow) {
+/**
+ * The longest run of columns the read does not cover, inside its own span.
+ *
+ * Only meaningful for a read that wraps the origin. Such a read covers an arc
+ * that crosses 0, so against a reference drawn from 0 its two halves land at
+ * opposite ends and the part it never saw sits *between* them -- interior by
+ * position, but absence of coverage all the same, exactly like the leading and
+ * trailing gaps already discounted. No rotation of the read can change that:
+ * the uncovered arc is in the middle whichever base is called first, which is
+ * why rotating alone never fixed these.
+ *
+ * The longest such run, not all of them: a real deletion elsewhere in the read
+ * is a separate, shorter run and stays counted.
+ */
+function coverageGapRun(referenceRow, readRow, from, to) {
+  let best = { at: -1, len: 0 };
+  let runStart = -1;
+  for (let i = from; i <= to + 1; i++) {
+    const isGap = i <= to && readRow[i] === '-' && referenceRow[i] !== '-';
+    if (isGap) {
+      if (runStart < 0) runStart = i;
+    } else if (runStart >= 0) {
+      if (i - runStart > best.len) best = { at: runStart, len: i - runStart };
+      runStart = -1;
+    }
+  }
+  return best;
+}
+
+function countDifferences(referenceRow, readRow, opts = {}) {
   let substitutions = 0;
   let gaps = 0;
   let compared = 0;
   const start = readRow.search(/[^-]/);
   const end = readRow.length - 1 - String(readRow).split('').reverse().join('').search(/[^-]/);
+  // For a wrapping read, discount the arc it never covered (see above).
+  const uncovered = opts.wraps && start >= 0
+    ? coverageGapRun(referenceRow, readRow, start, end)
+    : { at: -1, len: 0 };
   for (let i = 0; i < referenceRow.length; i++) {
     // Leading and trailing gaps are absence of coverage, not disagreement.
     if (start < 0 || i < start || i > end) continue;
+    if (uncovered.len && i >= uncovered.at && i < uncovered.at + uncovered.len) continue;
     const r = referenceRow[i];
     const q = readRow[i];
     if (r === '-' || q === '-') { gaps++; continue; }
@@ -442,7 +492,7 @@ async function align(reference, reads, opts = {}) {
         sequence: p.sequence,
         referenceRow: pair.referenceRow,
         readRow: pair.readRow,
-        ...countDifferences(pair.referenceRow, pair.readRow)
+        ...countDifferences(pair.referenceRow, pair.readRow, { wraps: Boolean(p.rotation) })
       };
     })
   };
