@@ -314,6 +314,43 @@ export default async function run(page) {
   if (out.panelFromMenu !== 1) fail.push('Create > New Primer did not open the panel');
   if (out.dialogFromMenu) fail.push('Create > New Primer still opens the modal');
 
+  /* --- a primer over the origin is not all mismatches ---------------------- */
+
+  /*
+   * getStructuredBases compared each base against fullSequence[i + start]
+   * without wrapping, so on a circular sequence every base past the origin
+   * indexed off the end of the string, read undefined, and was marked as not
+   * matching -- red from the origin onwards, and exactly one stray red base for
+   * a primer crossing by one. veNormOffset was already applied to aRange just
+   * above; the comparison was missed.
+   */
+  const setSelection = (s2, e2) => page.evaluate(([a2, b2]) =>
+    document.dispatchEvent(new CustomEvent('__updateEditor', {
+      detail: { selectionLayer: { start: a2, end: b2 }, caretPosition: -1 } })), [s2, e2]);
+  const markedRun = () => page.evaluate(() =>
+    [...document.querySelectorAll('.ovenp-root .tg-custom-sequence-editable span')]
+      .map((n) => n.textContent + (n.className.includes('no-match') ? '*' : '')).join(''));
+
+  out.origin = {};
+  for (const [label, fwd] of [['forward', 'true'], ['reverse', 'false']]) {
+    // 470..12 on the 480 bp fixture, so it runs over the origin.
+    await setSelection(470, 12);
+    await page.waitForTimeout(400);
+    await page.evaluate((f) =>
+      document.querySelector(`.ovenp-root input[type=radio][value="${f}"]`).click(), fwd);
+    await page.waitForTimeout(300);
+    await page.locator('.ovenp-root button', { hasText: 'Set From Selection' }).click();
+    await page.waitForTimeout(700);
+    const run = await markedRun();
+    out.origin[label] = run;
+    if (run.includes('*')) {
+      fail.push(`${label} primer over the origin flags matching bases: ${run}`);
+    }
+  }
+  await page.evaluate(() =>
+    document.querySelector('.ovenp-root input[type=radio][value="true"]').click());
+  await page.waitForTimeout(300);
+
   /* --- the tab closes from its own cross ----------------------------------- */
 
   /*

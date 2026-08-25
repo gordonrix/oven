@@ -146504,7 +146504,18 @@ double click --> edit`}`;
     );
     r2.basesNoInsertsWithMetaData = basesForRange.split("").map((b3, i2) => {
       var _a2, _b2;
-      const indexOfBase = i2 + annotationRange.start;
+      /*
+       * PATCH (oven): wrap the index at the origin.
+       *
+       * Unwrapped, any base of a primer that runs past the end of a circular
+       * sequence indexes off the end of the string, reads undefined, and is
+       * marked as not matching the template -- so a primer over the origin
+       * shows red from the origin onwards, and one that crosses by a single
+       * base shows exactly one red base that plainly does match. veNormOffset
+       * above already does this for aRange; the comparison was left out.
+       */
+      const rawIndexOfBase = i2 + annotationRange.start;
+      const indexOfBase = veNormOffset(rawIndexOfBase);
       let seqForBase = fullSequence && fullSequence[indexOfBase] || "";
       if (!forward) {
         seqForBase = getComplementSequenceString(seqForBase);

@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.26.1
+
+**Fixed: a primer that runs over the origin showed matching bases as mismatches.** In the New
+Primer bases box, each base is compared against the template at its own index — and that index
+was never wrapped. On a circular sequence every base past the origin therefore indexed off the
+end of the string, read `undefined`, and was marked as not matching. A primer crossing the
+origin showed red from the origin onwards; one crossing by a single base showed exactly one
+stray red base that plainly did match.
+
+`getStructuredBases` already normalises the offsets it uses to slice the bases — the
+comparison was simply left out of that. Both are wrapped now.
+
 ## 1.26.0
 
 **The New Primer fields no longer follow the selection — **Set From Selection** moves them.**
