@@ -245,6 +245,9 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 ## Other
 
 - Select a DNA file → **Open With → OVEN**, and set it as the default if you like
+- Sequences open with the **Circular Map** in a tab on the right, beside the sequence.
+  `oven.viewType` changes that: `sequence` or `circular` for a single pane with the other
+  as a tab you switch to. **Reopen the file** for a change to take effect
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a dark grey bar showing which strand they matched

@@ -28,7 +28,8 @@ function viewType() {
   const own = cfg().get('viewType');
   if (own) return own;
   const legacy = vs().workspace.getConfiguration('openvectoreditor').get('viewType');
-  return legacy || 'sequence';
+  // Keep in step with the declared default of oven.viewType in package.json.
+  return legacy || 'split';
 }
 
 /** Expand ~ and ${workspaceFolder} in a user-supplied path setting. */

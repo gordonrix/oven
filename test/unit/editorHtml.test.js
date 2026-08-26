@@ -10,7 +10,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { buildEditorHtml } = require('../../src/editorHtml');
+const { buildEditorHtml, panelsShown } = require('../../src/editorHtml');
 
 const OPTS = {
   styleUri: 'ove.css', scriptUri: 'index.umd.js', cartCssUri: 'c.css', searchCssUri: 's.css',
@@ -83,3 +83,40 @@ test('the button row is the three panels, in order', () => {
   assert.deepStrictEqual(labels, ['Align', 'Primer Search', 'Primer Cart']);
 });
 
+/*
+ * The panel layout, which is what oven.viewType selects between. Groups are laid
+ * out left to right, so the order of the outer array is the order on screen --
+ * an easy thing to swap by accident, and nothing else would fail if it were.
+ */
+
+/** The ids in each group, in order, from the JS literal panelsShown returns. */
+function groups(viewType) {
+  return new Function(`return ${panelsShown(viewType)}`)()
+    .map((group) => group.map((panel) => panel.id));
+}
+
+/** The id of the tab that opens active, per group. */
+function activeIds(viewType) {
+  return new Function(`return ${panelsShown(viewType)}`)()
+    .map((group) => (group.find((panel) => panel.active) || {}).id || null);
+}
+
+test('split puts the sequence on the left and the circular map on the right', () => {
+  assert.deepStrictEqual(groups('split'), [['sequence', 'properties'], ['circular']]);
+  // Both halves show something without a click.
+  assert.deepStrictEqual(activeIds('split'), ['sequence', 'circular']);
+});
+
+test('the single-pane view types put everything in one group', () => {
+  for (const viewType of ['sequence', 'circular']) {
+    assert.strictEqual(groups(viewType).length, 1, `${viewType} should not split`);
+    assert.deepStrictEqual(groups(viewType)[0], ['sequence', 'circular', 'properties']);
+  }
+  // Each names its own tab as the one to open on.
+  assert.deepStrictEqual(activeIds('sequence'), ['sequence']);
+  assert.deepStrictEqual(activeIds('circular'), ['circular']);
+});
+
+test('an unknown view type falls back to a single pane rather than nothing', () => {
+  assert.strictEqual(groups('nonsense').length, 1);
+});

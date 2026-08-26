@@ -4,6 +4,19 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.32.0
+
+**Sequences now open split, with the Circular Map in a tab on the right.** `oven.viewType`
+defaults to `split` instead of `sequence`; `sequence` and `circular` still give a single pane
+with the other view as a tab.
+
+The `split` layout itself was the other way round — circular on the left, sequence on the
+right — which put the thing you read and edit in the right-hand half. Panel groups are laid
+out left to right, so this is the order of the outer array, and nothing pinned it until now.
+
+Properties stays with the sequence rather than beside the map, so the left group has
+something to switch between.
+
 ## 1.31.1
 
 One way in. The toolbar button, the right-click entry and `⌘⌥F` all call the same

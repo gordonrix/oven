@@ -6,13 +6,22 @@
  * Returned as a JS literal because it goes straight into the inline script.
  */
 function panelsShown(viewTypeConfig) {
+  /*
+   * Groups are laid out left to right, so the sequence group comes first and the
+   * circular map sits in a tab on the right. It used to be the other way round,
+   * which put the thing you read and edit in the right-hand half.
+   *
+   * Properties stays with the sequence rather than beside the map: it is a form
+   * about the sequence, and pairing it with the map would leave the left group
+   * with a single tab and nothing to switch between.
+   */
   if (viewTypeConfig === 'split') {
     return `[
-            [ { id: "circular", name: "Circular Map", active: true } ],
             [
               { id: "sequence", name: "Sequence Map", active: true },
               { id: "properties", name: "Properties", active: false }
-            ]
+            ],
+            [ { id: "circular", name: "Circular Map", active: true } ]
           ]`;
   }
 

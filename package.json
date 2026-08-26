@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN — Open Vector Editor with New Features",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.31.1",
+  "version": "1.32.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -147,7 +147,7 @@
       "properties": {
         "oven.viewType": {
           "type": "string",
-          "default": "sequence",
+          "default": "split",
           "description": "Default view type when a sequence is opened.",
           "enum": [
             "sequence",
@@ -157,7 +157,7 @@
           "enumDescriptions": [
             "Show sequence only.",
             "Show circular map only.",
-            "Show sequence and circular map."
+            "Show the sequence, with the circular map in a tab on the right."
           ]
         },
         "oven.readOnly": {
