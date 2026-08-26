@@ -4,6 +4,30 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.29.0
+
+**Shortcuts for the copy variants**, shown next to the entries in the right-click menu and
+listed in **View Editor Hotkeys**:
+
+| | |
+|---|---|
+| Copy | `⌘C` — always worked, was never labelled |
+| Copy Reverse Complement | `⌘⌥R` |
+| Copy AA Sequence | `⌘⌥⇧T` |
+| Copy Reverse Complement AA Sequence | `⌘⌥⇧R` |
+
+**Not the bindings originally asked for**, because VS Code has all three: `⌘⇧C` opens an
+external terminal, `⌘⌥C` copies the file path, `⌘⌥⇧C` copies the relative path. All are
+workbench commands, resolved before a webview sees the key, so they could not have worked.
+Checked against VS Code's own compiled keybindings rather than from memory. Of the
+replacements, `⌘⌥R` is bound upstream only while the Find widget is visible, and the two
+`⌘⌥⇧` forms are unbound anywhere.
+
+These were previously right-click entries built as one-off handlers over a closure on the
+editor component, which a hotkey had no way to reach. They are commands now — which is what
+gives them both a binding and a place in the hotkey dialog, since both are built from the
+command definitions.
+
 ## 1.28.2
 
 The strand indicator now sits **behind** the primer and feature tracks instead of over them,

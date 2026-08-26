@@ -127,6 +127,7 @@
     <script id="editorState" type="application/json">{}</script>
     <script id="posted" type="application/json">[]</script>
     <script id="rightClick" type="application/json">{}</script>
+    <script id="copyLog" type="application/json">[]</script>
     <span id="saved" hidden>0</span>
     <pre id="aaError" style="display:none"></pre>
     <script>
@@ -162,6 +163,25 @@
       // can reach the DOM but not these globals.
       document.addEventListener('__openNewPrimer', () => window.OveNewPrimer.open());
       document.addEventListener('__closeNewPrimer', () => window.OveNewPrimer.hidePanel());
+      /*
+       * Records what the editor puts on the clipboard. Installed from here
+       * rather than from a test: the driver evaluates in an isolated world, so
+       * patching navigator.clipboard there patches a different object. The real
+       * write still runs, and is allowed to fail -- a headless browser refuses
+       * it without a user gesture.
+       */
+      document.addEventListener('__captureCopies', () => {
+        if (window.__copiesCaptured) return;
+        window.__copiesCaptured = true;
+        const log = document.getElementById('copyLog');
+        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = (text) => {
+          const arr = JSON.parse(log.textContent || '[]');
+          arr.push(String(text));
+          log.textContent = JSON.stringify(arr);
+          return orig(text).catch(() => {});
+        };
+      });
     </script>
   </body>
 </html>

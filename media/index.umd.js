@@ -150778,6 +150778,58 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
   const readOnlyDisabledTooltip = "Sorry this function is not allowed in Read-Only Mode";
   const bpEditingDisabledTooltip = "Sequence Editing Disabled";
   const noSelection = /* @__PURE__ */ __name(({ selectionLayer: selectionLayer2 = {} }) => !(selectionLayer2.start > -1 && selectionLayer2.end > -1) && "Selection Required", "noSelection");
+  /*
+   * PATCH (oven): copy variants on hotkeys.
+   *
+   * The right-click menu builds these as one-off onClick handlers over
+   * makeTextCopyable, which closes over the editor component -- unreachable
+   * from a command definition, which only gets props. Rather than duplicate
+   * the copy pipeline, a command sets the transform here and triggers an
+   * ordinary copy; handleCutOrCopy picks it up and applies it to exactly the
+   * data the menu item would have used, so the two routes cannot diverge.
+   */
+  let ovenPendingCopy = null;
+  const OVEN_COPY_TRANSFORMS = {
+    reverseComplement: (sel) => getReverseComplementSequenceAndAnnoations(sel),
+    // isProtein rather than "has a proteinSequence": the menu items branch on
+    // the editor being a protein editor, and matching that keeps the hotkey and
+    // the menu entry producing the same text.
+    translation: (sel) => __spreadProps(__spreadValues({}, sel), {
+      textToCopy: sel.isProtein
+        ? String(sel.proteinSequence || "").toUpperCase()
+        : getAminoAcidStringFromSequenceString(sel.sequence)
+    }),
+    reverseComplementTranslation: (sel) => {
+      const rev = getReverseComplementSequenceAndAnnoations(sel);
+      return __spreadProps(__spreadValues({}, rev), {
+        textToCopy: rev.isProtein
+          ? String(rev.proteinSequence || "").toUpperCase()
+          : getAminoAcidStringFromSequenceString(rev.sequence)
+      });
+    }
+  };
+  const OVEN_COPY_HOTKEYS = {
+    copy: "mod+c",
+    reverseComplement: "mod+alt+r",
+    translation: "mod+alt+shift+t",
+    reverseComplementTranslation: "mod+alt+shift+r"
+  };
+  /** "mod+alt+r" -> "⌘⌥R" on a Mac, "Ctrl+Alt+R" elsewhere. */
+  function ovenHotkeyLabel(combo) {
+    const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "");
+    return String(combo || "").split("+").map((part) => {
+      const p2 = part.trim().toLowerCase();
+      if (p2 === "mod") return mac ? "\u2318" : "Ctrl";
+      if (p2 === "shift") return mac ? "\u21e7" : "Shift";
+      if (p2 === "alt" || p2 === "option") return mac ? "\u2325" : "Alt";
+      return p2.toUpperCase();
+    }).join(mac ? "" : "+");
+  }
+  __name(ovenHotkeyLabel, "ovenHotkeyLabel");
+  const ovenCopyVariant = /* @__PURE__ */ __name((kind, props) => {
+    ovenPendingCopy = OVEN_COPY_TRANSFORMS[kind];
+    triggerClipboardCommand("copy", props);
+  }, "ovenCopyVariant");
   const triggerClipboardCommand = /* @__PURE__ */ __name((type2, props) => {
     const wrapper = document.querySelector(
       `.${props.editorName} .veVectorInteractionWrapper`
@@ -150833,6 +150885,38 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       isDisabled: (props) => props.sequenceLength === 0,
       handler: (props) => triggerClipboardCommand("copy", props),
       hotkey: "mod+c"
+    },
+    /*
+     * PATCH (oven): the copy variants the right-click menu already offers,
+     * as commands -- which is what gives them hotkeys and an entry in View
+     * Editor Hotkeys, both built from the command definitions.
+     *
+     * The bindings are picked against VS Code's own, which resolves its
+     * keybindings before a webview sees the key. mod+alt+r is bound upstream
+     * only while the Find widget is visible; the two mod+alt+shift forms are
+     * unbound anywhere. The obvious mod+shift+c, mod+alt+c and mod+alt+shift+c
+     * are all taken -- external terminal, copy path, copy relative path.
+     */
+    copyReverseComplement: {
+      name: "Copy Reverse Complement",
+      isDisabled: (props) => props.sequenceLength === 0,
+      handler: (props) => ovenCopyVariant("reverseComplement", props),
+      hotkey: OVEN_COPY_HOTKEYS.reverseComplement,
+      hotkeyProps: { preventDefault: true }
+    },
+    copyTranslation: {
+      name: "Copy AA Sequence",
+      isDisabled: (props) => props.sequenceLength === 0,
+      handler: (props) => ovenCopyVariant("translation", props),
+      hotkey: OVEN_COPY_HOTKEYS.translation,
+      hotkeyProps: { preventDefault: true }
+    },
+    copyReverseComplementTranslation: {
+      name: "Copy Reverse Complement AA Sequence",
+      isDisabled: (props) => props.sequenceLength === 0,
+      handler: (props) => ovenCopyVariant("reverseComplementTranslation", props),
+      hotkey: OVEN_COPY_HOTKEYS.reverseComplementTranslation,
+      hotkeyProps: { preventDefault: true }
     },
     paste: {
       isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip,
@@ -152920,6 +153004,33 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             readOnly: readOnly2
           } = this.props;
           const onCut = this.props.onCut || this.props.onCopy || noop$8;
+          /*
+           * PATCH (oven): a copy variant triggered from a hotkey. The command
+           * parked its transform; apply it to the same selected data the menu
+           * item would have used, then let the rest of this run unchanged.
+           * Cleared either way, so a plain copy afterwards is a plain copy.
+           */
+          if (!isCut && ovenPendingCopy) {
+            const ovenTransform = ovenPendingCopy;
+            ovenPendingCopy = null;
+            this.sequenceDataToCopy = ovenTransform(
+              getSequenceDataBetweenRange(
+                sequenceData2,
+                getSelFromWrappedAddon(selectionLayer2, sequenceData2.sequence.length),
+                {
+                  excludePartial: {
+                    features: !copyOptions2.partialFeatures,
+                    parts: !copyOptions2.partialParts
+                  },
+                  exclude: {
+                    features: !copyOptions2.features,
+                    parts: !copyOptions2.parts
+                  }
+                }
+              ),
+              sequenceData2
+            );
+          }
           const seqData = tidyUpSequenceData(
             this.sequenceDataToCopy || getSequenceDataBetweenRange(
               sequenceData2,
@@ -153217,6 +153328,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           }, "makeTextCopyable");
           const aaCopy = {
             text: "Copy AA Sequence",
+            label: ovenHotkeyLabel(OVEN_COPY_HOTKEYS.translation),
             className: "openVeCopyAA",
             onClick: makeTextCopyable((selectedSeqData) => __spreadProps(__spreadValues({}, selectedSeqData), {
               textToCopy: isProtein2 ? selectedSeqData.proteinSequence.toUpperCase() : getAminoAcidStringFromSequenceString(selectedSeqData.sequence)
@@ -153239,6 +153351,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
                 ...isProtein2 ? [aaCopy] : [],
                 {
                   text: isProtein2 ? "Copy DNA Bps" : "Copy",
+                  // PATCH (oven): show the binding beside the entry.
+                  label: ovenHotkeyLabel(OVEN_COPY_HOTKEYS.copy),
                   className: "openVeCopy2",
                   onClick: makeTextCopyable((s2) => __spreadProps(__spreadValues({}, s2), {
                     textToCopy: s2.sequence
@@ -153251,6 +153365,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
                 },
                 {
                   text: isProtein2 ? "Copy Reverse Complement DNA Bps" : "Copy Reverse Complement",
+                  label: ovenHotkeyLabel(OVEN_COPY_HOTKEYS.reverseComplement),
                   className: "openVeCopyReverse",
                   onClick: makeTextCopyable(
                     getReverseComplementSequenceAndAnnoations
@@ -153259,6 +153374,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
                 ...isProtein2 ? [] : [aaCopy],
                 {
                   text: "Copy Reverse Complement AA Sequence",
+                  label: ovenHotkeyLabel(OVEN_COPY_HOTKEYS.reverseComplementTranslation),
                   className: "openVeCopyAAReverse",
                   onClick: makeTextCopyable((selectedSeqData) => {
                     const revSeqData = getReverseComplementSequenceAndAnnoations(selectedSeqData);
