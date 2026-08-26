@@ -411,7 +411,7 @@
      features: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
      warnings: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
      assemblyPieces: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
-@@ -150557,6 +150778,58 @@
+@@ -150557,6 +150778,68 @@
    const readOnlyDisabledTooltip = "Sorry this function is not allowed in Read-Only Mode";
    const bpEditingDisabledTooltip = "Sequence Editing Disabled";
    const noSelection = /* @__PURE__ */ __name(({ selectionLayer: selectionLayer2 = {} }) => !(selectionLayer2.start > -1 && selectionLayer2.end > -1) && "Selection Required", "noSelection");
@@ -445,11 +445,21 @@
 +      });
 +    }
 +  };
++  /*
++   * Three keys at most, and each checked in a real editor rather than only
++   * against VS Code's compiled keybindings -- that scan has false negatives, it
++   * reports the Command Palette's own cmd+shift+p as unbound.
++   *
++   * Avoided: cmd+shift+c, cmd+alt+c and cmd+alt+shift+c, which VS Code uses for
++   * the external terminal, Copy Path and Copy Relative Path. The two path ones
++   * are worth naming because they look free -- they copy silently, so nothing
++   * visible happens when the workbench swallows the key.
++   */
 +  const OVEN_COPY_HOTKEYS = {
 +    copy: "mod+c",
-+    reverseComplement: "mod+alt+r",
-+    translation: "mod+alt+shift+t",
-+    reverseComplementTranslation: "mod+alt+shift+r"
++    reverseComplement: "mod+shift+r",
++    translation: "mod+alt+a",
++    reverseComplementTranslation: "mod+alt+e"
 +  };
 +  /** "mod+alt+r" -> "⌘⌥R" on a Mac, "Ctrl+Alt+R" elsewhere. */
 +  function ovenHotkeyLabel(combo) {
@@ -470,7 +480,7 @@
    const triggerClipboardCommand = /* @__PURE__ */ __name((type2, props) => {
      const wrapper = document.querySelector(
        `.${props.editorName} .veVectorInteractionWrapper`
-@@ -150613,6 +150886,38 @@
+@@ -150613,6 +150896,35 @@
        handler: (props) => triggerClipboardCommand("copy", props),
        hotkey: "mod+c"
      },
@@ -479,11 +489,8 @@
 +     * as commands -- which is what gives them hotkeys and an entry in View
 +     * Editor Hotkeys, both built from the command definitions.
 +     *
-+     * The bindings are picked against VS Code's own, which resolves its
-+     * keybindings before a webview sees the key. mod+alt+r is bound upstream
-+     * only while the Find widget is visible; the two mod+alt+shift forms are
-+     * unbound anywhere. The obvious mod+shift+c, mod+alt+c and mod+alt+shift+c
-+     * are all taken -- external terminal, copy path, copy relative path.
++     * The bindings themselves are in OVEN_COPY_HOTKEYS, with the reasoning for
++     * which keys are safe.
 +     */
 +    copyReverseComplement: {
 +      name: "Copy Reverse Complement",
@@ -509,7 +516,7 @@
      paste: {
        isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip,
        isHidden: (props) => props.readOnly || props.disableBpEditing,
-@@ -151077,9 +151382,33 @@
+@@ -151077,9 +151389,33 @@
        hotkeyProps: { preventDefault: true }
      },
      newPrimer: {
@@ -545,7 +552,7 @@
      },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
-@@ -151354,7 +151683,14 @@
+@@ -151354,7 +151690,14 @@
      },
      simulatePCR: {
        handler: (props) => props.createNewPCR(),
@@ -561,7 +568,7 @@
        hotkeyProps: { preventDefault: true },
        isHidden: (props) => isProtein(props)
      },
-@@ -152668,6 +153004,33 @@
+@@ -152668,6 +153011,33 @@
              readOnly: readOnly2
            } = this.props;
            const onCut = this.props.onCut || this.props.onCopy || noop$8;
@@ -595,7 +602,7 @@
            const seqData = tidyUpSequenceData(
              this.sequenceDataToCopy || getSequenceDataBetweenRange(
                sequenceData2,
-@@ -152965,6 +153328,7 @@
+@@ -152965,6 +153335,7 @@
            }, "makeTextCopyable");
            const aaCopy = {
              text: "Copy AA Sequence",
@@ -603,7 +610,7 @@
              className: "openVeCopyAA",
              onClick: makeTextCopyable((selectedSeqData) => __spreadProps(__spreadValues({}, selectedSeqData), {
                textToCopy: isProtein2 ? selectedSeqData.proteinSequence.toUpperCase() : getAminoAcidStringFromSequenceString(selectedSeqData.sequence)
-@@ -152987,6 +153351,8 @@
+@@ -152987,6 +153358,8 @@
                  ...isProtein2 ? [aaCopy] : [],
                  {
                    text: isProtein2 ? "Copy DNA Bps" : "Copy",
@@ -612,7 +619,7 @@
                    className: "openVeCopy2",
                    onClick: makeTextCopyable((s2) => __spreadProps(__spreadValues({}, s2), {
                      textToCopy: s2.sequence
-@@ -152999,6 +153365,7 @@
+@@ -152999,6 +153372,7 @@
                  },
                  {
                    text: isProtein2 ? "Copy Reverse Complement DNA Bps" : "Copy Reverse Complement",
@@ -620,7 +627,7 @@
                    className: "openVeCopyReverse",
                    onClick: makeTextCopyable(
                      getReverseComplementSequenceAndAnnoations
-@@ -153007,6 +153374,7 @@
+@@ -153007,6 +153381,7 @@
                  ...isProtein2 ? [] : [aaCopy],
                  {
                    text: "Copy Reverse Complement AA Sequence",
@@ -628,13 +635,14 @@
                    className: "openVeCopyAAReverse",
                    onClick: makeTextCopyable((selectedSeqData) => {
                      const revSeqData = getReverseComplementSequenceAndAnnoations(selectedSeqData);
-@@ -155777,9 +156145,16 @@
+@@ -155777,9 +156152,16 @@
              range2,
              charWidth2
            );
 -          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
-           if (!range2.isMatch) {
+-          if (!range2.isMatch) {
 -            redPath += toAdd;
++          if (!range2.isMatch) {
 +            // ove-vscode patch: a one-base difference is a fraction of a pixel
 +            // wide at minimap scale, so widen the mark -- horizontally only,
 +            // and centred on the position it actually marks. Stroking the path
@@ -647,10 +655,11 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -169481,6 +169856,24 @@
+@@ -169480,6 +169862,24 @@
+           "Add Joined Feature Span"
          ));
        }, "renderLocations"));
-     }
++    }
 +    componentDidUpdate(prevProps) {
 +      /*
 +       * PATCH (oven): flipping Strand re-reads the bases from the selection.
@@ -668,11 +677,10 @@
 +        sequence: this.props.sequenceData && this.props.sequenceData.sequence,
 +        forward: this.props.forward
 +      });
-+    }
+     }
      componentDidMount() {
        const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
-       this.notes = store$1(
-@@ -169668,7 +170061,7 @@
+@@ -169668,7 +170068,7 @@
            {
              style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
            },
@@ -681,7 +689,7 @@
            " "
          ), /* @__PURE__ */ React$2.createElement(
            NumericInputField,
-@@ -169724,6 +170117,8 @@
+@@ -169724,6 +170124,8 @@
              sequenceLength,
              primerBindsOn,
              forward,
@@ -690,7 +698,7 @@
              linkedOligo: initialValues2.linkedOligo,
              useLinkedOligo,
              change: change2
-@@ -170224,9 +170619,14 @@
+@@ -170224,9 +170626,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -706,7 +714,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +170643,25 @@
+@@ -170243,7 +170650,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -733,7 +741,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +170673,13 @@
+@@ -170255,21 +170680,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -758,7 +766,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +170693,7 @@
+@@ -170283,7 +170700,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -767,7 +775,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170377,6 +170787,36 @@
+@@ -170377,6 +170794,36 @@
            className: classNames$1("bp3-input tg-custom-sequence-editable", {
              hasTempError
            }),
@@ -804,7 +812,7 @@
            onInput: emitChange,
            dangerouslySetInnerHTML: { __html: html2 }
          }
-@@ -170410,6 +170850,9 @@
+@@ -170410,6 +170857,9 @@
        bases,
        forward,
        defaultLinkedOligoMessage,
@@ -814,7 +822,7 @@
        change: change2
      } = props;
      let defaultValue2;
-@@ -170488,46 +170931,29 @@
+@@ -170488,46 +170938,29 @@
            defaultValue: bases != null ? bases : defaultValue2,
            name: "bases",
            label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
@@ -880,7 +888,7 @@
              },
              "Set From Selection"
            )))
-@@ -170563,6 +170989,75 @@
+@@ -170563,6 +170996,75 @@
        RenderBases
      })
    });
@@ -956,7 +964,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -180348,6 +180843,8 @@
+@@ -180348,6 +180850,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

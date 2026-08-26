@@ -150808,11 +150808,21 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       });
     }
   };
+  /*
+   * Three keys at most, and each checked in a real editor rather than only
+   * against VS Code's compiled keybindings -- that scan has false negatives, it
+   * reports the Command Palette's own cmd+shift+p as unbound.
+   *
+   * Avoided: cmd+shift+c, cmd+alt+c and cmd+alt+shift+c, which VS Code uses for
+   * the external terminal, Copy Path and Copy Relative Path. The two path ones
+   * are worth naming because they look free -- they copy silently, so nothing
+   * visible happens when the workbench swallows the key.
+   */
   const OVEN_COPY_HOTKEYS = {
     copy: "mod+c",
-    reverseComplement: "mod+alt+r",
-    translation: "mod+alt+shift+t",
-    reverseComplementTranslation: "mod+alt+shift+r"
+    reverseComplement: "mod+shift+r",
+    translation: "mod+alt+a",
+    reverseComplementTranslation: "mod+alt+e"
   };
   /** "mod+alt+r" -> "⌘⌥R" on a Mac, "Ctrl+Alt+R" elsewhere. */
   function ovenHotkeyLabel(combo) {
@@ -150891,11 +150901,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
      * as commands -- which is what gives them hotkeys and an entry in View
      * Editor Hotkeys, both built from the command definitions.
      *
-     * The bindings are picked against VS Code's own, which resolves its
-     * keybindings before a webview sees the key. mod+alt+r is bound upstream
-     * only while the Find widget is visible; the two mod+alt+shift forms are
-     * unbound anywhere. The obvious mod+shift+c, mod+alt+c and mod+alt+shift+c
-     * are all taken -- external terminal, copy path, copy relative path.
+     * The bindings themselves are in OVEN_COPY_HOTKEYS, with the reasoning for
+     * which keys are safe.
      */
     copyReverseComplement: {
       name: "Copy Reverse Complement",

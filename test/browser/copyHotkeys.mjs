@@ -11,8 +11,10 @@
  * are commands here, which is also what puts them in View Editor Hotkeys.
  *
  * The bindings avoid VS Code, which resolves its own keybindings before a
- * webview sees the key. The obvious mod+shift+c, mod+alt+c and mod+alt+shift+c
- * are all taken upstream -- external terminal, copy path, copy relative path.
+ * webview sees the key. cmd+shift+c, cmd+alt+c and cmd+alt+shift+c are all
+ * taken upstream -- external terminal, Copy Path, Copy Relative Path. The two
+ * path ones matter because they look free: they copy silently, so nothing
+ * visible happens when the workbench swallows the key.
  *
  * The text is captured through the demo's __captureCopies bridge: the editor
  * copies with navigator.clipboard.writeText, and a headless browser will
@@ -57,9 +59,9 @@ export default async function run(page) {
   out.copied = {};
   for (const [key, combo] of [
     ['plain', 'Meta+KeyC'],
-    ['revcomp', 'Meta+Alt+KeyR'],
-    ['translation', 'Meta+Alt+Shift+KeyT'],
-    ['revcompTranslation', 'Meta+Alt+Shift+KeyR']
+    ['revcomp', 'Meta+Shift+KeyR'],
+    ['translation', 'Meta+Alt+KeyA'],
+    ['revcompTranslation', 'Meta+Alt+KeyE']
   ]) {
     await select();
     await page.keyboard.press(combo);
@@ -85,8 +87,8 @@ export default async function run(page) {
   await page.waitForTimeout(400);
 
   // Cmd+C was never labelled either, though it has always worked.
-  for (const want of [/^Copy\s+⌘C/, /Copy Reverse Complement\s+⌘⌥R/,
-    /Copy AA Sequence\s+⌘⌥⇧T/, /Copy Reverse Complement AA Sequence\s+⌘⌥⇧R/]) {
+  for (const want of [/^Copy\s+⌘C/, /Copy Reverse Complement\s+⌘⇧R/,
+    /Copy AA Sequence\s+⌘⌥A/, /Copy Reverse Complement AA Sequence\s+⌘⌥E/]) {
     if (!out.menu.some((t) => want.test(t))) {
       fail.push(`no menu entry matching ${want}: ${JSON.stringify(out.menu)}`);
     }

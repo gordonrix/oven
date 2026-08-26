@@ -4,6 +4,24 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.29.1
+
+The copy shortcuts move to combinations of at most three keys:
+
+| | |
+|---|---|
+| Copy | `⌘C` |
+| Copy Reverse Complement | `⌘⇧R` |
+| Copy AA Sequence | `⌘⌥A` |
+| Copy Reverse Complement AA Sequence | `⌘⌥E` |
+
+Chosen by pressing them in a real editor, not only by reading VS Code's compiled keybindings —
+that scan has false negatives, and reports the Command Palette's own `⌘⇧P` as unbound.
+
+Still avoided: `⌘⇧C`, `⌘⌥C` and `⌘⌥⇧C`. The two path ones are worth naming because they look
+free — Copy Path and Copy Relative Path write to the clipboard silently, so nothing visible
+happens when the workbench swallows the key.
+
 ## 1.29.0
 
 **Shortcuts for the copy variants**, shown next to the entries in the right-click menu and
