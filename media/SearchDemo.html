@@ -101,6 +101,15 @@
       });
 
       document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      // OVE greys out File > Save while stateTrackingId matches lastSavedId, so
+      // a change that does not move the tracking id cannot be saved by hand.
+      document.addEventListener('__dumpIds', () => {
+        const st = window.__oveEditor.getState();
+        document.getElementById('ids').textContent = JSON.stringify({
+          tracking: (st.sequenceData || {}).stateTrackingId || null,
+          lastSaved: st.lastSavedId || null
+        });
+      });
       document.addEventListener('__clearSelection', () => {
         // VECTOR_EDITOR_UPDATE shallow-replaces selectionLayer, so it can be
         // set to the empty sentinel that SELECTION_LAYER_UPDATE would reject.
@@ -127,6 +136,7 @@
       <button id="ove-cart-button" class="ove-cart-btn"
               onclick="window.OveCart.openPicker()">Add to Cart</button>
       <button id="save-button" class="save-button" onclick="postSave()">Save</button>
+      <pre id="ids"></pre>
     </div>
 
     <script src="index.umd.js"></script>

@@ -301,3 +301,10 @@ body.ovesearch-resizing * { cursor: col-resize !important; user-select: none !im
   cursor: pointer;
 }
 .ovesearch-colsreset:hover { color: #7050b3; }
+
+/* Sortable headers. The grip keeps its own cursor, so a drag still reads as a
+   resize rather than a sort. */
+.ovesearch-header .is-sortable { cursor: pointer; user-select: none; }
+.ovesearch-header .is-sortable:hover { color: #182026; }
+.ovesearch-header .is-sorted { color: #7050b3; font-weight: 700; }
+.ovesearch-sortmark { font-size: 9px; }

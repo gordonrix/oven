@@ -391,6 +391,168 @@ export default async function run(page) {
   out.tabCross = await page.locator('[class*=veTab-primerSearch] .bp3-icon-small-cross, [class*=veTabActive] .bp3-icon-small-cross').count();
   if (!out.tabCross) fail.push('no close cross on the Primer Search tab');
 
+  /* --- the filter only matches what is on screen --------------------------- */
+
+  // The bare-inventory case above left no file columns to hide, so put the full
+  // fixture back before testing what the filter searches.
+  await page.evaluate(async () => {
+    const fx = await fetch('../test/fixtures/searchHits.json').then((r) => r.json());
+    window.postMessage({
+      type: 'search/results',
+      hits: fx.hits,
+      inventory: fx.inventory,
+      scoped: false, selection: null, fullLengthOnly: false, columnWidths: null, columns: null
+    }, '*');
+  });
+  await page.waitForTimeout(400);
+
+  /*
+   * It used to search every column of the inventory file, shown or not. That
+   * sounded more useful and was not: filtering a real inventory by "896" matched
+   * the date-ordered serial of three unrelated primers and returned rows with no
+   * 896 anywhere visible, while the primer actually named ...896 was absent.
+   *
+   * "2026" lives only in Date ordered, which is not shown by default.
+   */
+  const filterBox = page.locator('.ovesearch-filter');
+  await filterBox.fill('2026');
+  await page.waitForTimeout(500);
+  out.hiddenColumnMatches = (await rows(page)).length;
+  if (out.hiddenColumnMatches !== 0) {
+    fail.push(`a hidden column matched the filter: ${out.hiddenColumnMatches} rows`);
+  }
+
+  // Show that column and the same filter starts matching. The filter is cleared
+  // first: with nothing on screen the picker has no file columns to list.
+  await filterBox.fill('');
+  await page.waitForTimeout(400);
+  // Force it open rather than clicking: earlier sections leave the picker in
+  // either state, and a toggle would shut it half the time.
+  await page.evaluate(() => { document.querySelector('.ovesearch-cols').open = true; });
+  await page.waitForTimeout(300);
+  out.pickerLabels = await page.evaluate(() =>
+    [...document.querySelectorAll('.ovesearch-colsitem')].map((n) => n.textContent.trim()));
+  out.pickedDateColumn = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.ovesearch-colsitem')]
+      .find((n) => n.textContent.trim() === 'Date ordered');
+    if (!row) return false;
+    row.querySelector('input').click();
+    return true;
+  });
+  if (!out.pickedDateColumn) fail.push('no "Date ordered" entry in the columns picker');
+  await page.waitForTimeout(400);
+  await filterBox.fill('2026');
+  await page.waitForTimeout(600);
+  out.shownColumnMatches = (await rows(page)).length;
+  if (!(out.shownColumnMatches > 0)) {
+    fail.push('showing the column did not make the filter match it');
+  }
+  await filterBox.fill('');
+  await page.waitForTimeout(400);
+  // Put the column back, so the sort checks below run on the default layout.
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.ovesearch-colsitem')]
+      .find((n) => n.textContent.trim() === 'Date ordered');
+    if (row) row.querySelector('input').click();
+  });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { document.querySelector('.ovesearch-cols').open = false; });
+  await page.waitForTimeout(300);
+
+  /* --- clicking a header sorts by it --------------------------------------- */
+
+  const tmColumn = () => page.evaluate(() =>
+    [...document.querySelectorAll('.ovesearch-row:not(.ovesearch-header) .ovesearch-k-tm')]
+      .map((n) => n.textContent));
+  const tmHeader = page.locator('.ovesearch-header .ovesearch-k-tm');
+
+  out.tmDefault = await tmColumn();
+  await tmHeader.click();
+  await page.waitForTimeout(400);
+  out.tmAsc = await tmColumn();
+  out.sortMark = await page.evaluate(() =>
+    document.querySelector('.ovesearch-header .ovesearch-k-tm').textContent.trim());
+  await tmHeader.click();
+  await page.waitForTimeout(400);
+  out.tmDesc = await tmColumn();
+  await tmHeader.click();
+  await page.waitForTimeout(400);
+  out.tmBack = await tmColumn();
+
+  const asNums = (a) => a.map(Number);
+  const ascending = (a) => asNums(a).every((v, i, arr) => i === 0 || arr[i - 1] <= v);
+  if (!ascending(out.tmAsc)) fail.push(`first click should sort ascending: ${out.tmAsc}`);
+  if (!ascending(out.tmDesc.slice().reverse())) {
+    fail.push(`second click should sort descending: ${out.tmDesc}`);
+  }
+  // Third click returns to the matcher's own order, which is by position.
+  if (JSON.stringify(out.tmBack) !== JSON.stringify(out.tmDefault)) {
+    fail.push(`third click should restore the default order: ${out.tmBack}`);
+  }
+  if (!/▲/.test(out.sortMark)) fail.push(`no ascending marker on the sorted header: ${out.sortMark}`);
+
+  /* --- an attached primer can actually be saved ---------------------------- */
+
+  /*
+   * Attaching writes into the store with updateEditor rather than through OVE's
+   * annotation pipeline, so it has to mint a fresh stateTrackingId by hand.
+   * Without one, File > Save stays greyed out and mod+s does nothing: the primer
+   * draws on the map, looks attached, and never reaches the file.
+   *
+   * The strand check below is an invariant, not a fix. jsonToGenbank decides
+   * complement() from `strand`, not `forward`, and attach only sets `forward` --
+   * it is tidyUpSequenceData that fills in the other one on the way through. If
+   * that ever stops happening, every reverse primer attached here would be
+   * written to disk as a forward one, which is invisible until the file is
+   * reopened.
+   */
+  const ids = async () => {
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('__dumpIds')));
+    await page.waitForTimeout(200);
+    return page.evaluate(() => JSON.parse(document.getElementById('ids').textContent || '{}'));
+  };
+
+  out.idsBeforeAttach = await ids();
+
+  // Attach every hit that can be attached, so both strands are covered. A hit
+  // whose footprint an existing primer already covers has its button disabled.
+  const attachCount = await page.locator('.ovesearch-attach').count();
+  for (let i = 0; i < attachCount; i++) {
+    const btn = page.locator('.ovesearch-attach').nth(i);
+    if (await btn.isDisabled()) continue;
+    await btn.click();
+    await page.waitForTimeout(350);
+  }
+
+  out.idsAfterAttach = await ids();
+  if (out.idsAfterAttach.tracking === out.idsBeforeAttach.tracking) {
+    fail.push('attaching did not change stateTrackingId, so File > Save stays disabled');
+  }
+  if (out.idsAfterAttach.tracking === 'initialLoadId') {
+    fail.push('stateTrackingId is still initialLoadId after an attach');
+  }
+
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
+  await page.locator('#save-button').click();
+  await page.waitForTimeout(700);
+  const saveMsg = (await posted(page)).find((m) => m.type === 'save');
+  out.attachedPrimers = saveMsg
+    ? Object.values(saveMsg.data.primers || {})
+      .filter((pr) => /^inv-/.test(pr.id || ''))
+      .map((pr) => ({ name: pr.name, forward: pr.forward, strand: pr.strand }))
+    : [];
+
+  if (!out.attachedPrimers.length) fail.push('no attached primer reached the save payload');
+  for (const pr of out.attachedPrimers) {
+    const want = pr.forward ? 1 : -1;
+    if (pr.strand !== want) {
+      fail.push(`${pr.name}: forward ${pr.forward} but strand ${pr.strand} -- the strand will be lost on save`);
+    }
+  }
+  if (!out.attachedPrimers.some((pr) => pr.strand === -1)) {
+    fail.push('no reverse primer among the attached ones, so the strand check proved nothing');
+  }
+
   out.FAILURES = fail;
   out.PASS = fail.length === 0;
   return out;

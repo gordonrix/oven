@@ -109,6 +109,52 @@
     return allColumns().filter(isVisible);
   }
 
+  /*
+   * Column sort. Clicking a header cycles ascending, descending, then back to
+   * the matcher's own order -- which is by position, and is what you want most
+   * of the time, so it stays reachable rather than being a state you can only
+   * leave by re-running the search.
+   */
+  let sort = { key: null, dir: 1 };
+
+  /**
+   * What a column sorts on, which is not what it displays: Tail shows "+15" or
+   * an em dash, and Tm shows a rounded string. Sorting those as text puts 9
+   * after 10 and the dash somewhere arbitrary.
+   */
+  function sortValue(col, hit) {
+    switch (col.key) {
+      case 'pos': return hit.threePrime;
+      case 'str': return hit.strand;
+      case 'name': return (hit.name || '').toLowerCase();
+      case 'anneal': return hit.anneal;
+      case 'tm': return hit.tm === null ? -Infinity : hit.tm;
+      case 'tail': return hit.overhang;
+      default: return String((hit.extra || {})[col.file] || '').toLowerCase();
+    }
+  }
+
+  function compareHits(col) {
+    return (a, b) => {
+      const av = sortValue(col, a);
+      const bv = sortValue(col, b);
+      if (av === bv) return 0;
+      // Numbers numerically, anything else as text; a column of digits held as
+      // strings still sorts as digits.
+      const an = Number(av);
+      const bn = Number(bv);
+      const numeric = av !== '' && bv !== '' && !Number.isNaN(an) && !Number.isNaN(bn);
+      return (numeric ? an - bn : String(av).localeCompare(String(bv))) * sort.dir;
+    };
+  }
+
+  function cycleSort(col) {
+    if (sort.key !== col.key) sort = { key: col.key, dir: 1 };
+    else if (sort.dir === 1) sort = { key: col.key, dir: -1 };
+    else sort = { key: null, dir: 1 };
+    render();
+  }
+
   function widthOf(col) {
     const w = columnWidths[col.key];
     return Math.max(MIN_COLUMN, Number(w) || col.width);
@@ -277,6 +323,9 @@
 
   const hitKey = (h) => `${h.start}|${h.end}|${h.strand}`;
 
+  // Only has to differ from the last one; OVE compares tracking ids for equality.
+  let attachSeq = 0;
+
   function attach(hit) {
     const sd = seqState().sequenceData;
     if (!sd) { toast('error', 'Editor not ready'); return; }
@@ -297,6 +346,20 @@
     editor.updateEditor({
       justPassingPartialSeqData: true,
       sequenceData: {
+        /*
+         * Mark the sequence as changed, or the primer cannot be saved.
+         *
+         * OVE mints a new tracking id inside the sequenceData reducer
+         * (index.umd.js:132730), and updateEditor does not go through it -- it
+         * replaces the editor slice and carries the old id over. File > Save is
+         * disabled while stateTrackingId is still "initialLoadId" or equal to
+         * lastSavedId (index.umd.js:150563), so without this the primer lands in
+         * the store, the map draws it, and mod+s silently does nothing.
+         *
+         * Stamping the id by hand is OVE's own remedy for the same problem on
+         * its file-import path (index.umd.js:135264).
+         */
+        stateTrackingId: `oven-attach-${Date.now()}-${attachSeq++}`,
         primers: Object.assign({}, sd.primers, {
           [id]: {
             id,
@@ -459,13 +522,28 @@
     if (fullLengthOnly) hits = hits.filter((h) => h.overhang === 0);
     const q = filterText.trim().toLowerCase();
     if (q) {
-      // Every inventory column is searched, not just the shown ones: filtering
-      // by a value you can see is obvious, and filtering by one you know is in
-      // the file is the more useful half.
+      /*
+       * Name, sequence, and the columns actually on screen -- not every column
+       * in the file.
+       *
+       * Searching all of them sounded more useful and was not: a filter of
+       * "896" matched the date-ordered serial of three unrelated primers and
+       * returned rows with no 896 anywhere you could see, while the primer
+       * actually named ...896 was not among them. Matching only what is visible
+       * means every hit can be explained by looking at it, and the Columns
+       * picker doubles as the control over what the filter considers.
+       */
+      const searchable = activeColumns().filter((c) => c.file).map((c) => c.file);
       hits = hits.filter((h) =>
         (h.name || '').toLowerCase().includes(q) ||
         (h.sequence || '').toLowerCase().includes(q) ||
-        Object.values(h.extra || {}).some((v) => String(v).toLowerCase().includes(q)));
+        searchable.some((col) => String((h.extra || {})[col] || '').toLowerCase().includes(q)));
+    }
+    if (sort.key) {
+      const col = allColumns().find((c) => c.key === sort.key);
+      // A column that has gone away with a change of inventory file sorts by
+      // nothing rather than throwing.
+      if (col) hits = hits.slice().sort(compareHits(col));
     }
     return hits;
   }
@@ -598,8 +676,34 @@
 
     const header = el('div', 'ovesearch-row ovesearch-header');
     activeColumns().forEach((col) => {
-      const cell = el('div', `ovesearch-cell ovesearch-k-${cssKey(col.key)}`, col.label);
-      if (col.file) cell.title = `"${col.file}" from your inventory file`;
+      const sorted = sort.key === col.key;
+      const cell = el('div',
+        `ovesearch-cell ovesearch-k-${cssKey(col.key)}` + (sorted ? ' is-sorted' : ''),
+        col.label);
+      // The action column has no values to order by.
+      const sortable = col.key !== 'attach';
+      if (sortable) {
+        cell.classList.add('is-sortable');
+        cell.title = col.file
+          ? `"${col.file}" from your inventory file · click to sort`
+          : 'Click to sort';
+        /*
+         * Not on the resize grip, which lives inside this cell.
+         *
+         * A double-click on the grip resets the column widths, but the browser
+         * sends two plain clicks before the dblclick. Sorting on those re-renders
+         * the header, so by the time dblclick fires its target has been replaced
+         * and the reset never runs -- the widths just stay where they were
+         * dragged.
+         */
+        cell.addEventListener('click', (e) => {
+          if (e.target.closest('.ovesearch-grip')) return;
+          cycleSort(col);
+        });
+      } else if (col.file) {
+        cell.title = `"${col.file}" from your inventory file`;
+      }
+      if (sorted) cell.appendChild(el('span', 'ovesearch-sortmark', sort.dir === 1 ? ' ▲' : ' ▼'));
       cell.appendChild(makeGrip(col));
       header.appendChild(cell);
     });

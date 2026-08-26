@@ -146683,7 +146683,21 @@ double click --> edit`}`;
                 transform: forward ? "" : `translate(${aRangeLen * charWidth2},-5) scale(-1,-1) `,
                 key: n2,
                 x: forward ? (xStart - 1) * charWidth2 + fudge : xStart * charWidth2 - fudge / 2,
-                y: level1Height - yOffset * 20 - (forward ? 0 : 5)
+                /*
+                 * PATCH (oven): put a reverse primer's tail letters on its
+                 * tail marker.
+                 *
+                 * A reverse annotation's group is flipped -- translate(width,
+                 * -extraHeight + 10) scale(-1,-1) -- and this text carries a
+                 * second flip of its own. Composing the two, a local y lands on
+                 * screen at -extraHeight + 15 + y, so the forward value of
+                 * level1Height put the letters below the body instead of on the
+                 * marker above it. Solving for the same screen position the
+                 * forward case uses gives extraHeight - 25.
+                 */
+                y: forward
+                  ? level1Height - yOffset * 20
+                  : basesToShow.extraHeight - 25 - yOffset * 20
               },
               i2.bases.split("").map((b3, i22) => /* @__PURE__ */ React$2.createElement(
                 "tspan",

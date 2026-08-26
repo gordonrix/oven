@@ -4,6 +4,25 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.30.0
+
+**An attached primer can now be saved.** Attaching from Primer Search put the primer in the
+editor but left the sequence looking unchanged, so File > Save stayed greyed out and `⌘S` did
+nothing — the primer drew on the map and never reached the file. Attach writes through
+`updateEditor`, which bypasses the pipeline that normally marks the sequence dirty, so it now
+marks it by hand.
+
+**Primer Search filters on what you can see.** The filter searched every column of the
+inventory file, shown or not: filtering by `896` matched the hidden *Date ordered* serial of
+three unrelated primers and returned rows with no 896 anywhere on screen. It now searches the
+name, the sequence, and only the columns currently displayed.
+
+**Click a Primer Search column to sort it.** Ascending, then descending, then back to the
+match order. The resize grip is excluded, so double-clicking it still resets the widths.
+
+**Tail bases sit on the primer again.** On a reverse primer whose tail wrapped onto the next
+row, the tail letters were drawn below the marker instead of on it.
+
 ## 1.29.1
 
 The copy shortcuts move to combinations of at most three keys:
