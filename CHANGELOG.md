@@ -4,6 +4,14 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.31.1
+
+One way in. The toolbar button, the right-click entry and `⌘⌥F` all call the same
+no-argument `open()`, which searches the selection if there is one and the whole plasmid
+otherwise. The button used to pass `{scoped: true}`, which read as "always search the
+selection" and only meant "do not force the plasmid" — the selection decided either way.
+No behaviour change; the three routes can no longer drift apart.
+
 ## 1.31.0
 
 **Primer Search has a keyboard shortcut:** `⌘⌥F` (`Ctrl+Alt+F`). It searches the selection

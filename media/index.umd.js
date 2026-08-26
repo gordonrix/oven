@@ -151443,6 +151443,10 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
      * in primerSearch.js, because its wording changes with the selection --
      * "in selection" against "in plasmid" -- which a static name cannot express.
      *
+     * open() takes no scope argument: it searches the selection if there is one
+     * and the whole plasmid otherwise, which is the rule the toolbar button and
+     * the right-click entry follow too.
+     *
      * Hidden rather than disabled when the module is absent: oven.showEditor
      * opens a scratch editor with no inventory wired up, and a permanently
      * greyed-out entry there would just be noise.
@@ -151453,7 +151457,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       isDisabled: (props) => props.sequenceLength === 0,
       handler: () => {
         if (typeof window !== "undefined" && window.OveSearch) {
-          window.OveSearch.openFromSelection();
+          window.OveSearch.open();
         }
       },
       hotkey: (typeof window !== "undefined" && window.__ovenSearchPrimersHotkey) || "mod+alt+f",

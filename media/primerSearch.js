@@ -301,11 +301,21 @@
     post({ type: 'search/run', sequence, circular: Boolean(sd.circular), selection });
   }
 
-  function open(opts) {
-    const o = opts || {};
+  /**
+   * Open the panel and search.
+   *
+   * Deliberately takes no scope argument. Every route in -- the toolbar button,
+   * the right-click entry, the hotkey -- wants the same rule: search the
+   * selection if there is one, the whole plasmid otherwise. It used to take a
+   * `scoped` flag that every caller passed `true`, which read as "force the
+   * selection" and in fact only meant "do not force the plasmid"; the selection
+   * decided either way. One rule, in one place, is what those callers actually
+   * wanted.
+   */
+  function open() {
     showPanel();
     // Let OVE lay the panel out before the first paint of results.
-    setTimeout(() => run(o.scoped !== false && Boolean(currentSelection())), 0);
+    setTimeout(() => run(Boolean(currentSelection())), 0);
   }
 
   /* ---------------------------------------------------------- attaching -- */
@@ -763,19 +773,6 @@
     return window.ovenHotkeyLabel(combo);
   }
 
-  /**
-   * The hotkey route into the panel.
-   *
-   * The command in the bundle defers to this rather than deciding the scope
-   * itself, so the key and the menu entry agree on what "in selection" means --
-   * both read the live selection at the moment they run.
-   */
-  function openFromSelection() {
-    // open() already derives the scope from the live selection, so there is
-    // nothing to pass -- and one place that decides it rather than two.
-    open({});
-  }
-
   /*
    * The scope is decided from the live selection rather than from which menu
    * was opened. Right-clicking a feature with a selection active should still
@@ -792,7 +789,7 @@
       // than coming from the command definition, because this entry is ours and
       // its wording changes with the selection.
       label: hotkeyLabel(),
-      onClick: () => open({ scoped })
+      onClick: () => open()
     },
     // Only ever appends on a translation, and only when the click can be tied
     // to one residue -- it returns nothing otherwise.
@@ -849,7 +846,7 @@
   }
 
   window.OveSearch = {
-    init, open, openFromSelection, showPanel, hidePanel,
+    init, open, showPanel, hidePanel,
     panelMap, rightClickOverrides, attach, PANEL_ID
   };
 })();

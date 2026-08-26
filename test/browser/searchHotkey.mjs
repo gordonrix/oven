@@ -93,6 +93,33 @@ export default async function run(page) {
     fail.push(`with a selection the shortcut should search it, got scoped=${out.scopedWithSelection}`);
   }
 
+  /* --- and the toolbar button follows the same rule ----------------------- */
+
+  /*
+   * All three routes in -- button, menu entry, key -- call the same no-argument
+   * open(). The button used to pass {scoped: true}, which read as "always search
+   * the selection" but only meant "do not force the plasmid"; the selection
+   * decided regardless. This is what keeps the three from drifting apart again.
+   */
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
+  await clearSelection();
+  await page.locator('#ove-search-button').click();
+  await page.waitForTimeout(1200);
+  out.buttonScopedWithoutSelection = await lastRun();
+
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
+  await select(0, 80);
+  await page.locator('#ove-search-button').click();
+  await page.waitForTimeout(1200);
+  out.buttonScopedWithSelection = await lastRun();
+
+  if (out.buttonScopedWithoutSelection !== false) {
+    fail.push(`the button should search the plasmid with nothing selected, got ${out.buttonScopedWithoutSelection}`);
+  }
+  if (out.buttonScopedWithSelection !== true) {
+    fail.push(`the button should search the selection when there is one, got ${out.buttonScopedWithSelection}`);
+  }
+
   /* --- and is shown beside the menu entry --------------------------------- */
 
   /*

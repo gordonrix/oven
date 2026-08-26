@@ -188,7 +188,7 @@ function buildEditorHtml(opts) {
       <button id="ove-align-button" class="ove-align-btn"
               onclick="vscode.postMessage({type:'align/open'})">Align</button>
       <button id="ove-search-button" class="ove-search-btn"
-              onclick="window.OveSearch.open({scoped:true})">Primer Search</button>
+              onclick="window.OveSearch.open()">Primer Search</button>
       <button id="ove-cart-button" class="ove-cart-btn"
               onclick="window.OveCart.openCart()">Primer Cart</button>
     </div>
