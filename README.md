@@ -40,7 +40,7 @@ command palette (`Cmd/Ctrl+Shift+P`) and add entries like:
 ```
 
 Most take effect immediately; the ones that change how the editor is built —
-`oven.newPrimerHotkey`, `oven.readOnly`, `oven.viewType` —
+`oven.newPrimerHotkey`, `oven.searchPrimersHotkey`, `oven.readOnly`, `oven.viewType` —
 need the file reopened.
 
 ## Primer cart
@@ -249,6 +249,11 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a dark grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
+- **Primer Search** is on `⌘⌥F` (`Ctrl+Alt+F`), and searches the selection when there is one
+  and the whole plasmid otherwise — the same thing the right-click entry does, which now
+  shows the shortcut beside it. Change it with `oven.searchPrimersHotkey`; the notes on
+  `oven.newPrimerHotkey` below apply to it too. `mod+shift+f` is not the default because VS
+  Code binds it to **Search: Find in Files** at the workbench level
 - **Changing the New Primer shortcut:** `oven.newPrimerHotkey` — see [Settings](#settings),
   default `mod+shift+k` — `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+`, so
   `alt+p` or `mod+alt+n` are both fine. The new binding is shown next to **New Primer** in

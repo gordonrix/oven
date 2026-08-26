@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN — Open Vector Editor with New Features",
   "description": "View plasmid sequences in VS Code and collect primers across files into one orderable list",
-  "version": "1.30.0",
+  "version": "1.31.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -265,6 +265,11 @@
           "type": "number",
           "default": 50,
           "markdownDescription": "Maximum number of reads in one alignment. Reads beyond this are ignored, with a note in the panel."
+        },
+        "oven.searchPrimersHotkey": {
+          "type": "string",
+          "default": "mod+alt+f",
+          "markdownDescription": "Keyboard shortcut that opens **Primer Search**, in Open Vector Editor's own notation — see `oven.newPrimerHotkey` for the notation. It searches the selection when there is one and the whole plasmid otherwise, exactly like the right-click entry, and the binding is shown beside that entry. **Reopen the file for a change to take effect.** `mod+shift+f` is deliberately not the default: VS Code binds it to Search: Find in Files at the workbench level, which resolves before a webview sees the key. Set to an empty string for no shortcut."
         },
         "oven.newPrimerHotkey": {
           "type": "string",

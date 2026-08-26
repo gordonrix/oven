@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.31.0
+
+**Primer Search has a keyboard shortcut:** `⌘⌥F` (`Ctrl+Alt+F`). It searches the selection
+when there is one and the whole plasmid otherwise — the same rule the right-click entry
+follows — and that entry now shows the shortcut beside it, as does **View → View Editor
+Hotkeys**. Rebind with `oven.searchPrimersHotkey`.
+
+`mod+shift+f` would have been the obvious choice and is not the default: VS Code binds it to
+**Search: Find in Files** at the workbench level, which resolves before a webview sees the key.
+
 ## 1.30.0
 
 **An attached primer can now be saved.** Attaching from Primer Search put the primer in the

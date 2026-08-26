@@ -139,6 +139,11 @@
       <pre id="ids"></pre>
     </div>
 
+    <!-- Before the bundle: the command definitions that carry these hotkeys are
+         built as it evaluates, so a value set later is never seen. -->
+    <script>
+      window.__ovenSearchPrimersHotkey = "mod+alt+f";
+    </script>
     <script src="index.umd.js"></script>
     <script src="bioparser2.umd.js"></script>
     <script src="cartShared.js"></script>

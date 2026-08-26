@@ -150850,6 +150850,9 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     }).join(mac ? "" : "+");
   }
   __name(ovenHotkeyLabel, "ovenHotkeyLabel");
+  // Our own right-click entries are built outside the bundle (primerSearch.js),
+  // and have to render the shortcut hint the same way the copy items do.
+  if (typeof window !== "undefined") window.ovenHotkeyLabel = ovenHotkeyLabel;
   const ovenCopyVariant = /* @__PURE__ */ __name((kind, props) => {
     ovenPendingCopy = OVEN_COPY_TRANSFORMS[kind];
     triggerClipboardCommand("copy", props);
@@ -151429,6 +151432,31 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
        * shows X, and into View Editor Hotkeys.
        */
       hotkey: (typeof window !== "undefined" && window.__ovenNewPrimerHotkey) || "mod+shift+k",
+      hotkeyProps: { preventDefault: true }
+    },
+    /*
+     * PATCH (oven): Search Primers as a command.
+     *
+     * Declared here for the same reason newPrimer's hotkey is: a command
+     * definition is what View Editor Hotkeys is built from, so this is what puts
+     * the shortcut in that dialog. The right-click entry itself is still built
+     * in primerSearch.js, because its wording changes with the selection --
+     * "in selection" against "in plasmid" -- which a static name cannot express.
+     *
+     * Hidden rather than disabled when the module is absent: oven.showEditor
+     * opens a scratch editor with no inventory wired up, and a permanently
+     * greyed-out entry there would just be noise.
+     */
+    ovenSearchPrimers: {
+      name: "Search Primers",
+      isHidden: () => typeof window === "undefined" || !window.OveSearch,
+      isDisabled: (props) => props.sequenceLength === 0,
+      handler: () => {
+        if (typeof window !== "undefined" && window.OveSearch) {
+          window.OveSearch.openFromSelection();
+        }
+      },
+      hotkey: (typeof window !== "undefined" && window.__ovenSearchPrimersHotkey) || "mod+alt+f",
       hotkeyProps: { preventDefault: true }
     },
     rotateToCaretPosition: {

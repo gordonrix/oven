@@ -163,7 +163,7 @@ function buildEditorHtml(opts) {
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
     sequenceJson, viewType, readOnly,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
-    cutSiteFilter, newPrimerHotkey } = opts;
+    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -200,6 +200,7 @@ function buildEditorHtml(opts) {
     -->
     <script>
       window.__ovenNewPrimerHotkey = ${JSON.stringify(newPrimerHotkey || 'mod+shift+k')};
+      window.__ovenSearchPrimersHotkey = ${JSON.stringify(searchPrimersHotkey || 'mod+alt+f')};
     </script>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>

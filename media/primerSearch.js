@@ -752,6 +752,30 @@
 
   /* -------------------------------------------------------- integration -- */
 
+  /**
+   * "mod+alt+f" -> "⌘⌥F", using the bundle's own formatter so this hint and the
+   * ones beside Copy are spelled identically. Empty if the bundle is not loaded,
+   * which leaves the entry with no hint rather than a wrong one.
+   */
+  function hotkeyLabel() {
+    const combo = window.__ovenSearchPrimersHotkey;
+    if (!combo || typeof window.ovenHotkeyLabel !== 'function') return undefined;
+    return window.ovenHotkeyLabel(combo);
+  }
+
+  /**
+   * The hotkey route into the panel.
+   *
+   * The command in the bundle defers to this rather than deciding the scope
+   * itself, so the key and the menu entry agree on what "in selection" means --
+   * both read the live selection at the moment they run.
+   */
+  function openFromSelection() {
+    // open() already derives the scope from the live selection, so there is
+    // nothing to pass -- and one place that decides it rather than two.
+    open({});
+  }
+
   /*
    * The scope is decided from the live selection rather than from which menu
    * was opened. Right-clicking a feature with a selection active should still
@@ -764,6 +788,10 @@
     const out = [...items, '--', {
       text: scoped ? 'Search primers in selection' : 'Search primers in plasmid',
       className: 'ove-search-menu-item',
+      // The shortcut hint, drawn the way OVE draws its own. Built here rather
+      // than coming from the command definition, because this entry is ours and
+      // its wording changes with the selection.
+      label: hotkeyLabel(),
       onClick: () => open({ scoped })
     },
     // Only ever appends on a translation, and only when the click can be tied
@@ -820,5 +848,8 @@
     });
   }
 
-  window.OveSearch = { init, open, showPanel, hidePanel, panelMap, rightClickOverrides, attach, PANEL_ID };
+  window.OveSearch = {
+    init, open, openFromSelection, showPanel, hidePanel,
+    panelMap, rightClickOverrides, attach, PANEL_ID
+  };
 })();
