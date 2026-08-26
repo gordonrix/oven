@@ -22,8 +22,11 @@ patches/**
 upstream/**
 notes/**
 
-# Design sources. The shipped icon is images/icon.png; the large original and
-# any editable sources have no business in the package.
+# Design sources. Editable originals have no business in the package.
+#
+# images/bigicon.png is not one of them any more -- it is the header image in
+# the README, so it has to ship or the extension details pane renders a broken
+# image. images/icon.png is still the icon the Marketplace shows.
 *.ai
 *.svg
-images/bigicon.png
+**/.DS_Store

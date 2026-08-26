@@ -1,13 +1,15 @@
 # OVEN — Open Vector Editor with New Features
 
-<img src="images/icon.png" alt="OVEN" width="128">
+<img src="images/bigicon.png" alt="OVEN" width="160">
 
 A plasmid editor for VS Code, built on [Open Vector Editor](https://github.com/TeselaGen/tg-oss/tree/master/packages/ove).
 Open `.gb`, `.gbk`, `.fasta`, `.fa` and `.dna` files in a tab, then design primers, collect
 them into an order, search your existing primer collection, edit codons, and align Sanger
 reads against the plasmid on screen.
 
-![ove-vscode](https://github.com/sanekun/ove-vscode/raw/HEAD/media/ove-vscode.png)
+![A plasmid open in OVEN: the sequence map on the left, the circular map and primer search
+results on the right, and the right-click menu showing Search primers in
+selection](images/Screenshot_overview.png)
 
 ## Install
 
@@ -47,6 +49,10 @@ need the file reopened.
 
 Collect primers from any number of plasmid files into one list you can paste into a
 spreadsheet or an oligo order.
+
+![The primer cart beside a plasmid, holding two newly drawn primers with their length, Tm,
+strand and binding site, above buttons to copy them as TSV or export
+CSV](images/Screenshot_primer-cart.png)
 
 1. Open a plasmid, highlight a region, and use **Create → New Primer** — from the menu bar,
    the right-click menu, or `Cmd/Ctrl+Shift+K`. The form opens as a panel beside the
@@ -146,6 +152,10 @@ Click **Align** in an open plasmid to check clones against it. That plasmid beco
 reference; `.ab1`, `.gb`, `.gbk` and `.fasta` reads are all accepted, and a FASTA holding
 several records becomes one track per record.
 
+![Three Sanger reads aligned to a plasmid, each with its chromatogram, labelled match or
+mismatch, with a single disagreeing base highlighted in
+red](images/Screenshot_alignment.png)
+
 Four ways to add reads:
 
 - **Right-click the files in the Explorer → Add to Alignment** (handles a multi-selection)
@@ -212,6 +222,10 @@ so a read in the wrong orientation is flipped rather than reported as garbage.
 whole genetic code, not just that residue's synonyms, so you can mutate the residue itself
 rather than only swap its codon.
 
+![The Change Amino Acid dialog, laid out as a printed codon table with fraction and
+frequency against every codon and the current one
+highlighted](images/Screenshot_codon-table.png)
+
 The dialog is laid out the way a codon table is printed — first base down the side, second
 across the top, third within each block — and every codon carries its **fraction** (share of
 that amino acid's codons) and **frequency** (per thousand), for *S. cerevisiae*, *E. coli*,
@@ -252,18 +266,33 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a dark grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
-- **Primer Search** is on `⌘⌥F` (`Ctrl+Alt+F`), and searches the selection when there is one
-  and the whole plasmid otherwise — the same thing the right-click entry does, which now
-  shows the shortcut beside it. Change it with `oven.searchPrimersHotkey`; the notes on
-  `oven.newPrimerHotkey` below apply to it too. `mod+shift+f` is not the default because VS
-  Code binds it to **Search: Find in Files** at the workbench level
-- **Changing the New Primer shortcut:** `oven.newPrimerHotkey` — see [Settings](#settings),
-  default `mod+shift+k` — `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+`, so
-  `alt+p` or `mod+alt+n` are both fine. The new binding is shown next to **New Primer** in
-  the menus. **Reopen the file** for a change to take effect. Avoid combinations VS Code
-  binds at the workbench level, such as `mod+j`: those are resolved before a webview sees
-  the key. Open Vector Editor's own `mod+k` and `mod+l` still make a feature and a part, and
-  **View → View Editor Hotkeys** lists everything
+
+## Keyboard shortcuts
+
+These are the ones this fork adds. **View → View Editor Hotkeys** lists them alongside Open
+Vector Editor's own, and each is shown next to its entry in the right-click menu.
+
+| | | |
+|---|---|---|
+| `⌘⌥F` | `Ctrl+Alt+F` | **Primer Search** — the selection if there is one, the whole plasmid otherwise |
+| `⌘⇧K` | `Ctrl+Shift+K` | **New Primer** |
+| `⌘⇧R` | `Ctrl+Shift+R` | Copy Reverse Complement |
+| `⌘⌥A` | `Ctrl+Alt+A` | Copy AA Sequence |
+| `⌘⌥E` | `Ctrl+Alt+E` | Copy Reverse Complement AA Sequence |
+| `⌘⌥P` | `Ctrl+Alt+P` | Simulate PCR — moved off Open Vector Editor's `⌘⇧P`, which is the Command Palette |
+
+Plain `⌘C` copies the selection as before; it simply was not labelled in the menu until now.
+
+**Rebinding.** `oven.searchPrimersHotkey` and `oven.newPrimerHotkey` take Open Vector
+Editor's notation: `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+` — `alt+p`,
+`mod+alt+n`. An empty string means no shortcut. **Reopen the file** for a change to take
+effect.
+
+Avoid anything VS Code binds at the workbench level, such as `mod+j` or `mod+shift+f`
+(**Search: Find in Files**): those resolve before a webview ever sees the key, so the
+shortcut appears to do nothing. Bindings scoped to a text editor are free, which is why
+`⌘⇧K` works here despite being Delete Line. Open Vector Editor's own `mod+k` and `mod+l`
+still make a feature and a part.
 
 ## What this fork adds
 
