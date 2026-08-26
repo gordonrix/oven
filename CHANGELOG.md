@@ -4,6 +4,14 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.33.0
+
+Primer Search columns: **Tail** is now **Tail bp**, and **Tm** comes before **Anneal bp**.
+
+Column order on screen comes from the table of column definitions rather than from the
+stored preference, which is a set of keys — so the new order applies to everyone with no
+migration, and any widths you have dragged are kept.
+
 ## 1.32.0
 
 **Sequences now open split, with the Circular Map in a tab on the right.** `oven.viewType`

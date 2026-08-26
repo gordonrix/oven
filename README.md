@@ -101,15 +101,15 @@ Click **Primer Search**, or right-click the sequence and choose **Search primers
 every primer in your inventory that binds the open plasmid. Results open beside the sequence
 map, so you can see where each hit lands. Clicking a row selects and scrolls to that site.
 
-| Pos | Str | Name | Anneal bp | Tm | Tail | Alias | |
+| Pos | Str | Name | Tm | Anneal bp | Tail bp | Alias | |
 |---|---|---|---|---|---|---|---|
-| 325 | + | P_0048 | 25 | 72.4 | — | fwd screen | Attach |
-| 1522 | + | P_0123 | 22 | 65.4 | +16 | gibson fwd | Attach |
+| 325 | + | P_0048 | 72.4 | 25 | — | fwd screen | Attach |
+| 1522 | + | P_0123 | 65.4 | 22 | +16 | gibson fwd | Attach |
 
 Matching is **exact and 3′-anchored**: a primer binds if enough bases at its 3′ end match
 the template, so primers carrying a 5′ tail — a Gibson overhang, a restriction site, a
 barcode — are found even though their full sequence appears nowhere in the plasmid. The
-unmatched tail is shown in the **Tail** column; tick **100% match** to hide those.
+unmatched tail is shown in the **Tail bp** column; tick **100% match** to hide those.
 
 **Scope it to a selection.** A 10 kb plasmid can legitimately return hundreds of hits, where
 a 200 bp selection returns a handful. A primer is kept when its 3′ end lands inside the
@@ -124,13 +124,13 @@ it to the file. Attaching is not undoable with Cmd+Z — remove it from Properti
 
 **Columns** in the toolbar picks what the table shows. There are two kinds:
 
-- **Computed** — `Anneal bp`, `Tm` and `Tail`, worked out from the match. `Pos`, `Str`,
+- **Computed** — `Tm`, `Anneal bp` and `Tail bp`, worked out from the match. `Pos`, `Str`,
   `Name` and the **Attach** button are always shown.
 - **From your file** — every column of your inventory except the name and the sequence,
   under its own header. If your spreadsheet has `Date ordered` or `Dissolved in`, they are
   offered here.
 
-By default you get `Anneal bp`, `Tm`, `Tail` and your alias column. Your choice is
+By default you get `Tm`, `Anneal bp`, `Tail bp` and your alias column. Your choice is
 remembered across files and sessions; **Reset to defaults** puts it back. Drag a column
 divider to resize, double-click one to reset all widths.
 

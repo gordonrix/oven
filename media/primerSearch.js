@@ -57,19 +57,21 @@
     { key: 'pos', label: 'Pos', width: 56, locked: true },
     { key: 'str', label: 'Str', width: 26, locked: true },
     { key: 'name', label: 'Name', width: 90, locked: true },
-    { key: 'anneal', label: 'Anneal bp', width: 62 },
     { key: 'tm', label: 'Tm', width: 46 },
-    { key: 'tail', label: 'Tail', width: 46 }
+    { key: 'anneal', label: 'Anneal bp', width: 62 },
+    { key: 'tail', label: 'Tail bp', width: 56 }
   ];
   const ACTION_COLUMN = { key: 'attach', label: '', width: 62, locked: true };
   const FILE_KEY = 'col:';
-  const DEFAULT_BUILTIN = ['pos', 'str', 'name', 'anneal', 'tm', 'tail'];
+  const DEFAULT_BUILTIN = ['pos', 'str', 'name', 'tm', 'anneal', 'tail'];
   const MIN_COLUMN = 24;
   const DEFAULT_FILE_WIDTH = 130;
 
   // Keyed by column key rather than held as a positional array: the set of
   // columns depends on the inventory file, so an index means nothing until you
-  // know which file produced it.
+  // know which file produced it. The same goes for visibleColumns below -- it
+  // is a set of keys, and the order on screen comes from the tables above, so
+  // reordering them reorders the table for everyone with no migration.
   let columnWidths = {};
   // null until the user expresses a preference, which is what lets the default
   // depend on the file (see defaultVisible).

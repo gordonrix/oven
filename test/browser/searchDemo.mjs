@@ -288,7 +288,7 @@ export default async function run(page) {
    * The fixture puts Length first and Alias fourth so the two choices differ.
    */
   out.defaultHeaders = await headers(page);
-  const expected = ['Pos', 'Str', 'Name', 'Anneal bp', 'Tm', 'Tail', 'Alias', ''];
+  const expected = ['Pos', 'Str', 'Name', 'Tm', 'Anneal bp', 'Tail bp', 'Alias', ''];
   if (JSON.stringify(out.defaultHeaders) !== JSON.stringify(expected)) {
     fail.push(`default columns wrong: ${JSON.stringify(out.defaultHeaders)}`);
   }
@@ -311,7 +311,7 @@ export default async function run(page) {
   for (const locked of ['Pos', 'Str', 'Name']) {
     if (out.menuItems.includes(locked)) fail.push(`${locked} must not be de-selectable`);
   }
-  for (const offered of ['Anneal bp', 'Tm', 'Tail', 'Length', 'Alias', 'Description']) {
+  for (const offered of ['Anneal bp', 'Tm', 'Tail bp', 'Length', 'Alias', 'Description']) {
     if (!out.menuItems.includes(offered)) fail.push(`${offered} should be in the picker`);
   }
 
@@ -331,12 +331,12 @@ export default async function run(page) {
   await page.waitForTimeout(150);
   await page.evaluate(() => {
     const row = [...document.querySelectorAll('.ovesearch-colsitem')]
-      .find((n) => n.textContent.trim() === 'Tail');
+      .find((n) => n.textContent.trim() === 'Tail bp');
     row.querySelector('input').click();
   });
   await page.waitForTimeout(300);
   out.headersNoTail = await headers(page);
-  if (out.headersNoTail.includes('Tail')) fail.push('unticking Tail did not hide it');
+  if (out.headersNoTail.includes('Tail bp')) fail.push('unticking Tail bp did not hide it');
 
   // The choice must reach the host, or it cannot outlive the panel.
   out.savedColumns = (await posted(page)).filter((m) => m.type === 'search/setColumns');
@@ -369,7 +369,7 @@ export default async function run(page) {
   });
   await page.waitForTimeout(300);
   out.headersNoExtras = await headers(page);
-  if (JSON.stringify(out.headersNoExtras) !== JSON.stringify(['Pos', 'Str', 'Name', 'Anneal bp', 'Tm', ''])) {
+  if (JSON.stringify(out.headersNoExtras) !== JSON.stringify(['Pos', 'Str', 'Name', 'Tm', 'Anneal bp', ''])) {
     fail.push(`bare inventory should show only built-ins: ${JSON.stringify(out.headersNoExtras)}`);
   }
 
@@ -379,7 +379,7 @@ export default async function run(page) {
   await page.locator('.ovesearch-colsreset').click();
   await page.waitForTimeout(300);
   out.headersAfterReset = await headers(page);
-  if (!out.headersAfterReset.includes('Tail')) {
+  if (!out.headersAfterReset.includes('Tail bp')) {
     fail.push(`reset should restore Tail: ${JSON.stringify(out.headersAfterReset)}`);
   }
 
