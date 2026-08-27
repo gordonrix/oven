@@ -30,7 +30,7 @@ Module._load = function (request, ...rest) {
         fire(v) { this._l.forEach((c) => c(v)); }
       },
       Uri: { file: (p) => ({ fsPath: p, toString: () => `file://${p}` }) },
-      ViewColumn: { One: 1, Beside: -2 },
+      ViewColumn: { One: 1, Beside: -2, Active: -1 },
       workspace: {
         getConfiguration: () => ({ get: (k, d) => d }),
         workspaceFolders: null,
@@ -39,7 +39,7 @@ Module._load = function (request, ...rest) {
       window: {
         showInformationMessage() {}, showWarningMessage() {}, showErrorMessage() {},
         createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
-        createWebviewPanel: () => makePanel(true)
+        createWebviewPanel: (type, title, showOptions) => makePanel(true, showOptions)
       },
       commands: { executeCommand() {} },
       env: { clipboard: { writeText: async () => {} } }
@@ -49,7 +49,7 @@ Module._load = function (request, ...rest) {
 };
 
 /** Mock WebviewPanel whose visibility we drive by hand. */
-function makePanel(visible) {
+function makePanel(visible, showOptions) {
   const posted = [];
   const viewStateListeners = [];
   const panel = {
@@ -75,11 +75,14 @@ function makePanel(visible) {
     get: () => html,
     set(v) { html = v; panel._handlerAtHtml = panel._msgHandler; }
   });
+  panel._showOptions = showOptions;
   created = panel;
   return panel;
 }
 
 const { CartPanel } = require('../../src/cartPanel');
+// The stub above, not the real module -- these tests never run inside VS Code.
+const vscode = require('vscode');
 const { CartStore } = require('../../src/cartStore');
 
 function makeContext(seed) {
@@ -185,4 +188,23 @@ test('state carries the session list and the active session', async () => {
   assert.strictEqual(last.sessions.find((s) => s.id === last.activeId).name, 'batch two');
   const other = last.sessions.find((s) => s.id !== last.activeId);
   assert.strictEqual(other.count, 1, 'the parked session keeps its primers');
+});
+
+test('the panel opens as a tab in the active group, not a split', () => {
+  /*
+   * Beside would halve the editor's group. Sequences open split -- sequence on
+   * the left, circular map on the right -- so halving it again leaves each of
+   * those panes at a quarter of the window, too narrow to read.
+   */
+  const ctx = makeContext();
+  const panel = new CartPanel(ctx, new CartStore(ctx));
+  panel.show();
+  assert.strictEqual(created._showOptions.viewColumn, vscode.ViewColumn.Active);
+});
+
+test('an explicit column still wins', () => {
+  const ctx = makeContext();
+  const panel = new CartPanel(ctx, new CartStore(ctx));
+  panel.show(vscode.ViewColumn.One);
+  assert.strictEqual(created._showOptions.viewColumn, vscode.ViewColumn.One);
 });

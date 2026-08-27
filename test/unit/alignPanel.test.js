@@ -15,7 +15,7 @@ Module._load = function (request, ...rest) {
     return {
       window: {}, commands: {}, Uri: {},
       workspace: { onDidChangeConfiguration: () => ({ dispose() {} }) },
-      ViewColumn: { Beside: 2 }
+      ViewColumn: { Beside: 2, Active: -1 }
     };
   }
   return realLoad.call(this, request, ...rest);

@@ -4,6 +4,17 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.34.0
+
+**Align and Primer Cart open as tabs in the editor's group instead of splitting the window.**
+
+Splitting was tolerable while a plasmid filled its group. Since 1.32.0 sequences open split
+themselves — sequence on the left, circular map on the right — so halving that group again
+left each of those panes at a quarter of the window, too narrow to read.
+
+Drag the tab into its own group if you want them side by side; a panel already open is
+revealed where it is rather than being moved back.
+
 ## 1.33.0
 
 Primer Search columns: **Tail** is now **Tail bp**, and **Tm** comes before **Anneal bp**.

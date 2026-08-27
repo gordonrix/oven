@@ -91,7 +91,17 @@ class AlignPanel {
     const panel = vscode.window.createWebviewPanel(
       'oven.alignment',
       panelTitle(this.reference),
-      { viewColumn: column || vscode.ViewColumn.Beside, preserveFocus: false },
+      /*
+       * Active, not Beside: this opens as a tab in the group the editor is
+       * already in, rather than splitting the window.
+       *
+       * Beside was tolerable while a plasmid filled its group. Since sequences
+       * open split -- sequence on the left, circular map on the right -- halving
+       * that group again leaves each of those two panes at a quarter of the
+       * window, which is too narrow to read. Dragging the tab into its own group
+       * still works for anyone who wants them side by side.
+       */
+      { viewColumn: column || vscode.ViewColumn.Active, preserveFocus: false },
       {
         enableScripts: true,
         retainContextWhenHidden: true,

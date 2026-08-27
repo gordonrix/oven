@@ -153,8 +153,8 @@ class DNAViewerProvider {
       }
 
       if (message.type === 'cart/openPanel') {
-        // Beside the editor, and without stealing focus -- the picker the user
-        // just opened is the thing they are working in.
+        // Opens as a tab in the editor's own group rather than splitting it;
+        // see the note on viewColumn in cartPanel.show.
         this.cartPanel.show();
         return;
       }
