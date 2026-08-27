@@ -68,18 +68,24 @@
           {
             sequenceData: {
               name: 'demo-reference', sequence: REF, circular: false,
-              features: [{ id: 'f1', name: 'demo feature', start: 5, end: 40, strand: 1, type: 'CDS' }]
+              features: [
+                { id: 'f1', name: 'demo feature', start: 5, end: 40, strand: 1, type: 'CDS' },
+                // Three letters exactly. Open Vector Editor blanked any name of
+                // three characters or fewer, however wide the feature, so this
+                // is the case that must keep drawing its label.
+                { id: 'f2', name: 'CDF', start: 120, end: 260, strand: 1, type: 'misc_feature' }
+              ]
             },
-            alignmentData: { sequence: REF }
+            alignmentData: { name: 'demo-reference', sequence: REF }
           },
           {
             sequenceData: { name: 'clean-read', sequence: CLEAN, circular: false },
-            alignmentData: { sequence: CLEAN },
+            alignmentData: { name: 'clean-read', sequence: CLEAN },
             chromatogramData: fakeChrom(CLEAN)
           },
           {
             sequenceData: { name: 'window-read', sequence: WINDOW, circular: false },
-            alignmentData: { sequence: WINDOW_ROW },
+            alignmentData: { name: 'window-read', sequence: WINDOW_ROW },
             chromatogramData: fakeChrom(WINDOW)
           },
           {
@@ -92,7 +98,7 @@
               // viewer derives the amino acid from the read's own bases.
               translations: [{ id: 'mut-0-0', start: 60, end: 62, strand: 1, forward: true }]
             },
-            alignmentData: { sequence: DELETED_ROW }
+            alignmentData: { name: 'gb-read', sequence: DELETED_ROW }
           }
         ]
       };
@@ -168,6 +174,34 @@
       }
 
       document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      /*
+       * What a copy put on the clipboard.
+       *
+       * The alignment view copies through a throwaway <textarea> and
+       * document.execCommand, which a headless browser will not perform and the
+       * driver cannot read back. Recording the textarea's value at the moment
+       * execCommand is called captures exactly what would have been copied.
+       */
+      document.addEventListener('__captureAlignCopy', () => {
+        window.__alignCopies = [];
+        const log = document.getElementById('copyLog');
+        const real = document.execCommand.bind(document);
+        document.execCommand = (cmd, ...rest) => {
+          if (cmd === 'copy' && document.activeElement && 'value' in document.activeElement) {
+            window.__alignCopies.push(document.activeElement.value);
+            log.textContent = JSON.stringify(window.__alignCopies);
+          }
+          return real(cmd, ...rest);
+        };
+        const realWrite = navigator.clipboard && navigator.clipboard.writeText;
+        if (realWrite) {
+          navigator.clipboard.writeText = (text) => {
+            window.__alignCopies.push(text);
+            log.textContent = JSON.stringify(window.__alignCopies);
+            return Promise.resolve();
+          };
+        }
+      });
       document.addEventListener('__mafftFound', () => {
         state = Object.assign({}, state, {
           mafft: { ok: true, path: '/opt/homebrew/bin/mafft', version: 'v7.526' }
@@ -175,6 +209,8 @@
         send();
       });
     </script>
+
+    <pre id="copyLog"></pre>
 
     <div class="ovealign-root">
       <div id="setup" class="ovealign-setup"></div>

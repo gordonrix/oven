@@ -146311,7 +146311,19 @@ double click --> edit`}`;
         const fractionToDisplay = width / (name2.length * ANNOTATION_LABEL_FONT_WIDTH);
         const numLetters = Math.floor(fractionToDisplay * name2.length);
         nameToDisplay = name2.slice(0, numLetters);
-        if (nameToDisplay.length > 3) {
+        /*
+         * PATCH (oven): a short name that fits is not a truncation.
+         *
+         * The `> 3` is there to suppress a useless stub -- "Am.." tells you
+         * nothing -- but it was applied to the result of the slice without
+         * asking whether anything had been sliced off. A feature actually named
+         * in three characters or fewer therefore never drew its name, however
+         * much room it had: a 739 bp misc_feature called CDF rendered as an
+         * unlabelled block, in the sequence map as well as the alignment.
+         *
+         * Suppress it only when the name really was cut down to a stub.
+         */
+        if (nameToDisplay.length === name2.length || nameToDisplay.length > 3) {
           if (nameToDisplay.length !== name2.length) {
             nameToDisplay += "..";
           }
@@ -171501,12 +171513,33 @@ ${seqDataToCopy}\r
       });
       return seqDataOfAllTracksToCopy.join("");
     }, [alignmentTracks, id2, store2]);
+    /*
+     * PATCH (oven): what the selection of one track is, as plain text.
+     *
+     * Track 0 is the reference; the rest are the reads, in the order they were
+     * added, so the read at index i is "Query i".
+     */
+    const ovenTrackText = reactExports.useCallback((trackIndex) => {
+      const track = alignmentTracks[trackIndex];
+      if (!track) return "";
+      const selection = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2].selectionLayer || {};
+      return getSequenceDataBetweenRange(track.alignmentData, selection).sequence;
+    }, [alignmentTracks, id2, store2]);
     reactExports.useEffect(() => {
       const handleAlignmentCopy = /* @__PURE__ */ __name((event) => {
         if (event.key === "c" && !event.shiftKey && (event.metaKey === true || event.ctrlKey === true)) {
           const input = document.createElement("textarea");
           document.body.appendChild(input);
-          const seqDataToCopy = getAllAlignmentsFastaText();
+          /*
+           * PATCH (oven): the reference, as plain bases.
+           *
+           * Stock copies every track as FASTA. That is a strange default -- the
+           * common reason to select a stretch of an alignment and hit copy is to
+           * take that stretch of the reference somewhere else, and a multi-record
+           * FASTA of every read is not something you can paste into a primer box.
+           * Every other track is still reachable from the right-click menu.
+           */
+          const seqDataToCopy = ovenTrackText(0);
           input.value = seqDataToCopy;
           input.select();
           const copySuccess = document.execCommand("copy");
@@ -171523,7 +171556,7 @@ ${seqDataToCopy}\r
       return () => {
         document.removeEventListener("keydown", handleAlignmentCopy);
       };
-    }, [getAllAlignmentsFastaText]);
+    }, [ovenTrackText]);
     const scrollAlignmentToPercent = /* @__PURE__ */ __name((scrollPercentage) => {
       const scrollPercentageToUse = Math.min(Math.max(scrollPercentage, 0), 1);
       easyStore2.current.percentScrolled = scrollPercentageToUse;
@@ -172414,69 +172447,88 @@ ${seqDataToCopy}\r
                     selectionLayerRightClicked: selectionLayerRightClicked ? (...args) => {
                       selectionLayerRightClicked(...args, props);
                     } : (...args) => {
+                      /*
+                       * PATCH (oven): the whole of this menu.
+                       *
+                       * Stock offered "Copy Selection of ${name}" twice, where
+                       * name came from alignmentData.name -- so a track without
+                       * one read "Copy Selection of undefined". It also offered
+                       * nothing for the reference unless you happened to
+                       * right-click the reference row itself.
+                       *
+                       * The reference is now always offered, and the clicked
+                       * read is offered beside it as "Query N", numbered by
+                       * track order rather than named, so the entry is
+                       * predictable whatever the file was called. The read's own
+                       * name still goes in the FASTA header, where it is useful.
+                       */
                       const { event } = args[0];
-                      const track = getTrackFromEvent(event, allTracks);
-                      const alignmentData = track.alignmentData;
-                      const { name: name2 } = alignmentData;
-                      const copySpecificAlignmentFasta = /* @__PURE__ */ __name(() => __async(this, null, function* () {
-                        const { selectionLayer: selectionLayer22 } = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
-                        const seqDataToCopy = getSequenceDataBetweenRange(
-                          alignmentData,
-                          selectionLayer22
-                        ).sequence;
-                        const seqDataToCopyAsFasta = `>${name2}\r
-${seqDataToCopy}\r
-`;
-                        yield navigator.clipboard.writeText(
-                          seqDataToCopyAsFasta
-                        );
-                      }), "copySpecificAlignmentFasta");
-                      const copySpecificAlignment = /* @__PURE__ */ __name(() => __async(this, null, function* () {
-                        const { selectionLayer: selectionLayer22 } = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
-                        const seqDataToCopy = getSequenceDataBetweenRange(
-                          alignmentData,
-                          selectionLayer22
-                        ).sequence;
-                        yield navigator.clipboard.writeText(seqDataToCopy);
-                      }), "copySpecificAlignment");
-                      const getAllAlignmentsFastaText2 = /* @__PURE__ */ __name(() => __async(this, null, function* () {
-                        yield navigator.clipboard.writeText(
-                          getAllAlignmentsFastaText2()
-                        );
-                      }), "getAllAlignmentsFastaText2");
+                      const clicked = getTrackFromEvent(event, allTracks);
+                      // undefined when the click was not over a track; the
+                      // reference entries below still work.
+                      const clickedIndex = clicked ? Number(clicked.index) : -1;
+
+                      const ovenSelection = /* @__PURE__ */ __name(() => {
+                        const { selectionLayer: sel } = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
+                        return sel;
+                      }, "ovenSelection");
+                      const ovenBases = /* @__PURE__ */ __name((track) => getSequenceDataBetweenRange(
+                        track.alignmentData,
+                        ovenSelection()
+                      ).sequence, "ovenBases");
+                      const ovenCopyTrack = /* @__PURE__ */ __name((track, asFasta) => __async(this, null, function* () {
+                        const bases = ovenBases(track);
+                        const name22 = (track.alignmentData && track.alignmentData.name) || (track.sequenceData && track.sequenceData.name) || "sequence";
+                        yield navigator.clipboard.writeText(asFasta ? `>${name22}\r
+${bases}\r
+` : bases);
+                        window.toastr.success(asFasta ? "Selection Copied As Fasta" : "Selection Copied");
+                      }), "ovenCopyTrack");
+
+                      const ovenItems = [];
+                      const reference = allTracks[0];
+                      if (reference) {
+                        ovenItems.push({
+                          text: "Copy Selection of Reference",
+                          className: "copySpecificAlignmentAsPlainClipboardHelper",
+                          hotkey: "cmd+c",
+                          onClick: () => ovenCopyTrack(reference, false)
+                        }, {
+                          text: "Copy Selection of Reference as Fasta",
+                          className: "copySpecificAlignmentFastaClipboardHelper",
+                          onClick: () => ovenCopyTrack(reference, true)
+                        });
+                      }
+                      if (clicked && clickedIndex > 0) {
+                        ovenItems.push({
+                          text: `Copy Selection of Query ${clickedIndex}`,
+                          className: "copySpecificAlignmentAsPlainClipboardHelper",
+                          onClick: () => ovenCopyTrack(clicked, false)
+                        }, {
+                          text: `Copy Selection of Query ${clickedIndex} as Fasta`,
+                          className: "copySpecificAlignmentFastaClipboardHelper",
+                          onClick: () => ovenCopyTrack(clicked, true)
+                        });
+                      }
+                      ovenItems.push({
+                        text: "Copy Selection of All Alignments as Fasta",
+                        className: "copyAllAlignmentsFastaClipboardHelper",
+                        onClick: () => __async(this, null, function* () {
+                          // Stock called the local const, which was itself --
+                          // an infinite recursion that blew the stack instead
+                          // of copying anything.
+                          yield navigator.clipboard.writeText(getAllAlignmentsFastaText());
+                          window.toastr.success("Selection Copied");
+                        })
+                      });
+
                       showContextMenu(
                         [
                           ...additionalSelectionLayerRightClickedOptions ? additionalSelectionLayerRightClickedOptions(
                             ...args,
                             props
                           ) : [],
-                          {
-                            text: "Copy Selection of All Alignments as Fasta",
-                            className: "copyAllAlignmentsFastaClipboardHelper",
-                            hotkey: "cmd+c",
-                            onClick: () => {
-                              getAllAlignmentsFastaText2();
-                              window.toastr.success("Selection Copied");
-                            }
-                          },
-                          {
-                            text: `Copy Selection of ${name2} as Fasta`,
-                            className: "copySpecificAlignmentFastaClipboardHelper",
-                            onClick: () => {
-                              copySpecificAlignmentFasta();
-                              window.toastr.success(
-                                "Selection Copied As Fasta"
-                              );
-                            }
-                          },
-                          {
-                            text: `Copy Selection of ${name2}`,
-                            className: "copySpecificAlignmentAsPlainClipboardHelper",
-                            onClick: () => {
-                              copySpecificAlignment();
-                              window.toastr.success("Selection Copied");
-                            }
-                          }
+                          ...ovenItems
                         ],
                         void 0,
                         event

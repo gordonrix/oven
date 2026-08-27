@@ -386,7 +386,13 @@ class AlignPanel {
         name: this.reference.name,
         sequence: this.reference.sequence
       }),
-      alignmentData: { sequence: result.msa.reference }
+      /*
+       * The name belongs on alignmentData as well as sequenceData. OVE builds
+       * the FASTA headers for a copy out of alignmentData.name, so leaving it
+       * off produced ">undefined" for every track, and put "Copy Selection of
+       * undefined" in the right-click menu.
+       */
+      alignmentData: { name: this.reference.name, sequence: result.msa.reference }
     };
 
     const readTracks = result.msa.rows.map((row, i) => {
@@ -412,7 +418,7 @@ class AlignPanel {
           circular: false,
           translations
         },
-        alignmentData: { sequence: row.sequence },
+        alignmentData: { name: read.name, sequence: row.sequence },
         chromatogramData: followAlignment(read.chromatogramData, track) || undefined
       };
     });

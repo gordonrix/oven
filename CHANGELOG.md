@@ -4,6 +4,30 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.35.0
+
+Three fixes in the alignment view.
+
+**Short feature names are drawn again.** Open Vector Editor truncates an annotation label to
+what fits and then drops it if what survives is three characters or fewer — a rule meant to
+suppress a useless stub like `Am..`. It applied that rule without asking whether anything had
+actually been cut, so a feature genuinely named in three characters never showed its name at
+any width: a 739 bp `misc_feature` called `CDF` rendered as an unlabelled block. This affects
+the sequence map too, not only alignments.
+
+**`⌘C` copies the reference selection**, as plain bases. It used to copy every track as
+FASTA, which is not something you can paste into a primer box. Every other track is still
+reachable from the right-click menu.
+
+**The copy menu no longer says "undefined".** It offers the reference whatever you
+right-clicked, and adds the clicked read as *Query N*, numbered by track order. The read's
+own name still goes in the FASTA header, where it is useful.
+
+Two causes behind that last one: the tracks this extension builds carried no name on
+`alignmentData`, which is where the menu and the FASTA headers read it from; and *Copy
+Selection of All Alignments as Fasta* called itself instead of the function that builds the
+text, so it recursed until the stack gave out rather than copying anything.
+
 ## 1.34.0
 
 **Align and Primer Cart open as tabs in the editor's group instead of splitting the window.**

@@ -252,6 +252,31 @@ export default async function run(page) {
     fail.push('"Sanger sequencing" is still on screen');
   }
 
+  /* --- a short feature name is still a name -------------------------------- */
+
+  /*
+   * Open Vector Editor truncates an annotation label to what fits, then drops it
+   * entirely if what survives is three characters or fewer -- a rule meant to
+   * suppress a useless stub like "Am..". It applied that rule to the result of
+   * the slice without asking whether anything had been sliced off, so a feature
+   * genuinely named in three characters never drew its name at any width. A
+   * 739 bp misc_feature called CDF rendered as an unlabelled block.
+   *
+   * The demo reference carries a 140 bp feature called CDF for this.
+   */
+  out.shortLabel = await page.evaluate(() => {
+    const title = [...document.querySelectorAll('title')]
+      .find((n) => /- CDF -/.test(n.textContent || ''));
+    if (!title) return { drawn: false, reason: 'no CDF feature rendered at all' };
+    const text = title.parentElement.querySelector('text');
+    return { drawn: Boolean(text), text: text ? text.textContent.trim() : null };
+  });
+  if (!out.shortLabel.drawn) {
+    fail.push(`a three-letter feature name is not drawn: ${JSON.stringify(out.shortLabel)}`);
+  } else if (out.shortLabel.text !== 'CDF') {
+    fail.push(`the three-letter name came out as ${JSON.stringify(out.shortLabel.text)}`);
+  }
+
   /* --- the view fills the panel ------------------------------------------- */
 
   out.fill = await page.evaluate(() => {
