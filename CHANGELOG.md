@@ -4,6 +4,11 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.35.1
+
+A shorter Marketplace description, and the trimmed README from 1.35.0 packaged into the build
+so the extension's own Details pane matches the listing.
+
 ## 1.35.0
 
 Three fixes in the alignment view.
