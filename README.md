@@ -19,7 +19,17 @@ selection](images/Screenshot_overview.png)
 
 ## Install
 
-Not on the Marketplace yet. Build and sideload:
+Search for **OVEN** in the Extensions view (`Cmd/Ctrl+Shift+X`), or:
+
+```sh
+code --install-extension gordonrix.oven
+```
+
+If you have `sanekun.openvectoreditor` installed, uninstall it first — otherwise both offer
+to open `.gb` files.
+
+<details>
+<summary>Building it yourself</summary>
 
 ```sh
 npm install
@@ -27,29 +37,43 @@ npm run package
 code --install-extension oven-*.vsix --force
 ```
 
-If you have `sanekun.openvectoreditor` installed, uninstall it first — otherwise both offer
-to open `.gb` files.
+`npm run package` refuses to build if the vendored bundle has drifted from `patches/`.
+</details>
 
-## Settings
+## What this fork adds
 
-Everything below that reads like `oven.something` is a VS Code setting. To change one:
+Upstream is a viewer: it embeds Open Vector Editor in a VS Code tab and saves the file back.
+Added here:
 
-**`Cmd+,`** on macOS, **`Ctrl+,`** on Windows and Linux — or **Code → Settings → Settings** —
-then type **OVEN** in the search box. All of them are grouped under **Extensions → OVEN**.
+- **Primer cart** — collect primers across plasmid files into one order, with sessions, CSV
+  export and cross-referencing against primers you already own
+- **Primer search** over your own primer collection, 3′-anchored so a primer still matches
+  through its 5′ tail, with attach-to-sequence, a column chooser and click-to-sort
+- **New Primer as a side panel**, so the sequence stays visible while you design against it,
+  with an editable 5′ tail and mismatching bases marked in red
+- **Sanger alignment** against the open plasmid — chromatograms, mutated codons translated
+  from the read's own bases, and reads that run off the end of a circular reference handled
+  rather than reported as hundreds of mismatches
+- **Change Amino Acid** — pick any codon in the genetic code, not just synonyms, with usage
+  tables for *S. cerevisiae*, *E. coli*, *H. sapiens* and *M. musculus*
+- **Keyboard shortcuts** for primer search, new primer and the copy variants — see
+  [Keyboard shortcuts](#keyboard-shortcuts)
+- **Melting temperature and GC** for the current selection, in the status bar
+- **File → Save** and `Cmd/Ctrl+S` wired to Open Vector Editor's own menu item, which greys
+  itself out when nothing has changed — that item stays hidden unless an `onSave` is passed,
+  and upstream never passed one
+- **DNA base editing enabled**, and the **Create** menu populated — upstream left OVE's
+  `readOnly` default in place, which hid every item in it
+- **Sequences open split**, sequence on the left and the circular map in a tab on the right
+- **Persistent UI state** — cut-site filter, search columns and widths, codon-table organism
 
-To edit them as text instead, run **Preferences: Open User Settings (JSON)** from the
-command palette (`Cmd/Ctrl+Shift+P`) and add entries like:
+Plus fixes to Open Vector Editor itself, in the areas above: origin-spanning features
+corrupting on save, three `.ab1` parser bugs, chromatogram scaling that drew some real reads
+as a flat line, and annotation labels of three characters or fewer never being drawn.
 
-```jsonc
-{
-  "oven.inventoryPath": "/Users/you/Documents/Primers Inventory.xlsx",
-  "oven.newPrimerHotkey": "alt+p"
-}
-```
-
-Most take effect immediately; the ones that change how the editor is built —
-`oven.newPrimerHotkey`, `oven.searchPrimersHotkey`, `oven.readOnly`, `oven.viewType` —
-need the file reopened.
+The vendored OVE bundle is patched rather than forked, and every patch is tracked and
+checksummed — see [`patches/README.md`](patches/README.md). Patches and issue drafts for
+upstream are in [`upstream/`](upstream/).
 
 ## Primer cart
 
@@ -300,24 +324,26 @@ shortcut appears to do nothing. Bindings scoped to a text editor are free, which
 `⌘⇧K` works here despite being Delete Line. Open Vector Editor's own `mod+k` and `mod+l`
 still make a feature and a part.
 
-## What this fork adds
+## Settings
 
-Upstream is a viewer: it embeds Open Vector Editor in a VS Code tab and saves the file back.
-Added here:
+Anything in this README that reads like `oven.something` is a VS Code setting. To change one:
 
-- **Primer cart** with sessions, CSV export, and inventory cross-referencing
-- **Primer search** over your own primer collection, 3′-anchored, with attach-to-sequence
-- **Sanger alignment** against the open plasmid, with chromatograms and origin-spanning reads
-- **Change Amino Acid** with built-in codon usage tables
-- **DNA base editing enabled**, and the **Create** menu populated — upstream left OVE's
-  `readOnly` default in place, which hid every item in it
-- **Persistent UI state** — cut-site filter, search columns and widths, codon-table organism
-- **Fixes** for origin-spanning features corrupting on save, three `.ab1` parser bugs, and
-  chromatogram scaling that drew some real reads as a flat line
+**`Cmd+,`** on macOS, **`Ctrl+,`** on Windows and Linux — or **Code → Settings → Settings** —
+then type **OVEN** in the search box. All of them are grouped under **Extensions → OVEN**.
 
-The vendored OVE bundle is patched rather than forked, and every patch is tracked and
-checksummed — see [`patches/README.md`](patches/README.md). Patches and issue drafts for
-upstream are in [`upstream/`](upstream/).
+To edit them as text instead, run **Preferences: Open User Settings (JSON)** from the
+command palette (`Cmd/Ctrl+Shift+P`) and add entries like:
+
+```jsonc
+{
+  "oven.inventoryPath": "/Users/you/Documents/Primers Inventory.xlsx",
+  "oven.newPrimerHotkey": "alt+p"
+}
+```
+
+Most take effect immediately; the ones that change how the editor is built —
+`oven.newPrimerHotkey`, `oven.searchPrimersHotkey`, `oven.readOnly`, `oven.viewType` —
+need the file reopened.
 
 ## Known issues
 
