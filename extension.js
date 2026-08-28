@@ -16,6 +16,18 @@ function activate(context) {
   const cartPanel = new CartPanel(context, cart);
   const alignPanel = new AlignPanels(context);
 
+  /*
+   * retainContextWhenHidden is not a performance tweak here -- do not drop it.
+   *
+   * Without it VS Code tears the webview down when the tab is hidden and calls
+   * resolveCustomEditor again on return, which rebuilds the editor from the file
+   * on disk: unsaved base edits are lost, along with the selection, the zoom and
+   * any open panel. Upstream shipped without it, and documented the result as a
+   * known issue.
+   *
+   * It belongs on the provider registration rather than in resolveCustomEditor,
+   * which is why it is here and not beside the other webview options.
+   */
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       'oven.editor',

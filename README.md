@@ -295,7 +295,7 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a dark grey bar showing which strand they matched
-- **OVEN: Open Demo Editor** opens a scratch editor that keeps its contents across tab switches
+- **OVEN: Open Demo Editor** opens an empty editor to try things in, backed by no file
 
 ## Keyboard shortcuts
 
@@ -349,8 +349,6 @@ need the file reopened.
 
 Inherited from upstream:
 
-- Content in a file-backed editor does not persist across tab switches; only the editor
-  opened via **OVEN: Open Demo Editor** retains its contents.
 - `.dna` files: primers already in the file are displayed and preserved on save, but **new**
   primers created in the UI are not written back. Use `.gb` if you need that. The primer cart
   is unaffected.
