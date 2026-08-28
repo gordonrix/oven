@@ -1,8 +1,14 @@
-# OVEN — Open Vector Editor with New Features
+<p align="center">
+  <img src="images/bigicon.png" alt="OVEN" width="200">
+</p>
 
-<img src="images/bigicon.png" alt="OVEN" width="160">
+<h1 align="center">OVEN — Open Vector Editor with New Features</h1>
 
-A plasmid editor for VS Code, built on [Open Vector Editor](https://github.com/TeselaGen/tg-oss/tree/master/packages/ove).
+<p align="center">
+  A plasmid editor for VS Code, built on
+  <a href="https://github.com/TeselaGen/tg-oss/tree/master/packages/ove">Open Vector Editor</a>.
+</p>
+
 Open `.gb`, `.gbk`, `.fasta`, `.fa` and `.dna` files in a tab, then design primers, collect
 them into an order, search your existing primer collection, edit codons, and align Sanger
 reads against the plasmid on screen.
