@@ -316,6 +316,9 @@
    */
   function open() {
     showPanel();
+    // Put the caret in the filter box, so the panel can be opened and typed
+    // into without reaching for the mouse.
+    focusFilterOnRender = true;
     // Let OVE lay the panel out before the first paint of results.
     setTimeout(() => run(Boolean(currentSelection())), 0);
   }
@@ -560,8 +563,32 @@
     return hits;
   }
 
+  /*
+   * Set when the panel is opened, cleared once the caret is in the filter box.
+   *
+   * render() runs on every state change -- a search finishing, a column being
+   * ticked, a row being attached -- and stealing focus on each of those would
+   * take the caret away mid-typing. Only an explicit open() sets this.
+   */
+  let focusFilterOnRender = false;
+
   function render() {
     if (!root) return;
+
+    /*
+     * A render throws the whole panel away and builds it again, filter box
+     * included, so focus has to be carried across by hand -- otherwise the
+     * caret is lost the moment anything re-renders, which happens on its own
+     * as a search finishes as well as when a row is attached or a column
+     * ticked. Opening the panel counts as wanting the caret there.
+     */
+    const active = document.activeElement;
+    const wantFocus = focusFilterOnRender ||
+      Boolean(active && active.classList && active.classList.contains('ovesearch-filter'));
+    const caret = wantFocus && active && typeof active.selectionStart === 'number'
+      ? active.selectionStart
+      : null;
+
     root.textContent = '';
 
     root.appendChild(buildControls());
@@ -570,6 +597,17 @@
     const list = el('div', 'ovesearch-list');
     root.appendChild(list);
     renderList(list, count);
+
+    if (wantFocus) {
+      const filter = root.querySelector('.ovesearch-filter');
+      // focus() on a node that is not in the document does nothing, and OVE
+      // mounts the panel body itself, so the first render can arrive detached.
+      if (filter && root.isConnected) {
+        focusFilterOnRender = false;
+        filter.focus();
+        if (caret !== null) filter.setSelectionRange(caret, caret);
+      }
+    }
   }
 
   function buildControls() {

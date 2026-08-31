@@ -81,10 +81,33 @@ export default async function run(page) {
   out.scopedWithoutSelection = await lastRun();
 
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
+  // Click the sequence before selecting. Opening the panel puts the caret in
+  // the filter box, and Open Vector Editor ignores hotkeys raised from a text
+  // input -- so the key is inert until focus is back on the sequence, which is
+  // where it lands the moment you drag out a selection for real.
+  await clickSequence();
   await select(0, 80);
   await page.keyboard.press(HOTKEY);
   await page.waitForTimeout(1200);
   out.scopedWithSelection = await lastRun();
+
+  // The other half of that: with the caret still in the filter the key does
+  // nothing, which is worth knowing rather than discovering.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
+  await page.evaluate(() => {
+    const f = document.querySelector('.ovesearch-filter');
+    if (f) f.focus();
+  });
+  await page.waitForTimeout(300);
+  await page.keyboard.press(HOTKEY);
+  await page.waitForTimeout(1000);
+  out.runWhileFilterFocused = await lastRun();
+  if (out.runWhileFilterFocused !== null) {
+    fail.push('the hotkey fired while the caret was in the filter box');
+  }
+  // Hand focus back to the sequence, so the sections below start where they
+  // would if this one had not run.
+  await clickSequence();
 
   if (out.scopedWithoutSelection !== false) {
     fail.push(`with nothing selected the shortcut should search the plasmid, got scoped=${out.scopedWithoutSelection}`);

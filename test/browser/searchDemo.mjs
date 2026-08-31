@@ -69,6 +69,63 @@ export default async function run(page) {
   await page.waitForSelector('.ovesearch-row', { timeout: 8000 });
   out.rows = await rows(page);
 
+  /* --- the caret starts in the filter box ---------------------------------- */
+
+  /*
+   * Opening the panel should leave you able to type straight away. This is not
+   * a one-line focus() call: a render throws the panel away and builds it
+   * again, so the focused input is destroyed by whichever render lands next --
+   * results arriving, a column ticked, a row attached. Focus is carried across
+   * rebuilds instead, which also keeps the caret where it was while typing.
+   */
+  await page.waitForTimeout(600);
+  out.focusedOnOpen = await page.evaluate(() =>
+    (document.activeElement.className || '').toString());
+  if (!/ovesearch-filter/.test(out.focusedOnOpen)) {
+    fail.push(`the filter box is not focused on open: ${JSON.stringify(out.focusedOnOpen)}`);
+  }
+
+  // Typing with nothing clicked has to reach the filter.
+  await page.keyboard.type('DEMO_TAIL');
+  await page.waitForTimeout(600);
+  out.typedIntoFilter = await page.evaluate(() =>
+    (document.querySelector('.ovesearch-filter') || {}).value);
+  out.rowsWhileFiltered = (await rows(page)).length;
+  if (out.typedIntoFilter !== 'DEMO_TAIL') {
+    fail.push(`typing did not reach the filter: ${JSON.stringify(out.typedIntoFilter)}`);
+  }
+  if (!(out.rowsWhileFiltered > 0 && out.rowsWhileFiltered < 5)) {
+    fail.push(`the typed filter did not narrow the rows: ${out.rowsWhileFiltered}`);
+  }
+
+  // ...but focus must not be yanked back once the caret has been put elsewhere.
+  await page.evaluate(() => document.querySelector('.ovesearch-filter').blur());
+  await page.locator('.ovesearch-header .ovesearch-k-tm').click();
+  await page.waitForTimeout(500);
+  out.focusAfterSort = await page.evaluate(() =>
+    (document.activeElement.className || '').toString());
+  if (/ovesearch-filter/.test(out.focusAfterSort)) {
+    fail.push('a re-render stole focus back into the filter box');
+  }
+  // Cycle the sort back off, so the checks further down see the match order.
+  await page.locator('.ovesearch-header .ovesearch-k-tm').click();
+  await page.waitForTimeout(300);
+  await page.locator('.ovesearch-header .ovesearch-k-tm').click();
+  await page.waitForTimeout(400);
+  out.sortCycledOff = await page.evaluate(() =>
+    document.querySelector('.ovesearch-header .ovesearch-k-tm').textContent.trim());
+  if (/[▲▼]/.test(out.sortCycledOff)) {
+    fail.push(`sort not cleared before the rest of the suite: ${out.sortCycledOff}`);
+  }
+
+  await page.evaluate(() => {
+    const f = document.querySelector('.ovesearch-filter');
+    f.value = '';
+    f.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(500);
+  out.rows = await rows(page);
+
   // The whole point of the panel: the sequence must remain on screen.
   out.sequenceVisibleWithPanel = await page.locator('.veRowView, .veRowViewSequence').first().isVisible();
   out.panelTabs = await page.evaluate(() =>

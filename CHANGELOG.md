@@ -4,6 +4,19 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.36.0
+
+**Opening Primer Search puts the caret in the Filter box**, so you can open it and type
+without reaching for the mouse.
+
+Focus is now also carried across the panel's rebuilds. It rebuilds itself whenever anything
+changes — a search finishing, a column ticked, a row attached — and each rebuild replaced the
+Filter box, so the caret was lost mid-typing.
+
+Note that Open Vector Editor ignores hotkeys raised from a text input, so `⌘⌥F` does nothing
+while the caret is in the Filter box. Click the sequence first — which is what selecting a
+region does anyway.
+
 ## 1.35.1
 
 A shorter Marketplace description, and the trimmed README from 1.35.0 packaged into the build
