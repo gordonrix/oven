@@ -252,6 +252,58 @@ export default async function run(page) {
     fail.push('"Sanger sequencing" is still on screen');
   }
 
+  /* --- coverage and deletion are drawn differently ------------------------- */
+
+  /*
+   * A read crossing the origin lands in two pieces. Between them sits reference
+   * it never reached; outside them sits reference it read straight through and
+   * did not find. Those are not the same thing and must not look the same:
+   * blank for the first, red for the second.
+   *
+   * Upstream decides both from the row's leading and trailing dashes, which
+   * gets a wrapped read exactly backwards. The demo carries a wrap-read for it:
+   * covered 30-89 and 240-299, deleted 0-29, never reached 90-239.
+   */
+  out.wrapLane = await page.evaluate(() => {
+    const parse = (d) => (d || '').split('M').filter(Boolean).map((seg) => {
+      const m = /^([\d.-]+),[\d.-]+ L([\d.-]+),/.exec(seg);
+      return m ? [Math.round(+m[1]), Math.round(+m[2])] : null;
+    }).filter(Boolean);
+    const lane = [...document.querySelectorAll('.minimapLane')].find((l) => {
+      const blue = parse(l.querySelector('.miniBluePath').getAttribute('d'));
+      return blue.length > 1;          // the only track drawn in two pieces
+    });
+    if (!lane) return null;
+    const width = lane.querySelector('svg').getAttribute('width');
+    return {
+      blue: parse(lane.querySelector('.miniBluePath').getAttribute('d')),
+      red: parse(lane.querySelector('.miniRedPath').getAttribute('d')),
+      width: Number(width)
+    };
+  });
+
+  if (!out.wrapLane) {
+    fail.push('the wrapped read is drawn as one block, so its uncovered stretch reads as coverage');
+  } else {
+    const perBase = out.wrapLane.width / 300;
+    const toBp = ([a, b]) => [Math.round(a / perBase), Math.round(b / perBase)];
+    const blue = out.wrapLane.blue.map(toBp);
+    const red = out.wrapLane.red.map(toBp);
+    if (blue.length !== 2) {
+      fail.push(`expected two covered blocks, got ${JSON.stringify(blue)}`);
+    } else {
+      // 0-89 because the deletion abuts the covered stretch, and 240-299.
+      if (blue[0][0] !== 0 || blue[0][1] !== 90) fail.push(`first block wrong: ${blue[0]}`);
+      if (blue[1][0] !== 240 || blue[1][1] !== 300) fail.push(`second block wrong: ${blue[1]}`);
+      // The gap between them is the reference the read never reached.
+      if (blue[0][1] >= blue[1][0]) fail.push('no blank stretch between the two pieces');
+    }
+    if (!red.length) fail.push('the deleted stretch is not marked red');
+    else if (red[0][0] !== 0 || red[0][1] !== 30) {
+      fail.push(`the red mark should cover the deletion at 0-30, got ${red[0]}`);
+    }
+  }
+
   /* --- a short feature name is still a name -------------------------------- */
 
   /*
@@ -568,6 +620,14 @@ export default async function run(page) {
         return m ? Number(m[2]) - Number(m[1]) : 0;
       })(),
       mismatchStroke: redStyle && redStyle.stroke,
+      // The viewport box: black rules top and bottom, matching the vertical
+      // pair, over a wash light enough to read the bars through.
+      viewport: (() => {
+        const v = mm.querySelector('.verticalScrollDisplay');
+        if (!v) return null;
+        const st = getComputedStyle(v);
+        return { top: st.borderTopColor, bottom: st.borderBottomColor, fill: st.backgroundColor };
+      })(),
       stillYellow
     };
   });
@@ -581,6 +641,22 @@ export default async function run(page) {
   const lightness = (c) => { const [r, g, b] = rgb(c); return (r + g + b) / 3; };
 
   if (!out.minimap) fail.push('no summary strip rendered');
+  if (out.minimap && out.minimap.viewport) {
+    const v = out.minimap.viewport;
+    const dark = (c) => {
+      const m = /(\d+), ?(\d+), ?(\d+)/.exec(c || '');
+      return m && Number(m[1]) < 60 && Number(m[2]) < 60 && Number(m[3]) < 60;
+    };
+    if (!dark(v.top) || !dark(v.bottom)) {
+      fail.push(`the viewport rules are not black: ${v.top} / ${v.bottom}`);
+    }
+    // Washed, but see-through: an opaque fill would hide the bars it covers.
+    const alpha = /rgba?\([^)]*,\s*([\d.]+)\)/.exec(v.fill || '');
+    const a = alpha ? Number(alpha[1]) : 1;
+    if (!(a > 0 && a < 0.35)) {
+      fail.push(`the viewport wash should be a light translucent grey, got ${v.fill}`);
+    }
+  }
   else {
     if (out.minimap.stillYellow) {
       fail.push(`${out.minimap.stillYellow} element(s) still tint the strip yellow`);

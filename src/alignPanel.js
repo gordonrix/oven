@@ -411,6 +411,35 @@ class AlignPanel {
         this.reference.sequence.length
       ).map((codon, n) => Object.assign({ id: `mut-${i}-${n}` }, codon));
 
+      /*
+       * Where this read actually reached, in the column space the view draws
+       * in. Only a read folded across the origin has it: for every other read
+       * the covered stretch runs from its first base to its last, which the
+       * viewer already works out. Without it, the stretch such a read never
+       * reached would be drawn as coverage and the sequence missing from the
+       * clone would be drawn as never sequenced -- the wrong way round.
+       */
+      const toColumns = (ranges) => (ranges || []).map(([from, to]) => {
+        const cols = [];
+        let at = -1;
+        for (let i = 0; i < result.msa.reference.length; i++) {
+          if (result.msa.reference[i] !== '-') at++;
+          const inside = from <= to ? (at >= from && at <= to) : (at >= from || at <= to);
+          if (at >= 0 && inside) cols.push(i);
+        }
+        return cols;
+      }).flatMap((cols) => {
+        // A range that wraps the origin comes back as two runs of columns.
+        const out = [];
+        let start = null, prev = null;
+        for (const c of cols) {
+          if (start === null) { start = c; } else if (c !== prev + 1) { out.push([start, prev]); start = c; }
+          prev = c;
+        }
+        if (start !== null) out.push([start, prev]);
+        return out;
+      });
+
       return {
         sequenceData: {
           name: read.name,
@@ -419,6 +448,9 @@ class AlignPanel {
           translations
         },
         alignmentData: { name: read.name, sequence: row.sequence },
+        ovenCoverage: track.covered
+          ? { covered: toColumns(track.covered), deleted: toColumns(track.deleted) }
+          : undefined,
         chromatogramData: followAlignment(read.chromatogramData, track) || undefined
       };
     });

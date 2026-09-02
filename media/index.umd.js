@@ -131673,7 +131673,8 @@ ${seq.sequence}
       });
       const matchHighlightRanges = getRangeMatchesBetweenTemplateAndNonTemplate(
         alignmentTracks[0].alignmentData.sequence,
-        track.alignmentData.sequence
+        track.alignmentData.sequence,
+        track.ovenCoverage   // PATCH (oven): see the note in that function
       );
       const mismatches = matchHighlightRanges.filter(({ isMatch }) => !isMatch);
       return __spreadProps(__spreadValues({}, track), {
@@ -131805,9 +131806,40 @@ ${seq.sequence}
     }
     return state2;
   }, "alignments");
-  function getRangeMatchesBetweenTemplateAndNonTemplate(tempSeq, nonTempSeq) {
+  function getRangeMatchesBetweenTemplateAndNonTemplate(tempSeq, nonTempSeq, ovenCoverage) {
     const seqLength = nonTempSeq.length;
     const ranges = [];
+    /*
+     * PATCH (oven): use the coverage the aligner worked out, when it has one.
+     *
+     * Below, a column counts as read only if it lies between the first and last
+     * base of the row. That holds for a read that sits in one piece, and is
+     * wrong for one that crosses the origin: such a read lands in two pieces,
+     * so the stretch it never reached is *between* them and would be read as
+     * covered, while the sequence missing from the clone sits outside and would
+     * be read as never sequenced. Exactly backwards, which is why these have
+     * always looked wrong.
+     *
+     * `covered` is where the read put bases; `deleted` is reference it read
+     * straight through and did not find -- a real difference, so not a match.
+     */
+    if (ovenCoverage) {
+      const spans = []
+        .concat((ovenCoverage.covered || []).map(([a, b]) => ({ start: a, end: b, deleted: false })))
+        .concat((ovenCoverage.deleted || []).map(([a, b]) => ({ start: a, end: b, deleted: true })))
+        .sort((a, b) => a.start - b.start);
+      for (const span of spans) {
+        for (let i2 = span.start; i2 <= span.end && i2 < seqLength; i2++) {
+          const isMatch = !span.deleted
+            && tempSeq[i2] !== undefined
+            && tempSeq[i2].toLowerCase() === nonTempSeq[i2].toLowerCase();
+          const previous = ranges[ranges.length - 1];
+          if (previous && previous.isMatch === isMatch && previous.end === i2 - 1) previous.end = i2;
+          else ranges.push({ start: i2, end: i2, isMatch });
+        }
+      }
+      return ranges;
+    }
     const nonTempSeqWithoutLeadingDashes = nonTempSeq.replace(/^-+/g, "");
     const nonTempSeqWithoutTrailingDashes = nonTempSeq.replace(/-+$/g, "");
     const startIndex = seqLength - nonTempSeqWithoutLeadingDashes.length;
@@ -156196,15 +156228,24 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
         let bluePath = "";
         const height2 = laneHeight - laneSpacing;
         const y2 = 0;
-        const firstRange = getXStartAndWidthFromNonCircularRange(
-          matchHighlightRanges[0],
-          charWidth2
-        );
-        const lastRange = getXStartAndWidthFromNonCircularRange(
-          matchHighlightRanges[matchHighlightRanges.length - 1],
-          charWidth2
-        );
-        bluePath += `M${firstRange.xStart},${y2} L${lastRange.xStart + lastRange.width},${y2} L${lastRange.xStart + lastRange.width},${y2 + height2} L${firstRange.xStart},${y2 + height2}`;
+        /*
+         * PATCH (oven): a blue block per contiguous run, not one spanning block.
+         *
+         * Stock draws a single rectangle from the first range to the last, which
+         * assumes everything between them was read. A read crossing the origin
+         * lands in two pieces with reference it never reached in between, and
+         * that stretch has to stay blank -- it is not coverage.
+         */
+        const ovenRuns = [];
+        for (const range2 of matchHighlightRanges) {
+          const prev = ovenRuns[ovenRuns.length - 1];
+          if (prev && range2.start === prev.end + 1) prev.end = range2.end;
+          else ovenRuns.push({ start: range2.start, end: range2.end });
+        }
+        for (const run of ovenRuns) {
+          const r2 = getXStartAndWidthFromNonCircularRange(run, charWidth2);
+          bluePath += `M${r2.xStart},${y2} L${r2.xStart + r2.width},${y2} L${r2.xStart + r2.width},${y2 + height2} L${r2.xStart},${y2 + height2}`;
+        }
         matchHighlightRanges.forEach((range2) => {
           const { xStart, width: width2 } = getXStartAndWidthFromNonCircularRange(
             range2,

@@ -4,6 +4,28 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.38.0
+
+**Reads that cross the origin are aligned properly.** Such a read has its tail at a lower
+reference position than its head, and an alignment can only move forward — so MAFFT left the
+tail dangling past the end of the reference and it was counted as hundreds of mismatches. No
+gap setting changes that; it is the monotonicity of alignment itself. The read is now aligned
+against the reference written twice, where it is monotonic, and folded back onto one turn.
+The origin does not move and the coordinates stay as they are in the file.
+
+On seven pBT0-150 clones this turns "445 mismatches at 100% identity" into what is actually
+there: a single 1,876 bp deletion, its ends landing on the NotI and I-SceI sites that flank
+the cassette.
+
+**The overview strip tells coverage from deletion.** A wrapped read lands in two pieces, with
+reference it never reached between them and reference missing from the clone outside them.
+Upstream decides both from the row's leading and trailing gaps, which gets a wrapped read
+exactly backwards. Sequence the read never reached is now blank, and sequence missing from
+the clone is red.
+
+The viewport box in that strip is ruled in black top and bottom, to match its sides, over a
+light grey wash.
+
 ## 1.37.0
 
 **Align and Primer Cart open beside the plasmid again, and the editor folds its own split

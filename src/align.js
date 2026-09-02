@@ -294,10 +294,162 @@ function coverageGapRun(referenceRow, readRow, from, to) {
   return best;
 }
 
+/* ------------------------------------------------- reads across the origin -- */
+
+/*
+ * A read that crosses the origin cannot be aligned against a linear reference.
+ *
+ * An alignment only moves forward along both sequences. Such a read has its
+ * tail at a LOWER reference position than its head, so placing the tail after
+ * the head would mean running backwards, which no gap penalty can buy -- MAFFT
+ * leaves the tail dangling past the end instead, and it is counted as hundreds
+ * of mismatches. Tuning gap costs does not touch this; it is the monotonicity
+ * of alignment itself.
+ *
+ * The fix is to align against the reference written twice, where the same read
+ * IS monotonic, and then fold the result back onto one turn. The origin does
+ * not move and the coordinates stay as they are in the file: the read simply
+ * lands in two pieces, which is what it is.
+ */
+
+/** Does this read hang off the end of the reference rather than fitting in it? */
+function overhangsEnd(referenceRow, readRow) {
+  const last = readRow.length - 1 - String(readRow).split('').reverse().join('').search(/[^-]/);
+  if (last < 0) return 0;
+  let run = 0;
+  for (let i = last; i >= 0 && referenceRow[i] === '-'; i--) run++;
+  return run;
+}
+
+/**
+ * Place a read onto reference coordinates using an alignment against the
+ * doubled reference.
+ *
+ * @returns {{placed: Array<string|null>, covered: Array<[number, number]>,
+ *            insertions: number}}
+ *   `placed[i]` is the read base sitting on reference position i, or null where
+ *   the read has nothing there. `covered` is the reference the read actually
+ *   reached, as inclusive ranges -- which is what tells a deletion (inside a
+ *   covered stretch) apart from sequence the read never saw.
+ */
+function foldOntoReference(doubledRefRow, readRow, refLength) {
+  const placed = new Array(refLength).fill(null);
+  const order = new Array(refLength).fill(-1);
+  let refPos = -1;
+  let readPos = -1;
+  let insertions = 0;
+
+  for (let i = 0; i < doubledRefRow.length; i++) {
+    const r = doubledRefRow[i];
+    const q = readRow[i];
+    if (r !== '-') refPos++;
+    if (q !== '-') readPos++;
+    if (refPos < 0) continue;
+    if (r === '-') { if (q !== '-') insertions++; continue; }
+    if (q === '-') continue;
+    const at = refPos % refLength;
+    placed[at] = q;
+    order[at] = readPos;
+  }
+
+  // Contiguous stretches of reference the read put bases on, tagged with where
+  // in the read they came from.
+  const covered = [];
+  let from = -1;
+  for (let i = 0; i <= refLength; i++) {
+    const has = i < refLength && order[i] >= 0;
+    if (has && from < 0) from = i;
+    else if (!has && from >= 0) { covered.push([from, i - 1]); from = -1; }
+  }
+
+  /*
+   * Which of the uncovered stretches is a deletion and which was never read.
+   *
+   * Both are reference with no read base on it, and they are not the same
+   * thing: one is sequence the clone has lost, the other is sequence this read
+   * simply stopped short of. Read order tells them apart. Walking the segments
+   * in the order the read produced them, the reference between one segment and
+   * the next is sequence the read carried on through and did not find -- a
+   * deletion. What is left over, between the last segment and the first, is the
+   * arc it never reached.
+   */
+  const byRead = covered.slice().sort((a, b) => order[a[0]] - order[b[0]]);
+  const deleted = [];
+  for (let i = 0; i + 1 < byRead.length; i++) {
+    const gapFrom = (byRead[i][1] + 1) % refLength;
+    const gapTo = (byRead[i + 1][0] - 1 + refLength) % refLength;
+    if (byRead[i][1] + 1 > byRead[i + 1][0] - 1 + refLength) continue;
+    deleted.push([gapFrom, gapTo]);
+  }
+
+  return { placed, covered, deleted, insertions };
+}
+
+/**
+ * Write a folded read back into the column space every other track shares.
+ *
+ * The shared reference row carries extra columns wherever some other read had
+ * an insertion; those get a gap here, so all the rows stay the same length and
+ * the viewer can still stack them.
+ */
+function toSharedColumns(placed, sharedReferenceRow) {
+  const out = [];
+  let refPos = -1;
+  for (let i = 0; i < sharedReferenceRow.length; i++) {
+    if (sharedReferenceRow[i] === '-') { out.push('-'); continue; }
+    refPos++;
+    const base = placed[refPos];
+    out.push(base === null || base === undefined ? '-' : base);
+  }
+  return out.join('');
+}
+
 function countDifferences(referenceRow, readRow, opts = {}) {
   let substitutions = 0;
   let gaps = 0;
   let compared = 0;
+
+  /*
+   * A read folded across the origin brings its own coverage, because the span
+   * between its first and last column is not what it saw: the arc it never
+   * reached sits between its two ends. Everything inside the covered ranges is
+   * comparison, everything outside is absence of coverage.
+   */
+  if (opts.covered) {
+    /*
+     * In scope: the reference the read put bases on, plus the stretches it read
+     * straight through and found missing. Out of scope: the arc it never
+     * reached, which is absence of coverage rather than disagreement.
+     */
+    const ranges = opts.covered.concat(opts.deleted || []);
+    const inside = new Array(referenceRow.length).fill(false);
+    let at = -1;
+    for (let i = 0; i < referenceRow.length; i++) {
+      if (referenceRow[i] !== '-') at++;
+      inside[i] = at >= 0 && ranges.some(([from, to]) => (from <= to
+        ? at >= from && at <= to
+        : at >= from || at <= to));   // a deletion may wrap the origin
+    }
+    for (let i = 0; i < referenceRow.length; i++) {
+      if (!inside[i]) continue;
+      const r = referenceRow[i];
+      const q = readRow[i];
+      // A column the reference does not occupy belongs to some other read's
+      // insertion. Folding drops insertions, so there is nothing to score.
+      if (r === '-') continue;
+      if (q === '-') { gaps++; continue; }
+      compared++;
+      if (r.toUpperCase() !== q.toUpperCase()) substitutions++;
+    }
+    return {
+      substitutions,
+      gaps,
+      compared,
+      mismatches: substitutions + gaps,
+      identity: compared ? (compared - substitutions) / compared : 0
+    };
+  }
+
   const start = readRow.search(/[^-]/);
   const end = readRow.length - 1 - String(readRow).split('').reverse().join('').search(/[^-]/);
   // For a wrapping read, discount the arc it never covered (see above).
@@ -460,6 +612,62 @@ async function align(reference, reads, opts = {}) {
 
   const pairs = splitPairs(aligned);
 
+  /*
+   * Second pass for reads that ran off the end (see foldOntoReference).
+   *
+   * Only those reads, and one at a time: the shared run is what every ordinary
+   * read is measured in, and doubling the reference for all of them would give
+   * a read that does not cross the origin two equally good places to sit.
+   */
+  const sharedReferenceRow = aligned[0].sequence;
+  const folded = new Array(pairs.length).fill(null);
+  for (let i = 0; i < pairs.length; i++) {
+    if (!overhangsEnd(pairs[i].referenceRow, pairs[i].readRow)) continue;
+    /*
+     * Only a read that fits within one turn. Folding maps every read base to a
+     * reference position, so a read longer than the reference would have two
+     * bases claiming the same position and the later one would quietly win.
+     * A read that long is not a read crossing the origin anyway.
+     */
+    if (prepared[i].sequence.length > refSeq.length) continue;
+    const twice = await runMafft(
+      [{ name: 'reference', sequence: refSeq + refSeq },
+        { name: prepared[i].key, sequence: prepared[i].sequence }],
+      opts
+    );
+    const pair = splitPairs(twice)[0];
+    const fold = foldOntoReference(pair.referenceRow, pair.readRow, refSeq.length);
+    // Only keep it if it actually placed the read; a read that genuinely
+    // belongs nowhere should stay as MAFFT left it rather than be forced on.
+    if (fold.covered.length) {
+      folded[i] = Object.assign(fold, {
+        readRow: toSharedColumns(fold.placed, sharedReferenceRow)
+      });
+    }
+  }
+
+  /*
+   * Folding a read out of its dangling position can leave columns no row
+   * occupies -- the ones MAFFT opened for the overhang. Left in, the viewer
+   * draws them as a blank band, so they go.
+   */
+  let msaReference = sharedReferenceRow;
+  let msaRows = prepared.map((p, i) => (folded[i] ? folded[i].readRow : aligned[i + 1].sequence));
+  if (folded.some(Boolean)) {
+    const keep = [];
+    for (let i = 0; i < msaReference.length; i++) {
+      if (msaReference[i] !== '-' || msaRows.some((row) => row[i] !== '-')) keep.push(i);
+    }
+    if (keep.length !== msaReference.length) {
+      const pick = (row) => keep.map((i) => row[i]).join('');
+      msaReference = pick(msaReference);
+      msaRows = msaRows.map(pick);
+      for (let i = 0; i < folded.length; i++) {
+        if (folded[i]) folded[i].readRow = msaRows[i];
+      }
+    }
+  }
+
   return {
     reference,
     /*
@@ -471,16 +679,16 @@ async function align(reference, reads, opts = {}) {
      * would otherwise be counted against this one.
      */
     msa: {
-      reference: aligned[0].sequence,
-      rows: prepared.map((p, i) => ({
-        name: p.input.name,
-        sequence: aligned[i + 1].sequence
-      }))
+      reference: msaReference,
+      rows: prepared.map((p, i) => ({ name: p.input.name, sequence: msaRows[i] }))
     },
     tracks: prepared.map((p, i) => {
       const pair = pairs[i];
       // MAFFT may have flipped a read anchoring could not orient.
       const strand = pair.flipped ? -p.strand : p.strand;
+      const fold = folded[i];
+      const readRow = fold ? fold.readRow : pair.readRow;
+      const referenceRow = fold ? msaReference : pair.referenceRow;
       return {
         name: p.input.name,
         strand,
@@ -490,9 +698,22 @@ async function align(reference, reads, opts = {}) {
         rotation: p.rotation,
         flippedByMafft: pair.flipped,
         sequence: p.sequence,
-        referenceRow: pair.referenceRow,
-        readRow: pair.readRow,
-        ...countDifferences(pair.referenceRow, pair.readRow, { wraps: Boolean(p.rotation) })
+        referenceRow,
+        readRow,
+        /*
+         * Which reference the read actually reached, as inclusive ranges. Only
+         * a folded read carries it: for everything else the covered stretch is
+         * the span between its first and last base, which the viewer already
+         * works out for itself.
+         */
+        covered: fold ? fold.covered : null,
+        crossesOrigin: Boolean(fold),
+        deleted: fold ? fold.deleted : null,
+        ...countDifferences(referenceRow, readRow, {
+          wraps: Boolean(p.rotation),
+          covered: fold ? fold.covered : null,
+          deleted: fold ? fold.deleted : null
+        })
       };
     })
   };
@@ -500,6 +721,6 @@ async function align(reference, reads, opts = {}) {
 
 module.exports = {
   align, anchor, rotateString, rotationFor, splitPairs, countDifferences,
-  mutatedCodons, codonPositions,
+  mutatedCodons, codonPositions, overhangsEnd, foldOntoReference, toSharedColumns,
   runMafft, parseFasta, toFasta, MISSING_MAFFT, DEFAULT_K
 };

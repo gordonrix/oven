@@ -89,6 +89,20 @@
             chromatogramData: fakeChrom(WINDOW)
           },
           {
+            /*
+             * A read that crosses the origin, with a deletion at the junction.
+             * It lands in two pieces: ref 240-299 and ref 30-89, having read
+             * straight through 0-29 and not found it. Ref 90-239 it never
+             * reached. Those two absences must not be drawn the same way.
+             */
+            sequenceData: { name: 'wrap-read', sequence: REF.slice(240) + REF.slice(30, 90), circular: false },
+            alignmentData: {
+              name: 'wrap-read',
+              sequence: '-'.repeat(30) + REF.slice(30, 90) + '-'.repeat(150) + REF.slice(240)
+            },
+            ovenCoverage: { covered: [[30, 89], [240, 299]], deleted: [[0, 29]] }
+          },
+          {
             // No chromatogramData at all -- stands in for a GenBank read, which
             // must render without a trace rather than breaking the view.
             sequenceData: {

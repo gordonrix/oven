@@ -245,15 +245,18 @@ html, body { height: 100%; margin: 0; }
 .ovealign-view .miniRedPath { fill: red; }
 
 /*
- * The viewport indicator. Everything about it is inline-styled -- the wash and
- * a 2px yellow rule top and bottom -- so every property here needs !important
- * to win. Neutral grey rules mark the same extent without recolouring the bars
- * behind them.
+ * The viewport indicator: the box marking which slice of the alignment the
+ * scroller is showing. Everything about it is inline-styled -- a yellow wash
+ * and a 2px yellow rule top and bottom -- so every property here needs
+ * !important to win.
+ *
+ * Black rules to match the vertical pair that mark the same extent sideways,
+ * and a wash light enough to read the coloured bars straight through.
  */
 .ovealign-view .verticalScrollDisplay {
-  background: transparent !important;
-  border-top: 2px solid rgba(24, 32, 38, .45) !important;
-  border-bottom: 2px solid rgba(24, 32, 38, .45) !important;
+  background: rgba(24, 32, 38, .10) !important;
+  border-top: 2px solid #182026 !important;
+  border-bottom: 2px solid #182026 !important;
   box-sizing: border-box;
 }
 
