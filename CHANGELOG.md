@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.38.1
+
+The chromatogram under a read folded across the origin sat under the wrong letters. Such a
+read is laid out in the row by reference position, so its first base is not the leftmost one,
+while the trace was still in read order and the viewer walks both left to right. The read and
+its trace are now handed over in the same order.
+
+The viewport wash in the overview strip is darker.
+
+Its axis still numbers a folded read from its leftmost piece, which is not that read's first
+base. Left as it was rather than half-fixed — see the note in the commit.
+
 ## 1.38.0
 
 **Reads that cross the origin are aligned properly.** Such a read has its tail at a lower

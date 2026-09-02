@@ -382,7 +382,24 @@ function foldOntoReference(doubledRefRow, readRow, refLength) {
     deleted.push([gapFrom, gapTo]);
   }
 
-  return { placed, covered, deleted, insertions };
+  /*
+   * The read, reordered to match the row.
+   *
+   * Everything downstream -- the letters, the trace under them, the axis --
+   * walks a row left to right and counts bases. A folded read breaks that: its
+   * first base is in the right-hand piece. So the read is handed over in column
+   * order, with `readIndex` recording where each base really came from, which
+   * is what lets the axis still number them as read positions.
+   */
+  const bases = [];
+  const readIndex = [];
+  for (let i = 0; i < refLength; i++) {
+    if (placed[i] === null) continue;
+    bases.push(placed[i]);
+    readIndex.push(order[i]);
+  }
+
+  return { placed, covered, deleted, insertions, sequence: bases.join(''), readIndex };
 }
 
 /**
@@ -708,6 +725,10 @@ async function align(reference, reads, opts = {}) {
          */
         covered: fold ? fold.covered : null,
         crossesOrigin: Boolean(fold),
+        // Present only for a folded read: its bases in the order the row lays
+        // them out, and where each one sits in the read as sequenced.
+        columnOrderSequence: fold ? fold.sequence : null,
+        readIndex: fold ? fold.readIndex : null,
         deleted: fold ? fold.deleted : null,
         ...countDifferences(referenceRow, readRow, {
           wraps: Boolean(p.rotation),

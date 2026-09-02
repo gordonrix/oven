@@ -443,7 +443,9 @@ class AlignPanel {
       return {
         sequenceData: {
           name: read.name,
-          sequence: track.sequence, // oriented and rotated, matching the row
+          // Oriented and rotated to match the row -- and, for a read folded
+          // across the origin, reordered to match it as well.
+          sequence: track.columnOrderSequence || track.sequence,
           circular: false,
           translations
         },

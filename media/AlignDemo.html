@@ -95,7 +95,13 @@
              * straight through 0-29 and not found it. Ref 90-239 it never
              * reached. Those two absences must not be drawn the same way.
              */
-            sequenceData: { name: 'wrap-read', sequence: REF.slice(240) + REF.slice(30, 90), circular: false },
+            // Handed over in the row's order (ref 30-89 then 240-299), which is
+            // how the aligner emits a folded read.
+            sequenceData: {
+              name: 'wrap-read',
+              sequence: REF.slice(30, 90) + REF.slice(240),
+              circular: false
+            },
             alignmentData: {
               name: 'wrap-read',
               sequence: '-'.repeat(30) + REF.slice(30, 90) + '-'.repeat(150) + REF.slice(240)

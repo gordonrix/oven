@@ -229,17 +229,40 @@ function rotateChromatogram(chrom, by) {
 }
 
 /**
+ * Reorder a per-bp chromatogram to match a read handed over out of read order.
+ *
+ * A read folded across the origin is laid out in the row by reference position,
+ * so its first base is not the leftmost one. The trace is indexed by read
+ * position, and the viewer walks both left to right -- so without this the
+ * peaks sit under the wrong letters.
+ *
+ * @param {number[]} readIndex where each base of the reordered read came from
+ */
+function reorderChromatogram(chrom, readIndex) {
+  if (!chrom || !readIndex) return chrom;
+  const pick = (arr) => (arr ? readIndex.map((i) => arr[i]) : arr);
+  return Object.assign({}, chrom, {
+    baseTraces: pick(chrom.baseTraces),
+    baseCalls: pick(chrom.baseCalls),
+    qualNums: pick(chrom.qualNums)
+  });
+}
+
+/**
  * Put a track's trace through the same transform the aligner applied to its
  * sequence.
  *
  * Order matters and mirrors the aligner: reverse-complement first, then rotate,
- * because the rotation was measured against the already-oriented read.
+ * because the rotation was measured against the already-oriented read. A folded
+ * read is reordered last, since its readIndex is expressed over the oriented
+ * read.
  */
-function followAlignment(chrom, { strand, rotation }) {
+function followAlignment(chrom, { strand, rotation, readIndex }) {
   if (!chrom) return null;
   let out = chrom;
   if (strand === -1) out = reverseComplementChromatogram(out);
   if (rotation) out = rotateChromatogram(out, rotation);
+  if (readIndex) out = reorderChromatogram(out, readIndex);
   return out;
 }
 
@@ -247,5 +270,5 @@ module.exports = {
   parseFile, isSupported, SEQUENCE_EXTENSIONS,
   smoothChromatogram, resample, SMOOTH_BELOW, SMOOTH_TARGET,
   trimByQuality, qualitySpan, sliceTrack,
-  reverseComplementChromatogram, rotateChromatogram, followAlignment
+  reverseComplementChromatogram, rotateChromatogram, reorderChromatogram, followAlignment
 };
