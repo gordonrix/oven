@@ -13,6 +13,7 @@ const assert = require('node:assert');
 const { buildEditorHtml, panelsShown } = require('../../src/editorHtml');
 
 const OPTS = {
+  panelLayoutUri: 'panelLayout.js',
   styleUri: 'ove.css', scriptUri: 'index.umd.js', cartCssUri: 'c.css', searchCssUri: 's.css',
   strandCssUri: 'st.css', sharedUri: 'shared.js', pickerUri: 'picker.js', searchUri: 'search.js',
   strandUri: 'strand.js', toolBtnsUri: 'toolButtons.js',
@@ -119,4 +120,19 @@ test('the single-pane view types put everything in one group', () => {
 
 test('an unknown view type falls back to a single pane rather than nothing', () => {
   assert.strictEqual(groups('nonsense').length, 1);
+});
+
+test('the panel-collapse handler and the module it needs both reach the page', () => {
+  /*
+   * The handler is what folds the editor's split when Align or the cart opens
+   * beside it. It lives in a template string, so nothing else would notice if
+   * the script tag or the listener were dropped.
+   */
+  const html = buildEditorHtml(OPTS);
+  assert.match(html, /src="panelLayout\.js"/, 'panelLayout.js is not loaded');
+  assert.match(html, /panels\/collapse/, 'nothing listens for panels/collapse');
+  assert.match(html, /OvenPanels\.merge/, 'the handler does not call the merge');
+  // Loaded before the editor is built and the listener registered.
+  assert.ok(html.indexOf('panelLayout.js') < html.indexOf('OvenPanels.merge'),
+    'panelLayout.js must load before anything calls into it');
 });

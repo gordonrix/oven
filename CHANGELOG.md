@@ -4,6 +4,19 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.37.0
+
+**Align and Primer Cart open beside the plasmid again, and the editor folds its own split
+when they do.** The sequence map and circular map become tabs in one column instead of two,
+so the sequence keeps the full width of the editor's half rather than a quarter of the window.
+
+1.34.0 stopped these panels splitting at all, which fixed the narrowness by giving up the
+side-by-side view. This gets both: the split is back, and the squeeze it used to cause is
+handled at the source.
+
+The circular map is a tab away rather than a column away afterwards, and reopening the file
+restores the usual split.
+
 ## 1.36.0
 
 **Opening Primer Search puts the caret in the Filter box**, so you can open it and type

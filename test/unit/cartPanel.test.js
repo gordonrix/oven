@@ -190,16 +190,18 @@ test('state carries the session list and the active session', async () => {
   assert.strictEqual(other.count, 1, 'the parked session keeps its primers');
 });
 
-test('the panel opens as a tab in the active group, not a split', () => {
+test('the panel opens beside the editor, in its own group', () => {
   /*
-   * Beside would halve the editor's group. Sequences open split -- sequence on
-   * the left, circular map on the right -- so halving it again leaves each of
-   * those panes at a quarter of the window, too narrow to read.
+   * Beside halves the editor's group, and a sequence that opens split would
+   * then show each of its panes at a quarter of the window. That is handled by
+   * collapsing the editor's own split when this opens -- see panels/collapse in
+   * editorProvider -- rather than by refusing to split at all, which is what
+   * this did for one release.
    */
   const ctx = makeContext();
   const panel = new CartPanel(ctx, new CartStore(ctx));
   panel.show();
-  assert.strictEqual(created._showOptions.viewColumn, vscode.ViewColumn.Active);
+  assert.strictEqual(created._showOptions.viewColumn, vscode.ViewColumn.Beside);
 });
 
 test('an explicit column still wins', () => {

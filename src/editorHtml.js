@@ -167,7 +167,7 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
-  const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, pickerUri,
+  const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, panelLayoutUri, pickerUri,
     searchUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
     sequenceJson, viewType, readOnly,
@@ -213,6 +213,7 @@ function buildEditorHtml(opts) {
     </script>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
+    <script src="${panelLayoutUri}"></script>
     <script src="${pickerUri}"></script>
     <script src="${searchUri}"></script>
     <script src="${strandUri}"></script>
@@ -230,6 +231,17 @@ ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreate
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
       window.OveNewPrimer.init(editor);
+
+      /*
+       * Collapse the editor's own split when a side panel opens beside it, so
+       * the sequence gets the whole of the editor's half rather than a quarter
+       * of the window. The folding itself is in media/panelLayout.js.
+       */
+      window.addEventListener("message", (event) => {
+        if ((event.data || {}).type !== "panels/collapse") return;
+        const merged = window.OvenPanels.merge(editor.getState().panelsShown);
+        if (merged) editor.updateEditor({ panelsShown: merged });
+      });
     </script>
   </body>
 </html>`;

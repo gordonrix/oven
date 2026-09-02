@@ -139,6 +139,15 @@ class DNAViewerProvider {
       });
     };
 
+    /*
+     * Fold the editor's sequence/circular split into one group.
+     *
+     * Sent just before a side panel opens beside this editor: that panel takes
+     * half the window, and halving an already-split editor leaves each pane at a
+     * quarter. The webview does the folding, since panelsShown is its state.
+     */
+    const collapsePanels = () => webview.postMessage({ type: 'panels/collapse' });
+
     webview.onDidReceiveMessage(async (message) => {
       if (!message) return;
 
@@ -153,8 +162,7 @@ class DNAViewerProvider {
       }
 
       if (message.type === 'cart/openPanel') {
-        // Opens as a tab in the editor's own group rather than splitting it;
-        // see the note on viewColumn in cartPanel.show.
+        collapsePanels();
         this.cartPanel.show();
         return;
       }
@@ -165,11 +173,13 @@ class DNAViewerProvider {
       }
 
       if (message.type === 'cart/showPanel') {
+        collapsePanels();
         this.cartPanel.show();
         return;
       }
 
       if (message.type === 'align/open') {
+        collapsePanels();
         // The plasmid on screen becomes the reference. Its sequence comes from
         // our own parse rather than the editor's state, so an unsaved base edit
         // cannot silently become the thing everything is measured against.
@@ -274,6 +284,7 @@ class DNAViewerProvider {
       strandCssUri: this.mediaUri(webview, 'strandBar.css'),
       scriptUri: this.mediaUri(webview, 'index.umd.js'),
       sharedUri: this.mediaUri(webview, 'cartShared.js'),
+      panelLayoutUri: this.mediaUri(webview, 'panelLayout.js'),
       pickerUri: this.mediaUri(webview, 'cartPicker.js'),
       searchUri: this.mediaUri(webview, 'primerSearch.js'),
       strandUri: this.mediaUri(webview, 'strandBar.js'),

@@ -48,16 +48,16 @@ class CartPanel {
       'oven.panel',
       'Primer Cart',
       /*
-       * Active, not Beside: this opens as a tab in the group the editor is
-       * already in, rather than splitting the window.
+       * Beside, so the panel opens in its own group next to the plasmid rather
+       * than as another tab on top of it.
        *
-       * Beside was tolerable while a plasmid filled its group. Since sequences
-       * open split -- sequence on the left, circular map on the right -- halving
-       * that group again leaves each of those two panes at a quarter of the
-       * window, which is too narrow to read. Dragging the tab into its own group
-       * still works for anyone who wants them side by side.
+       * This was Active for one release. Splitting on its own leaves the editor
+       * at half width, and since sequences open split themselves each of the
+       * sequence and circular panes ends up at a quarter of the window. The fix
+       * is not to stop splitting: it is to collapse the editor's own split when
+       * a side panel opens, which the host asks for with panels/collapse.
        */
-      { viewColumn: column || vscode.ViewColumn.Active, preserveFocus: false },
+      { viewColumn: column || vscode.ViewColumn.Beside, preserveFocus: false },
       {
         enableScripts: true,
         retainContextWhenHidden: true,
