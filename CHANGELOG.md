@@ -4,6 +4,11 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.40.0
+
+Hovering **Primer Search** shows its shortcut. Align and Primer Cart have no shortcut to
+show, so they get no label — one repeating the text already on the button would be noise.
+
 ## 1.39.0
 
 **A read that crosses the origin is numbered by its own bases.** Such a read is laid out by

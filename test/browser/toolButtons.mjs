@@ -83,5 +83,27 @@ export default async function run(page) {
     if (at.collides) fail.push(`at ${width}px the row overlaps OVE's own menus`);
   }
 
+  /* --- the hover label carries the shortcut -------------------------------- */
+
+  /*
+   * The buttons say what they do, so a label earns its place only by naming the
+   * key. Primer Search has one; Align and the cart do not, and get no label
+   * rather than one repeating the text already on them.
+   */
+  out.tips = await page.evaluate(() =>
+    ['ove-align-button', 'ove-search-button', 'ove-cart-button'].map((id) => {
+      const el = document.getElementById(id);
+      return el ? el.getAttribute('data-tip') : 'MISSING';
+    }));
+  const searchTip = out.tips[1];
+  if (!searchTip || !/Primer Search/.test(searchTip)) {
+    fail.push(`no hover label on Primer Search: ${JSON.stringify(searchTip)}`);
+  } else if (!/\u2318\u2325F|Ctrl\+Alt\+F/.test(searchTip)) {
+    fail.push(`the hover label does not name the shortcut: ${JSON.stringify(searchTip)}`);
+  }
+  if (out.tips[0] || out.tips[2]) {
+    fail.push(`a button with no shortcut should have no label: ${JSON.stringify(out.tips)}`);
+  }
+
   return { ...out, failures: fail, ok: fail.length === 0 };
 }

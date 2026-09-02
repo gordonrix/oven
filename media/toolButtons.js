@@ -31,5 +31,41 @@
   }
   window.addEventListener('resize', place);
 
-  window.OveToolButtons = { place };
+  /*
+   * Hover labels carrying each button's shortcut.
+   *
+   * The buttons say what they do, so the label earns its place by naming the
+   * key -- which is otherwise only discoverable from the right-click menu, and
+   * for the cart not at all. A button with no shortcut still gets one, so the
+   * row behaves the same way throughout.
+   *
+   * `title` would do this for free but takes about a second to appear and
+   * cannot be styled, which reads as nothing happening.
+   */
+  const SHORTCUTS = [
+    ['ove-search-button', () => window.__ovenSearchPrimersHotkey]
+    // Align and the primer cart have no shortcut to show. A label repeating
+    // what the button already says is worse than none, so they get nothing
+    // until they do.
+  ];
+
+  function label() {
+    for (const [id, getCombo] of SHORTCUTS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const combo = getCombo();
+      // ovenHotkeyLabel comes from the bundle, so this and the right-click menu
+      // spell a binding the same way.
+      const shortcut = combo && typeof window.ovenHotkeyLabel === 'function'
+        ? window.ovenHotkeyLabel(combo)
+        : '';
+      // The button's own text, so the label cannot drift from it.
+      if (shortcut) el.setAttribute('data-tip', `${el.textContent.trim()}  ${shortcut}`);
+      else el.removeAttribute('data-tip');
+    }
+  }
+
+  label();
+
+  window.OveToolButtons = { place, label };
 })();

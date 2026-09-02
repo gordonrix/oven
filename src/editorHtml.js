@@ -76,6 +76,29 @@ const BASE_STYLE = `
       .ove-toolbtns button:hover { background-color: rgba(167, 182, 194, .3); }
       .ove-toolbtns button:active { background-color: rgba(115, 134, 148, .3); }
       .ove-toolbtns button:disabled { color: rgba(92, 112, 128, .6); cursor: not-allowed; }
+      /*
+       * The hover label. The row itself is position: fixed, so the button needs
+       * its own containing block for the label to hang from; overflow stays
+       * visible or the label is clipped by the button box.
+       */
+      .ove-toolbtns button { position: relative; }
+      .ove-toolbtns button[data-tip]::after {
+        content: attr(data-tip);
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
+        padding: 4px 8px;
+        border-radius: 3px;
+        background: #182026;
+        color: #f5f8fa;
+        font-size: 12px;
+        white-space: pre;
+        pointer-events: none;   /* never eat the click meant for the button */
+        opacity: 0;
+        transition: opacity .12s ease-in .35s;
+      }
+      .ove-toolbtns button[data-tip]:hover::after { opacity: 1; }
 `;
 
 /**

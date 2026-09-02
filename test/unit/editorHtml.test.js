@@ -136,3 +136,16 @@ test('the panel-collapse handler and the module it needs both reach the page', (
   assert.ok(html.indexOf('panelLayout.js') < html.indexOf('OvenPanels.merge'),
     'panelLayout.js must load before anything calls into it');
 });
+
+test('the hover label is styled, and cannot swallow a click', () => {
+  /*
+   * The label is drawn with ::after on the button itself, so without
+   * pointer-events: none it sits over the button and eats the click it was
+   * meant to explain.
+   */
+  const html = buildEditorHtml(OPTS);
+  assert.match(html, /\[data-tip\]::after/, 'no hover label rule');
+  const rule = /\[data-tip\]::after\s*\{[^}]*\}/.exec(html)[0];
+  assert.match(rule, /pointer-events:\s*none/, 'the label would intercept clicks');
+  assert.match(rule, /content:\s*attr\(data-tip\)/, 'the label does not show the attribute');
+});
