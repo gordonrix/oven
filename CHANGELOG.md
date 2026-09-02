@@ -4,6 +4,14 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.39.0
+
+**A read that crosses the origin is numbered by its own bases.** Such a read is laid out by
+reference position, so its leftmost base is not its first; the axis counted along the row and
+labelled that base 1. It now reads the position each base came from, so the numbers stay read
+positions and simply jump where the read crosses the origin. Every other track counts from 1
+as before.
+
 ## 1.38.1
 
 The chromatogram under a read folded across the origin sat under the wrong letters. Such a
@@ -12,9 +20,6 @@ while the trace was still in read order and the viewer walks both left to right.
 its trace are now handed over in the same order.
 
 The viewport wash in the overview strip is darker.
-
-Its axis still numbers a folded read from its leftmost piece, which is not that read's first
-base. Left as it was rather than half-fixed — see the note in the commit.
 
 ## 1.38.0
 

@@ -95,12 +95,17 @@
              * straight through 0-29 and not found it. Ref 90-239 it never
              * reached. Those two absences must not be drawn the same way.
              */
-            // Handed over in the row's order (ref 30-89 then 240-299), which is
-            // how the aligner emits a folded read.
+            /*
+             * Handed over in the row's order (ref 30-89 then 240-299), which is
+             * how the aligner emits a folded read, with ovenReadIndex saying
+             * where each base came from: the piece drawn on the left is really
+             * bases 61-120 of the read.
+             */
             sequenceData: {
               name: 'wrap-read',
               sequence: REF.slice(30, 90) + REF.slice(240),
-              circular: false
+              circular: false,
+              ovenReadIndex: Array.from({ length: 120 }, (_, i) => (i < 60 ? i + 60 : i - 60))
             },
             alignmentData: {
               name: 'wrap-read',

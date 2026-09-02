@@ -304,6 +304,37 @@ export default async function run(page) {
     }
   }
 
+  /* --- a folded read is numbered by its own bases --------------------------- */
+
+  /*
+   * A read crossing the origin is laid out by reference position, so its
+   * leftmost base is not its first. Counting along the axis would label that
+   * base 1; the demo's wrap-read starts its left-hand piece at read base 61.
+   */
+  out.axisTicks = await page.evaluate(() => {
+    const out2 = {};
+    for (const tr of document.querySelectorAll('.alignmentViewTrackContainer')) {
+      const name = ((tr.querySelector('.alignmentTrackName') || {}).innerText || '?').split('\n')[0];
+      out2[name] = [...tr.querySelectorAll('.veAxis text, [class*=Axis] text')]
+        .map((t) => t.textContent.trim()).filter((n) => /^\d+$/.test(n)).slice(0, 3);
+    }
+    return out2;
+  });
+
+  if (out.axisTicks['wrap-read']) {
+    if (out.axisTicks['wrap-read'][0] !== '61') {
+      fail.push(`the folded read should start at base 61, got ${out.axisTicks['wrap-read']}`);
+    }
+  } else {
+    fail.push('no axis ticks found for the wrapped read');
+  }
+  // Every other track still counts from 1, so this did not leak.
+  for (const name of ['demo-reference', 'clean-read', 'window-read']) {
+    if (out.axisTicks[name] && out.axisTicks[name][0] !== '1') {
+      fail.push(`${name} should still start at 1, got ${out.axisTicks[name]}`);
+    }
+  }
+
   /* --- a short feature name is still a name -------------------------------- */
 
   /*

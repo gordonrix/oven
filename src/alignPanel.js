@@ -447,7 +447,11 @@ class AlignPanel {
           // across the origin, reordered to match it as well.
           sequence: track.columnOrderSequence || track.sequence,
           circular: false,
-          translations
+          translations,
+          // Only a folded read has one: where each of those bases sits in the
+          // read as sequenced, so the axis can go on numbering them as read
+          // positions rather than counting along the row.
+          ovenReadIndex: track.readIndex || undefined
         },
         alignmentData: { name: read.name, sequence: row.sequence },
         ovenCoverage: track.covered

@@ -144294,6 +144294,10 @@ ${seq.sequence}
       row.sequence = sequenceData2.noSequence ? {
         length: row.end + 1 - row.start
       } : sequenceData2.sequence.slice(row.start, row.end + 1);
+      // PATCH (oven): carried through for the axis, which numbers a read
+      // folded across the origin by where its bases came from rather than by
+      // counting along the row. See the note in Axis.
+      if (sequenceData2.ovenReadIndex) row.ovenReadIndex = sequenceData2.ovenReadIndex;
       rows[rowNumber] = row;
     }
     return rows;
@@ -145339,10 +145343,24 @@ ${seq.sequence}
         )
       );
       if (showAxisNumbers) {
-        const position2 = normalizePositionByRangeLength(
-          row.start + tickMarkPosition,
-          sequenceLength
-        ) + (isProtein2 ? 0 : 1);
+        /*
+         * PATCH (oven): number a folded read by where its bases really are.
+         *
+         * A read crossing the origin is laid out by reference position, so its
+         * leftmost base is not its first -- counting along the axis would label
+         * that base 1. ovenReadIndex says where each base came from in the read
+         * as sequenced, so the numbers stay read positions and simply jump
+         * where the read crosses the origin.
+         */
+        const ovenAt = row.ovenReadIndex
+          ? row.ovenReadIndex[row.start + tickMarkPosition]
+          : undefined;
+        const position2 = typeof ovenAt === 'number'
+          ? ovenAt + 1
+          : normalizePositionByRangeLength(
+            row.start + tickMarkPosition,
+            sequenceLength
+          ) + (isProtein2 ? 0 : 1);
         const positionLength = position2.toString().length * 4;
         const textInner = divideBy3(position2 + (isProtein2 ? 1 : 0), isProtein2);
         let x2 = xCenter;
@@ -148721,7 +148739,9 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       readOnly: readOnly2,
       sequenceLength,
       isRowView,
-      row: { start: row.start, end: row.end }
+      // PATCH (oven): ovenReadIndex added -- this narrowing is what the axis
+      // is handed, so anything it needs has to be named here.
+      row: { start: row.start, end: row.end, ovenReadIndex: row.ovenReadIndex }
     };
     const drawLabels = /* @__PURE__ */ __name((type2, noDraw, _a2 = {}) => {
       var _b2 = _a2, { filterOpts } = _b2, extraProps = __objRest(_b2, ["filterOpts"]);
