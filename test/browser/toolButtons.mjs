@@ -86,24 +86,23 @@ export default async function run(page) {
   /* --- the hover label carries the shortcut -------------------------------- */
 
   /*
-   * The buttons say what they do, so a label earns its place only by naming the
-   * key. Primer Search has one; Align and the cart do not, and get no label
-   * rather than one repeating the text already on them.
+   * The buttons say what they do, so a label earns its place by naming the key.
+   * Each label is built from the button's own text and the bundle's own hotkey
+   * formatter, so neither half can drift from what it describes.
    */
   out.tips = await page.evaluate(() =>
     ['ove-align-button', 'ove-search-button', 'ove-cart-button'].map((id) => {
       const el = document.getElementById(id);
       return el ? el.getAttribute('data-tip') : 'MISSING';
     }));
-  const searchTip = out.tips[1];
-  if (!searchTip || !/Primer Search/.test(searchTip)) {
-    fail.push(`no hover label on Primer Search: ${JSON.stringify(searchTip)}`);
-  } else if (!/\u2318\u2325F|Ctrl\+Alt\+F/.test(searchTip)) {
-    fail.push(`the hover label does not name the shortcut: ${JSON.stringify(searchTip)}`);
-  }
-  if (out.tips[0] || out.tips[2]) {
-    fail.push(`a button with no shortcut should have no label: ${JSON.stringify(out.tips)}`);
-  }
+  const wanted = [/\u2318\u2325L|Ctrl\+Alt\+L/, /\u2318\u2325F|Ctrl\+Alt\+F/, /\u2318\u2325K|Ctrl\+Alt\+K/];
+  out.tips.forEach((tip, i) => {
+    if (!tip) { fail.push(`no hover label on button ${i}`); return; }
+    if (!wanted[i].test(tip)) fail.push(`label ${JSON.stringify(tip)} does not name its shortcut`);
+    // The label leads with the button's own text.
+    const el = ['Align', 'Primer Search', 'Add to Cart'][i];
+    if (!tip.startsWith(el)) fail.push(`label ${JSON.stringify(tip)} does not start with "${el}"`);
+  });
 
   return { ...out, failures: fail, ok: fail.length === 0 };
 }

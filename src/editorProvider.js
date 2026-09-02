@@ -298,6 +298,8 @@ class DNAViewerProvider {
       newPrimerCssUri: this.mediaUri(webview, 'newPrimer.css'),
       newPrimerHotkey: config.newPrimerHotkey(),
       searchPrimersHotkey: config.searchPrimersHotkey(),
+      alignHotkey: config.alignHotkey(),
+      cartHotkey: config.cartHotkey(),
       rowViewCssUri: this.mediaUri(webview, 'rowView.css'),
       cutSiteFilter: this.context.globalState.get(CUT_SITES_KEY, null),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),

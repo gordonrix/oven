@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN — Open Vector Editor with New Features",
   "description": "View, design, and align plasmid sequences.",
-  "version": "1.40.0",
+  "version": "1.41.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -265,6 +265,16 @@
           "type": "number",
           "default": 50,
           "markdownDescription": "Maximum number of reads in one alignment. Reads beyond this are ignored, with a note in the panel."
+        },
+        "oven.alignHotkey": {
+          "type": "string",
+          "default": "mod+alt+l",
+          "markdownDescription": "Keyboard shortcut that opens **Align**, in Open Vector Editor's own notation — see `oven.newPrimerHotkey` for the notation. Shown when you hover the Align button, and listed in **View → View Editor Hotkeys**. **Reopen the file** for a change to take effect. Set to an empty string for no shortcut."
+        },
+        "oven.cartHotkey": {
+          "type": "string",
+          "default": "mod+alt+k",
+          "markdownDescription": "Keyboard shortcut that opens the **Primer Cart**, in Open Vector Editor's own notation — see `oven.newPrimerHotkey` for the notation. Shown when you hover the Primer Cart button, and listed in **View → View Editor Hotkeys**. **Reopen the file** for a change to take effect. Set to an empty string for no shortcut."
         },
         "oven.searchPrimersHotkey": {
           "type": "string",

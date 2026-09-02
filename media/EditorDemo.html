@@ -56,6 +56,13 @@
     <script>
       window.__ovenNewPrimerHotkey = "mod+shift+k";
       window.__ovenSearchPrimersHotkey = "mod+alt+f";
+      window.__ovenAlignHotkey = "mod+alt+l";
+      window.__ovenCartHotkey = "mod+alt+k";
+      // The bundle's Align command calls this; the real page posts to the host.
+      window.ovenOpenAlign = function () {
+        window.__alignOpened = (window.__alignOpened || 0) + 1;
+        document.title = 'align:' + window.__alignOpened;
+      };
     </script>
     <script src="index.umd.js"></script>
     <script>

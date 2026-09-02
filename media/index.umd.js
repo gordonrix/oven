@@ -151515,6 +151515,37 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
      * opens a scratch editor with no inventory wired up, and a permanently
      * greyed-out entry there would just be noise.
      */
+    /*
+     * PATCH (oven): Align and the primer cart as commands.
+     *
+     * Same reasoning as ovenSearchPrimers below: a command definition is what
+     * View Editor Hotkeys is built from, and what lets the toolbar label the
+     * button with its key. Both are toolbar buttons rather than menu entries,
+     * so these exist purely to carry the binding.
+     *
+     * Align has to go through the host -- it opens a panel the webview cannot
+     * open itself -- so it calls a hook editorHtml.js puts on window, which is
+     * where the vscode API handle lives.
+     */
+    ovenAlign: {
+      name: "Align",
+      isHidden: () => typeof window === "undefined" || !window.ovenOpenAlign,
+      isDisabled: (props) => props.sequenceLength === 0,
+      handler: () => {
+        if (typeof window !== "undefined" && window.ovenOpenAlign) window.ovenOpenAlign();
+      },
+      hotkey: (typeof window !== "undefined" && window.__ovenAlignHotkey) || "mod+alt+l",
+      hotkeyProps: { preventDefault: true }
+    },
+    ovenPrimerCart: {
+      name: "Primer Cart",
+      isHidden: () => typeof window === "undefined" || !window.OveCart,
+      handler: () => {
+        if (typeof window !== "undefined" && window.OveCart) window.OveCart.openCart();
+      },
+      hotkey: (typeof window !== "undefined" && window.__ovenCartHotkey) || "mod+alt+k",
+      hotkeyProps: { preventDefault: true }
+    },
     ovenSearchPrimers: {
       name: "Search Primers",
       isHidden: () => typeof window === "undefined" || !window.OveSearch,

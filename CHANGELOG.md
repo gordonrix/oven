@@ -4,6 +4,12 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.41.0
+
+**Align is on `⌘⌥L` and the Primer Cart on `⌘⌥K`**, so all three toolbar buttons now name a
+shortcut when you hover them. Both are listed in **View → View Editor Hotkeys** and rebindable
+with `oven.alignHotkey` and `oven.cartHotkey`.
+
 ## 1.40.0
 
 Hovering **Primer Search** shows its shortcut. Align and Primer Cart have no shortcut to

@@ -195,7 +195,7 @@ function buildEditorHtml(opts) {
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
     sequenceJson, viewType, readOnly,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
-    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey } = opts;
+    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey } = opts;
 
   return `<!DOCTYPE html>
 <html>
@@ -215,6 +215,12 @@ function buildEditorHtml(opts) {
       function postSave() {
         vscode.postMessage({ type: "save", data: editor.getState()["sequenceData"] });
       }
+      // The Align command lives in the bundle, which has no handle on the
+      // vscode API -- opening the panel is the host's job. This is the hook it
+      // calls; the toolbar button posts the same message directly.
+      window.ovenOpenAlign = function () {
+        vscode.postMessage({ type: "align/open" });
+      };
     </script>
     <div class="ove-toolbtns">
       <button id="ove-align-button" class="ove-align-btn"
@@ -233,6 +239,8 @@ function buildEditorHtml(opts) {
     <script>
       window.__ovenNewPrimerHotkey = ${JSON.stringify(newPrimerHotkey || 'mod+shift+k')};
       window.__ovenSearchPrimersHotkey = ${JSON.stringify(searchPrimersHotkey || 'mod+alt+f')};
+      window.__ovenAlignHotkey = ${JSON.stringify(alignHotkey || 'mod+alt+l')};
+      window.__ovenCartHotkey = ${JSON.stringify(cartHotkey || 'mod+alt+k')};
     </script>
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>

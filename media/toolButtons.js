@@ -43,10 +43,9 @@
    * cannot be styled, which reads as nothing happening.
    */
   const SHORTCUTS = [
-    ['ove-search-button', () => window.__ovenSearchPrimersHotkey]
-    // Align and the primer cart have no shortcut to show. A label repeating
-    // what the button already says is worse than none, so they get nothing
-    // until they do.
+    ['ove-align-button', () => window.__ovenAlignHotkey],
+    ['ove-search-button', () => window.__ovenSearchPrimersHotkey],
+    ['ove-cart-button', () => window.__ovenCartHotkey]
   ];
 
   function label() {

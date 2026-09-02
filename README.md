@@ -248,6 +248,8 @@ Editor's own.
 | | | |
 |---|---|---|
 | `⌘⌥F` | `Ctrl+Alt+F` | **Primer Search** — the selection if there is one, the whole plasmid otherwise |
+| `⌘⌥L` | `Ctrl+Alt+L` | **Align** |
+| `⌘⌥K` | `Ctrl+Alt+K` | **Primer Cart** |
 | `⌘⇧K` | `Ctrl+Shift+K` | **New Primer** |
 | `⌘⇧R` | `Ctrl+Shift+R` | Copy Reverse Complement |
 | `⌘⌥A` | `Ctrl+Alt+A` | Copy AA Sequence |
@@ -256,7 +258,10 @@ Editor's own.
 
 Plain `⌘C` copies the selection.
 
-**Rebinding.** `oven.searchPrimersHotkey` and `oven.newPrimerHotkey` take Open Vector
+Hovering a toolbar button shows its shortcut.
+
+**Rebinding.** `oven.searchPrimersHotkey`, `oven.newPrimerHotkey`, `oven.alignHotkey` and
+`oven.cartHotkey` take Open Vector
 Editor's notation — `mod` is Cmd or Ctrl, joined with `+`, as in `mod+alt+n`. Empty means no
 shortcut, and the file must be reopened.
 
@@ -278,7 +283,8 @@ type **OVEN**; they are grouped under **Extensions → OVEN**. To edit them as t
 ```
 
 Most take effect immediately; the ones that change how the editor is built —
-`oven.newPrimerHotkey`, `oven.searchPrimersHotkey`, `oven.readOnly`, `oven.viewType` —
+`oven.newPrimerHotkey`, `oven.searchPrimersHotkey`, `oven.alignHotkey`, `oven.cartHotkey`,
+`oven.readOnly`, `oven.viewType` —
 need the file reopened.
 
 ## Known issues
