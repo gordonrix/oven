@@ -254,7 +254,7 @@ html, body { height: 100%; margin: 0; }
  * and a wash light enough to read the coloured bars straight through.
  */
 .ovealign-view .verticalScrollDisplay {
-  background: rgba(24, 32, 38, .10) !important;
+  background: rgba(24, 32, 38, .22) !important;
   border-top: 2px solid #182026 !important;
   border-bottom: 2px solid #182026 !important;
   box-sizing: border-box;
