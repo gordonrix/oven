@@ -149,12 +149,15 @@ Click **Align** in an open plasmid to check clones against it. `.ab1`, `.gb`, `.
 mismatch, with a single disagreeing base highlighted in
 red](images/Screenshot_alignment.png)
 
-Four ways to add reads:
+Five ways to add reads:
 
 - **Right-click the files in the Explorer → Add to Alignment** (handles a multi-selection)
 - **Browse…** in the panel
 - **Paste** — copy in Finder, click the panel, `Cmd+V`
 - **Drag and drop** onto the panel, **holding ⇧ Shift**
+- **Type or paste a sequence** into the boxes under the drop zone — a name (optional; unnamed
+  ones become `sequence1`, `sequence2`…) and the bases. Whitespace and digits are ignored, so
+  a numbered block pastes straight in
 
 > Shift matters: without it VS Code opens what you drop as a new tab instead.
 

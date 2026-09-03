@@ -183,6 +183,23 @@
               send();
               return;
             }
+            if (m.type === 'align/addSequence') {
+              // Stands in for the host: name it if unnamed, and add a row.
+              let label = (m.name || '').trim();
+              if (!label) {
+                let n = 1;
+                while (state.reads.some((r) => r.name === 'sequence' + n)) n++;
+                label = 'sequence' + n;
+              }
+              const bases = String(m.sequence || '').replace(/[\s\d]/g, '').toUpperCase();
+              state = Object.assign({}, state, {
+                reads: state.reads.concat([{
+                  id: 200 + state.reads.length, name: label, length: bases.length
+                }])
+              });
+              send();
+              return;
+            }
             // addUris / addBytes: echo back a row so the drop paths are visible.
             if (m.type === 'align/addUris' || m.type === 'align/addBytes') {
               const names = m.type === 'align/addUris'

@@ -727,6 +727,55 @@ export default async function run(page) {
     fail.push('removing a read left the stale alignment on screen');
   }
 
+  /* --- typing a sequence in ------------------------------------------------ */
+
+  /*
+   * The fifth way to add a read, for when there is no file to point at. Named
+   * or not: unnamed ones are numbered sequence1, sequence2...
+   */
+  const openAdd = async () => {
+    const t = page.locator('.ovealign-addtoggle');
+    if (await t.count()) { await t.click(); await page.waitForTimeout(400); }
+  };
+  const readNames = () => page.evaluate(() =>
+    [...document.querySelectorAll('.ovealign-read')].map((n) => n.innerText.split('\n')[0].trim()));
+
+  await openAdd();
+  out.pasteRow = await page.evaluate(() =>
+    [...document.querySelectorAll('.ovealign-pasteseq input')].map((i) => i.placeholder));
+  if (out.pasteRow.length !== 2) {
+    fail.push(`expected a name box and a sequence box, got ${JSON.stringify(out.pasteRow)}`);
+  }
+
+  await page.locator('.ovealign-pastebases').fill('acgt acgt 12 GGCC');
+  await page.locator('.ovealign-pasteadd').click();
+  await page.waitForTimeout(600);
+  await openAdd();
+  out.afterUnnamed = await readNames();
+  if (!out.afterUnnamed.includes('sequence1')) {
+    fail.push(`an unnamed sequence should be numbered: ${JSON.stringify(out.afterUnnamed)}`);
+  }
+
+  // Enter submits, so the name box can be skipped without reaching for Add.
+  await page.locator('.ovealign-pastename').fill('my oligo');
+  await page.locator('.ovealign-pastebases').fill('ACGTACGT');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(600);
+  await openAdd();
+  out.afterNamed = await readNames();
+  if (!out.afterNamed.includes('my oligo')) {
+    fail.push(`a named sequence should keep its name: ${JSON.stringify(out.afterNamed)}`);
+  }
+
+  // Both boxes clear, so the next one can be typed straight away.
+  out.boxesAfterAdd = await page.evaluate(() => [
+    document.querySelector('.ovealign-pastename').value,
+    document.querySelector('.ovealign-pastebases').value
+  ]);
+  if (out.boxesAfterAdd.some(Boolean)) {
+    fail.push(`the boxes should empty after adding: ${JSON.stringify(out.boxesAfterAdd)}`);
+  }
+
   out.failures = fail;
   out.ok = fail.length === 0;
   return out;

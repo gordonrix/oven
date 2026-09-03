@@ -129,6 +129,7 @@ class AlignPanel {
           case 'align/browse': await this.browse(); break;
           case 'align/addUris': await this.addUris(msg.uris || []); break;
           case 'align/addBytes': await this.addBytes(msg.files || []); break;
+          case 'align/addSequence': await this.addSequence(msg.name, msg.sequence); break;
           case 'align/pickReference': await this.pickReference(); break;
           case 'align/remove': this.remove(msg.id); break;
           case 'align/run': await this.run(); break;
@@ -286,6 +287,41 @@ class AlignPanel {
       }
     }
     this.afterAdd(added.length);
+  }
+
+  /*
+   * A sequence typed or pasted into the panel rather than read from a file.
+   *
+   * Wrapped as FASTA and put through ingest, so it lands as the same kind of
+   * entry a dropped file produces -- there is no second notion of a read to
+   * keep in step with the first.
+   */
+  async addSequence(name, sequence) {
+    /*
+     * Whitespace and digits go: sequence is pasted out of all sorts of places
+     * and often arrives in numbered blocks. Anything left that is not a base is
+     * an error rather than something to strip silently, since quietly dropping
+     * characters would change what is being aligned.
+     */
+    const bases = String(sequence || '').replace(/[\s\d]/g, '').toUpperCase();
+    if (!bases) throw new Error('Enter a DNA sequence to add.');
+
+    const bad = [...new Set(bases.replace(/[ACGTURYSWKMBDHVN]/g, ''))];
+    if (bad.length) {
+      throw new Error(`That is not DNA: ${bad.slice(0, 6).map((c) => `"${c}"`).join(', ')}`);
+    }
+
+    // sequence1, sequence2... counting only the ones added this way, and
+    // skipping any number already taken so two adds never collide.
+    let label = String(name || '').trim();
+    if (!label) {
+      let n = 1;
+      while (this.reads.some((r) => r.name === `sequence${n}`)) n++;
+      label = `sequence${n}`;
+    }
+
+    await this.ingest(Buffer.from(`>${label}\n${bases}\n`, 'utf8'), `${label}.fasta`, null);
+    this.afterAdd(1);
   }
 
   /** Parse one file into read entries, trimming trace ends as configured. */

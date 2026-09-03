@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.42.0
+
+**A sequence can be typed or pasted straight into the alignment**, for when there is no file
+to point at. Under the drop zone there is a name box (optional — unnamed ones become
+`sequence1`, `sequence2`…), a box for the bases, and **Add**; Enter works from either box.
+
+Whitespace and digits are ignored, so a numbered block pastes in as it stands. Anything else
+that is not a base is refused rather than quietly dropped, since discarding characters would
+change what is being aligned. IUPAC ambiguity codes are accepted.
+
 ## 1.41.1
 
 One hover label instead of two. Open Vector Editor bundles a tooltip library that watches for

@@ -102,6 +102,38 @@ html, body { height: 100%; margin: 0; }
 }
 .ovealign-drophint { font-size: 11px; color: #738694; }
 
+/*
+ * Typing a sequence in, under the drop zone. The sequence box takes the room
+ * that is going: a name is a few characters and a sequence is not.
+ */
+.ovealign-pasteseq {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.ovealign-pasteseq input {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #c7cdd4;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #182026;
+  background: #fff;
+  min-width: 0;   /* or the flex item refuses to shrink below its content */
+}
+.ovealign-pastename { flex: 0 1 130px; }
+.ovealign-pastebases {
+  flex: 1 1 auto;
+  font-family: Menlo, Consolas, monospace;
+  letter-spacing: .02em;
+}
+.ovealign-pasteseq input:focus {
+  outline: none;
+  border-color: #7050b3;
+}
+.ovealign-pasteadd { flex: 0 0 auto; }
+
 .ovealign-btn {
   padding: 5px 11px;
   font-size: 11px;

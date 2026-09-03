@@ -14,7 +14,11 @@ Module._load = function (request, ...rest) {
   if (request === 'vscode') {
     return {
       window: {}, commands: {}, Uri: {},
-      workspace: { onDidChangeConfiguration: () => ({ dispose() {} }) },
+      workspace: {
+        onDidChangeConfiguration: () => ({ dispose() {} }),
+        // ingest reads oven.alignTrimQuality; the default is what matters here.
+        getConfiguration: () => ({ get: (_k, fallback) => fallback })
+      },
       ViewColumn: { Beside: 2, Active: -1 }
     };
   }
@@ -110,4 +114,55 @@ test('re-aligning the same reference keeps the results already on screen', () =>
   panel.setReference(REF_B);                 // a different plasmid does invalidate it
   assert.equal(panel.alignment, null);
   assert.equal(panel.reads[0].mismatches, undefined);
+});
+
+/* --- a sequence typed into the panel ------------------------------------- */
+
+/*
+ * Wrapped as FASTA and put through the same ingest a dropped file takes, so
+ * there is only one notion of a read. What is worth pinning is the tidying:
+ * pasted sequence arrives out of numbered blocks and wrapped across lines, and
+ * anything left that is not a base has to be refused rather than dropped --
+ * silently discarding characters would change what is being aligned.
+ */
+
+const freshPanel = () => {
+  const panel = new AlignPanel({ subscriptions: [], extensionPath: '/x' });
+  panel.afterAdd = () => {};
+  return panel;
+};
+
+test('whitespace and digits are stripped from a pasted sequence', async () => {
+  const panel = freshPanel();
+  await panel.addSequence('', '  61 acgt acgt\n  71 GGCCttaa  ');
+  assert.strictEqual(panel.reads.length, 1);
+  assert.strictEqual(panel.reads[0].sequence.toUpperCase(), 'ACGTACGTGGCCTTAA');
+});
+
+test('an unnamed sequence is numbered, and numbers are not reused', async () => {
+  const panel = freshPanel();
+  await panel.addSequence('', 'ACGTACGTAA');
+  await panel.addSequence('', 'GGCCGGCCTT');
+  assert.deepStrictEqual(panel.reads.map((r) => r.name), ['sequence1', 'sequence2']);
+});
+
+test('a name is used as given', async () => {
+  const panel = freshPanel();
+  await panel.addSequence('  my oligo  ', 'ACGTACGTAA');
+  assert.strictEqual(panel.reads[0].name, 'my oligo');
+});
+
+test('anything that is not a base is refused, not quietly dropped', async () => {
+  const panel = freshPanel();
+  await assert.rejects(() => panel.addSequence('', 'ACGTXXACGT'), /not DNA/);
+  await assert.rejects(() => panel.addSequence('', '   '), /Enter a DNA sequence/);
+  assert.strictEqual(panel.reads.length, 0, 'nothing should have been added');
+});
+
+test('IUPAC ambiguity codes are accepted', async () => {
+  // The aligner handles them elsewhere, so refusing them here would be its own
+  // inconsistency.
+  const panel = freshPanel();
+  await panel.addSequence('ambiguous', 'ACGTRYSWKMBDHVN');
+  assert.strictEqual(panel.reads.length, 1);
 });

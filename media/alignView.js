@@ -427,6 +427,43 @@
         'in the Explorer \u2192 Add to Alignment'));
       wireDropZone(zone);
       setup.appendChild(zone);
+
+      /*
+       * Typing a sequence in, for when there is no file to point at -- a
+       * synthesised oligo, something out of a supplier's mail, a stretch off
+       * another map. It goes through the same route a dropped file does: the
+       * host wraps it as FASTA and ingests it, so the entry that comes back is
+       * shaped like every other read rather than a special case.
+       */
+      const paste = el('div', 'ovealign-pasteseq');
+      const nameBox = el('input', 'ovealign-pastename');
+      nameBox.type = 'text';
+      nameBox.placeholder = 'Name (optional)';
+      const seqBox = el('input', 'ovealign-pastebases');
+      seqBox.type = 'text';
+      seqBox.placeholder = 'Paste or type a DNA sequence';
+      const add = el('button', 'ovealign-btn secondary ovealign-pasteadd', 'Add');
+
+      const submit = () => {
+        const sequence = seqBox.value.trim();
+        if (!sequence) { seqBox.focus(); return; }
+        post('align/addSequence', { name: nameBox.value.trim(), sequence });
+        nameBox.value = '';
+        seqBox.value = '';
+        seqBox.focus();
+      };
+      add.addEventListener('click', submit);
+      // Enter from either box, since the name is optional and often skipped.
+      for (const box of [nameBox, seqBox]) {
+        box.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        });
+      }
+
+      paste.appendChild(nameBox);
+      paste.appendChild(seqBox);
+      paste.appendChild(add);
+      setup.appendChild(paste);
     }
 
     if (state.reads.length) {
