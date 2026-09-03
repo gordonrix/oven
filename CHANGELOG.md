@@ -4,6 +4,12 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.41.1
+
+One hover label instead of two. Open Vector Editor bundles a tooltip library that watches for
+a plain `data-tip` attribute anywhere in the document, and the label added in 1.40.0 used that
+name — so both were drawn, saying the same thing twice. The attribute is namespaced now.
+
 ## 1.41.0
 
 **Align is on `⌘⌥L` and the Primer Cart on `⌘⌥K`**, so all three toolbar buttons now name a

@@ -93,7 +93,7 @@ export default async function run(page) {
   out.tips = await page.evaluate(() =>
     ['ove-align-button', 'ove-search-button', 'ove-cart-button'].map((id) => {
       const el = document.getElementById(id);
-      return el ? el.getAttribute('data-tip') : 'MISSING';
+      return el ? el.getAttribute('data-oven-tip') : 'MISSING';
     }));
   const wanted = [/\u2318\u2325L|Ctrl\+Alt\+L/, /\u2318\u2325F|Ctrl\+Alt\+F/, /\u2318\u2325K|Ctrl\+Alt\+K/];
   out.tips.forEach((tip, i) => {

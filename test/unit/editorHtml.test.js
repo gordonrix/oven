@@ -142,10 +142,13 @@ test('the hover label is styled, and cannot swallow a click', () => {
    * The label is drawn with ::after on the button itself, so without
    * pointer-events: none it sits over the button and eats the click it was
    * meant to explain.
+   *
+   * The attribute must stay namespaced: the bundle's own tooltip library
+   * claims a plain `data-tip`, and both boxes were drawn at once.
    */
   const html = buildEditorHtml(OPTS);
-  assert.match(html, /\[data-tip\]::after/, 'no hover label rule');
-  const rule = /\[data-tip\]::after\s*\{[^}]*\}/.exec(html)[0];
+  assert.match(html, /\[data-oven-tip\]::after/, 'no hover label rule');
+  const rule = /\[data-oven-tip\]::after\s*\{[^}]*\}/.exec(html)[0];
   assert.match(rule, /pointer-events:\s*none/, 'the label would intercept clicks');
-  assert.match(rule, /content:\s*attr\(data-tip\)/, 'the label does not show the attribute');
+  assert.match(rule, /content:\s*attr\(data-oven-tip\)/, 'the label does not show the attribute');
 });

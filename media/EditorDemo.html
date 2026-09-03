@@ -30,6 +30,17 @@
       .ove-toolbtns button:hover { background-color: rgba(167, 182, 194, .3); }
       .ove-toolbtns button:active { background-color: rgba(115, 134, 148, .3); }
       .ove-toolbtns button:disabled { color: rgba(92, 112, 128, .6); cursor: not-allowed; }
+      /* Mirrors the hover label in editorHtml.js BASE_STYLE. */
+      .ove-toolbtns button { position: relative; }
+      .ove-toolbtns button[data-oven-tip]::after {
+        content: attr(data-oven-tip);
+        position: absolute; top: 100%; right: 0; margin-top: 4px;
+        padding: 4px 8px; border-radius: 3px;
+        background: #182026; color: #f5f8fa; font-size: 12px;
+        white-space: pre; pointer-events: none;
+        opacity: 0; transition: opacity .12s ease-in .35s;
+      }
+      .ove-toolbtns button[data-oven-tip]:hover::after { opacity: 1; }
 
       /* Stands in for the gutter the real webview leaves down its right side,
        * which is what the button row has to be measured against. */

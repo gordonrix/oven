@@ -80,10 +80,13 @@ const BASE_STYLE = `
        * The hover label. The row itself is position: fixed, so the button needs
        * its own containing block for the label to hang from; overflow stays
        * visible or the label is clipped by the button box.
+       *
+       * data-oven-tip, not data-tip: the bundle's own tooltip library watches
+       * for the latter and would draw a second box over this one.
        */
       .ove-toolbtns button { position: relative; }
-      .ove-toolbtns button[data-tip]::after {
-        content: attr(data-tip);
+      .ove-toolbtns button[data-oven-tip]::after {
+        content: attr(data-oven-tip);
         position: absolute;
         top: 100%;
         right: 0;
@@ -98,7 +101,7 @@ const BASE_STYLE = `
         opacity: 0;
         transition: opacity .12s ease-in .35s;
       }
-      .ove-toolbtns button[data-tip]:hover::after { opacity: 1; }
+      .ove-toolbtns button[data-oven-tip]:hover::after { opacity: 1; }
 `;
 
 /**

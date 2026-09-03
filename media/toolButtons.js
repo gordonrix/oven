@@ -41,6 +41,11 @@
    *
    * `title` would do this for free but takes about a second to appear and
    * cannot be styled, which reads as nothing happening.
+   *
+   * The attribute is namespaced on purpose. Open Vector Editor bundles a
+   * tooltip library that watches for a plain `data-tip` anywhere in the
+   * document, so using that name got both drawn at once -- its grey pointed
+   * box over this one, saying the same thing twice.
    */
   const SHORTCUTS = [
     ['ove-align-button', () => window.__ovenAlignHotkey],
@@ -59,8 +64,8 @@
         ? window.ovenHotkeyLabel(combo)
         : '';
       // The button's own text, so the label cannot drift from it.
-      if (shortcut) el.setAttribute('data-tip', `${el.textContent.trim()}  ${shortcut}`);
-      else el.removeAttribute('data-tip');
+      if (shortcut) el.setAttribute('data-oven-tip', `${el.textContent.trim()}  ${shortcut}`);
+      else el.removeAttribute('data-oven-tip');
     }
   }
 
