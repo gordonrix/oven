@@ -286,5 +286,31 @@ export default async function run(page) {
 
   out.failures = fail;
   out.ok = fail.length === 0;
+  /* --- the bars survive the row view being replaced ------------------------ */
+
+  /*
+   * Turning to the circular map and back unmounts the row view and builds a new
+   * one. The measurements are per row, published as custom properties, and the
+   * observer that maintains them used to be attached to the row view itself --
+   * so once React swapped that node the observer was watching something no
+   * longer on the page, nothing was ever measured again, and every bar fell
+   * back to the top and bottom of the whole row until the file was reopened.
+   */
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__remountRowView')));
+  await page.waitForTimeout(2500);
+  out.afterRemount = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.veRowItem')];
+    return {
+      total: rows.length,
+      measured: rows.filter((r) => r.classList.contains('ove-strand-measured')).length,
+      unset: rows.filter((r) => !r.style.getPropertyValue('--ovestrand-top')).length
+    };
+  });
+  if (!out.afterRemount.total) {
+    out.remountNote = 'no rows after the remount';
+  } else if (out.afterRemount.measured !== out.afterRemount.total) {
+    out.remountFailure = `only ${out.afterRemount.measured} of ${out.afterRemount.total} rows measured after the row view was replaced`;
+  }
+
   return out;
 }

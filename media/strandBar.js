@@ -29,7 +29,14 @@
   const NUDGE = 1;
   const FIND_ROW_MS = 300;
 
-  let rowView = null;
+  // Marks a row whose letters have been found and measured. The bar is drawn
+  // only on these: an unmeasured row would otherwise take the CSS fallbacks and
+  // put the bar at the very top and bottom of the whole row, which looks like a
+  // deliberate but wrong answer rather than like nothing.
+  const MEASURED = 'ove-strand-measured';
+
+  let host = null;      // the stable ancestor we watch
+  let rowView = null;   // the row view as of the last measure; React replaces it
   let mutations = null;
   let resizes = null;
   let seeking = null;
@@ -37,15 +44,31 @@
 
   function measureRow(row) {
     const seq = row.querySelector('.veRowItemSequenceContainer');
-    // Protein and oligo views have no letters container; the CSS fallbacks apply.
-    if (!seq || !seq.offsetHeight) return;
+    // Protein and oligo views have no letters container, and a row mid-render
+    // has one with no height. Either way there is nothing to hug.
+    if (!seq || !seq.offsetHeight) { row.classList.remove(MEASURED); return; }
     const top = seq.offsetTop;
     row.style.setProperty('--ovestrand-top', `${top + LAYER_OFFSET - BAR_HEIGHT + NUDGE}px`);
     row.style.setProperty('--ovestrand-bottom', `${top + seq.offsetHeight + LAYER_OFFSET - NUDGE}px`);
+    row.classList.add(MEASURED);
   }
 
+  /*
+   * The row view is re-resolved every time rather than remembered.
+   *
+   * React unmounts and remounts it whenever the panel layout changes -- turning
+   * to the circular map and back, or a side panel folding the split. The old
+   * node is then detached, and an observer watching it never fires again: the
+   * new rows are never measured, every bar falls back to the block edge, and
+   * the only way out was to reload the file.
+   */
   function measure() {
-    if (!rowView || !rowView.isConnected) return false;
+    const found = document.querySelector('.veRowView');
+    if (!found) return false;
+    if (found !== rowView) {
+      rowView = found;
+      if (resizes) { resizes.disconnect(); resizes.observe(rowView); }
+    }
     const rows = rowView.querySelectorAll('.veRowItem');
     if (!rows.length) return false;
     rows.forEach(measureRow);
@@ -60,10 +83,14 @@
   }
 
   function attach() {
-    const found = document.querySelector('.veRowView');
-    if (!found) return false;
-    if (found !== rowView) {
-      rowView = found;
+    /*
+     * Watch the editor's own container, not the row view: the container is made
+     * once by createVectorEditor and survives every layout change, so an
+     * observer on it still fires when the row view is swapped underneath.
+     */
+    const found = document.querySelector('.ove-created-div') || document.body;
+    if (found !== host) {
+      host = found;
       if (mutations) mutations.disconnect();
       if (resizes) resizes.disconnect();
       /*
@@ -72,11 +99,11 @@
        * attributes as well would see our own style.setProperty and loop.
        */
       mutations = new MutationObserver(schedule);
-      mutations.observe(rowView, { childList: true, subtree: true });
+      mutations.observe(host, { childList: true, subtree: true });
       // A row can grow without its children changing -- a wider pane reflows
-      // labels onto fewer lines -- so watch the geometry too.
+      // labels onto fewer lines -- so watch the geometry too. measure() moves
+      // this to whichever row view is current.
       resizes = new ResizeObserver(schedule);
-      resizes.observe(rowView);
     }
     return measure();
   }

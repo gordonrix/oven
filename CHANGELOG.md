@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.44.1
+
+**The strand bar on a search hit no longer strands itself at the top and bottom of the row.**
+Turning to the circular map and back — or opening Align or the cart, which folds the split —
+makes React build a new row view. The measurements that place the bar are kept per row, and
+the observer maintaining them was attached to the row view itself, so once that node was
+replaced nothing was measured again and every bar fell back to the block edge until the file
+was reopened. It now watches the editor's container, which outlives the swap.
+
+A row whose letters have not been measured draws no bar at all, rather than one at the block
+edge — a wrong answer that looks deliberate is worse than none.
+
 ## 1.44.0
 
 **Deleting an attached primer frees its row in Primer Search again**, without re-running the

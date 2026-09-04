@@ -101,6 +101,19 @@
       });
 
       document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      /*
+       * Turn to the circular map and back. React unmounts the row view and
+       * builds a new one, which is what used to leave the strand bars measured
+       * against a node no longer on the page.
+       */
+      document.addEventListener('__remountRowView', () => {
+        window.__oveEditor.updateEditor({
+          panelsShown: [[{ id: 'circular', name: 'Circular Map', active: true }]]
+        });
+        setTimeout(() => window.__oveEditor.updateEditor({
+          panelsShown: [[{ id: 'sequence', name: 'Sequence Map', active: true }]]
+        }), 250);
+      });
       // Removing a primer from the map, the way Properties > Primers does, so a
       // test can check the search panel notices without being re-run.
       document.addEventListener('__deleteAttached', () => {
