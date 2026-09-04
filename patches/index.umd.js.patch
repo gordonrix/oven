@@ -980,10 +980,11 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -169481,6 +170030,24 @@
+@@ -169480,6 +170029,24 @@
+           "Add Joined Feature Span"
          ));
        }, "renderLocations"));
-     }
++    }
 +    componentDidUpdate(prevProps) {
 +      /*
 +       * PATCH (oven): flipping Strand re-reads the bases from the selection.
@@ -1001,10 +1002,9 @@
 +        sequence: this.props.sequenceData && this.props.sequenceData.sequence,
 +        forward: this.props.forward
 +      });
-+    }
+     }
      componentDidMount() {
        const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
-       this.notes = store$1(
 @@ -169668,7 +170235,7 @@
            {
              style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
@@ -1289,10 +1289,11 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -170953,12 +171622,33 @@
+@@ -170952,13 +171621,34 @@
+         );
        });
        return seqDataOfAllTracksToCopy.join("");
-     }, [alignmentTracks, id2, store2]);
++    }, [alignmentTracks, id2, store2]);
 +    /*
 +     * PATCH (oven): what the selection of one track is, as plain text.
 +     *
@@ -1304,7 +1305,7 @@
 +      if (!track) return "";
 +      const selection = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2].selectionLayer || {};
 +      return getSequenceDataBetweenRange(track.alignmentData, selection).sequence;
-+    }, [alignmentTracks, id2, store2]);
+     }, [alignmentTracks, id2, store2]);
      reactExports.useEffect(() => {
        const handleAlignmentCopy = /* @__PURE__ */ __name((event) => {
          if (event.key === "c" && !event.shiftKey && (event.metaKey === true || event.ctrlKey === true)) {
@@ -1478,7 +1479,26 @@
                          ],
                          void 0,
                          event
-@@ -180348,6 +181057,8 @@
+@@ -180303,6 +181012,18 @@
+     editor.getState = () => {
+       return store.getState().VectorEditor[editorName];
+     };
++    /*
++     * PATCH (oven): let a caller hear about state changes.
++     *
++     * Panels rendered through panelMap mount once and are handed a stable ref,
++     * so anything they draw from the sequence goes stale the moment it changes
++     * underneath them -- a primer deleted from the map left Primer Search still
++     * showing it as attached until the search was run again. The store is
++     * private to this module, so there was no way to notice.
++     *
++     * Returns redux's own unsubscribe.
++     */
++    editor.subscribe = (fn) => store.subscribe(fn);
+     return editor;
+   }
+   __name(createVectorEditor, "createVectorEditor");
+@@ -180348,6 +181069,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

@@ -4,6 +4,15 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.44.0
+
+**Deleting an attached primer frees its row in Primer Search again**, without re-running the
+search. The panel mounts once and drew the Attach column from the editor at that moment, so
+removing a primer from the map left its row greyed out as attached until the search was run
+afresh. The panel now follows the editor's own state.
+
+Only the results list is redrawn, so the caret stays in the Filter box while you type.
+
 ## 1.43.0
 
 **The chromatogram lines up with the letters, and no longer bunches at the end of a read.**

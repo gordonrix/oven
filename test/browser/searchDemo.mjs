@@ -610,6 +610,29 @@ export default async function run(page) {
     fail.push('no reverse primer among the attached ones, so the strand check proved nothing');
   }
 
+  /* --- deleting a primer frees its row again -------------------------------- */
+
+  /*
+   * Which rows count as attached is read from the editor, and the panel is
+   * mounted once through a stable ref -- so nothing redrew it when the sequence
+   * changed underneath. Removing a primer from the map left its row greyed out
+   * as attached until the search was run again.
+   */
+  const attachStates = () => page.evaluate(() =>
+    [...document.querySelectorAll('.ovesearch-attach')].map((b) => b.disabled));
+
+  out.attachedBeforeDelete = (await attachStates()).filter(Boolean).length;
+  if (!out.attachedBeforeDelete) {
+    fail.push('nothing is attached, so the delete check would prove nothing');
+  }
+
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__deleteAttached')));
+  await page.waitForTimeout(900);
+  out.attachedAfterDelete = (await attachStates()).filter(Boolean).length;
+  if (out.attachedAfterDelete !== 0) {
+    fail.push(`${out.attachedAfterDelete} row(s) still say attached after the primers were deleted`);
+  }
+
   out.FAILURES = fail;
   out.PASS = fail.length === 0;
   return out;

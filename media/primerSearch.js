@@ -855,9 +855,37 @@
     rightClickOverrides[key] = withSearch;
   }
 
+  /*
+   * Keep the Attach column honest while the panel is open.
+   *
+   * Which rows are already on the sequence is read from the editor, and the
+   * panel is mounted once through a stable ref -- so without this a primer
+   * deleted from the map stayed greyed out as "attached" until the search was
+   * run again.
+   *
+   * Only the list is redrawn, not the controls: rebuilding those would take the
+   * caret out of the filter box mid-typing.
+   */
+  function watchAttached() {
+    if (!editor || typeof editor.subscribe !== 'function') return;
+    let lastPrimers = null;
+    editor.subscribe(() => {
+      if (!root) return;
+      const primers = (seqState().sequenceData || {}).primers;
+      // Redux hands back a new object only when something changed, so this
+      // costs an identity check on the overwhelming majority of actions.
+      if (primers === lastPrimers) return;
+      lastPrimers = primers;
+      const list = root.querySelector('.ovesearch-list');
+      const count = root.querySelector('.ovesearch-count');
+      if (list && count) renderList(list, count);
+    });
+  }
+
   function init(api, ove) {
     vscodeApi = api;
     editor = ove;
+    watchAttached();
     window.addEventListener('message', (event) => {
       const msg = event.data || {};
       if (msg.type === 'search/results') {

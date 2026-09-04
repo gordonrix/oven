@@ -101,6 +101,16 @@
       });
 
       document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+      // Removing a primer from the map, the way Properties > Primers does, so a
+      // test can check the search panel notices without being re-run.
+      document.addEventListener('__deleteAttached', () => {
+        const primers = Object.assign({}, window.__oveEditor.getState().sequenceData.primers);
+        for (const id of Object.keys(primers)) if (/^inv-/.test(id)) delete primers[id];
+        window.__oveEditor.updateEditor({
+          justPassingPartialSeqData: true,
+          sequenceData: { primers, stateTrackingId: 'oven-test-delete-' + Object.keys(primers).length }
+        });
+      });
       // OVE greys out File > Save while stateTrackingId matches lastSavedId, so
       // a change that does not move the tracking id cannot be saved by hand.
       document.addEventListener('__dumpIds', () => {

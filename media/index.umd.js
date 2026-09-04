@@ -181012,6 +181012,18 @@ ${bases}\r
     editor.getState = () => {
       return store.getState().VectorEditor[editorName];
     };
+    /*
+     * PATCH (oven): let a caller hear about state changes.
+     *
+     * Panels rendered through panelMap mount once and are handed a stable ref,
+     * so anything they draw from the sequence goes stale the moment it changes
+     * underneath them -- a primer deleted from the map left Primer Search still
+     * showing it as attached until the search was run again. The store is
+     * private to this module, so there was no way to notice.
+     *
+     * Returns redux's own unsubscribe.
+     */
+    editor.subscribe = (fn) => store.subscribe(fn);
     return editor;
   }
   __name(createVectorEditor, "createVectorEditor");
