@@ -26609,23 +26609,45 @@ var __async = (__this, __arguments, generator) => {
     colorDataC: { tagName: "DATA", tagNum: 12, typeToReturn: "getShort" }
   };
   const correctionAmount = 3;
+  /*
+   * PATCH (oven): window each base on its own peak.
+   *
+   * Stock walked the trace with a running cursor, advancing it by the midpoint
+   * to the next peak plus `correctionAmount`, and adding that same 3 to the end
+   * of every window. Against the ~4 samples a base spans on a Sanger trace,
+   * that is most of a base per step, and it does not cancel: measured over a
+   * 1672 bp read, the peak belonging to a base landed at -0.5 of the window it
+   * was drawn in -- outside its own cell, in the one before it -- for 1670 of
+   * the 1672 bases. On screen the whole trace sat about one base right of the
+   * letters it belongs to.
+   *
+   * The last base was worse. `endPos` fell back to the end of the trace when
+   * there was no next peak, so whatever the sequencer recorded after the final
+   * base call -- on a PCR product, often a lot -- was crammed into that one
+   * base's cell, which is the bunching at the end of a read.
+   *
+   * A base's window is the stretch closer to its peak than to either
+   * neighbour's: from the midpoint behind it to the midpoint ahead. That puts
+   * every peak in the middle of its own cell and bounds the last one.
+   */
   function convertBasePosTraceToPerBpTrace(chromData) {
     const { basePos, aTrace } = chromData;
     const traceLength = aTrace.length;
-    let startPos = 0;
-    let nextBasePos = basePos[1];
-    let endPos;
-    function setEndPos() {
-      if (nextBasePos) {
-        endPos = startPos + Math.ceil((nextBasePos - startPos) / 2);
-      } else {
-        endPos = traceLength;
-      }
-    }
-    __name(setEndPos, "setEndPos");
-    setEndPos();
+    const count = basePos.length;
     const baseTraces = [];
-    for (let i2 = 0; i2 < basePos.length; i2++) {
+
+    // Half the usual peak spacing, for the two ends where there is no
+    // neighbour to take a midpoint against.
+    const spacing = count > 1
+      ? Math.max(1, Math.round((basePos[count - 1] - basePos[0]) / (count - 1)))
+      : 2;
+
+    for (let i2 = 0; i2 < count; i2++) {
+      const behind = i2 > 0 ? basePos[i2 - 1] : basePos[i2] - spacing;
+      const ahead = i2 < count - 1 ? basePos[i2 + 1] : basePos[i2] + spacing;
+      const from = Math.max(0, Math.round((behind + basePos[i2]) / 2));
+      const to = Math.min(traceLength, Math.round((basePos[i2] + ahead) / 2));
+
       const tracesForType = {
         aTrace: [],
         tTrace: [],
@@ -26642,15 +26664,10 @@ var __async = (__this, __arguments, generator) => {
       ].forEach((type) => {
         const traceForType = tracesForType[type];
         const traceData = chromData[type];
-        for (let j = startPos; j < endPos + correctionAmount; j++) {
+        for (let j = from; j < to; j++) {
           traceForType.push(traceData[j] || 0);
         }
       });
-      if (i2 !== basePos.length - 1) {
-        startPos = endPos + correctionAmount;
-        nextBasePos = basePos[i2 + 2];
-        setEndPos();
-      }
     }
     return __spreadValues({
       baseTraces

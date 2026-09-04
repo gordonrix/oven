@@ -96,3 +96,78 @@ test('a Buffer that is a window onto a larger pool reads only its own bytes', as
   const [{ parsedSequence: p }] = await ab1ToJson(windowed, { fileName: 'x.ab1' });
   assert.strictEqual(p.sequence, FULL_SEQ);
 });
+
+/* --- per-base trace windows ---------------------------------------------- */
+
+const { convertBasePosTraceToPerBpTrace } = require('../../media/bioparser2.umd.js');
+
+/*
+ * A base's window has to be the stretch of trace closer to its own peak than to
+ * either neighbour's, or the drawn chromatogram does not line up with the
+ * letters under it.
+ *
+ * Upstream walked the trace with a running cursor and a fixed +3 fudge at every
+ * step. On a real 1672 bp read that put the peak belonging to a base outside
+ * its own window for 1670 of them -- the whole trace drawn about a base to the
+ * right -- and gave the final base everything the sequencer recorded after the
+ * last call, which is what bunched the end of a PCR read into one cell.
+ */
+
+/** A synthetic trace: a spike at every peak position, flat between. */
+function traceWith(peaks, length, spikeAt) {
+  const flat = new Array(length).fill(10);
+  for (const p of peaks) if (spikeAt(p)) flat[p] = 1000;
+  return flat;
+}
+
+const PEAKS = [4, 8, 12, 16, 20, 24];
+
+function synthetic({ trailing = 0 } = {}) {
+  const length = PEAKS[PEAKS.length - 1] + 1 + trailing;
+  return {
+    basePos: PEAKS,
+    baseCalls: ['A', 'A', 'A', 'A', 'A', 'A'],
+    aTrace: traceWith(PEAKS, length, () => true),
+    tTrace: new Array(length).fill(0),
+    gTrace: new Array(length).fill(0),
+    cTrace: new Array(length).fill(0)
+  };
+}
+
+test('every peak sits inside its own base window', () => {
+  const { baseTraces } = convertBasePosTraceToPerBpTrace(synthetic());
+  assert.strictEqual(baseTraces.length, PEAKS.length);
+  baseTraces.forEach((bp, i) => {
+    const peak = Math.max(...bp.aTrace);
+    assert.strictEqual(peak, 1000, `base ${i} has no peak in its window`);
+    // And exactly one, so it has not borrowed a neighbour's.
+    assert.strictEqual(bp.aTrace.filter((v) => v === 1000).length, 1,
+      `base ${i} window holds more than one peak`);
+  });
+});
+
+test('the peak is centred in its window, not at an edge', () => {
+  const { baseTraces } = convertBasePosTraceToPerBpTrace(synthetic());
+  // Ends excluded: they have only one neighbour to take a midpoint against.
+  baseTraces.slice(1, -1).forEach((bp, i) => {
+    const at = bp.aTrace.indexOf(1000) / (bp.aTrace.length - 1);
+    assert.ok(at > 0.2 && at < 0.8, `base ${i + 1} peak sits at ${at.toFixed(2)} of its window`);
+  });
+});
+
+test('trace recorded after the last base call is not dumped into it', () => {
+  // A PCR product often leaves a long tail after the final call. Stock gave the
+  // last base everything to the end of the trace.
+  const withTail = convertBasePosTraceToPerBpTrace(synthetic({ trailing: 400 }));
+  const widths = withTail.baseTraces.map((b) => b.aTrace.length);
+  const last = widths[widths.length - 1];
+
+  // The last window is half a peak spacing, like any other -- not the 400
+  // samples of tail. Stock made it the whole remainder of the trace.
+  assert.ok(last <= 6, `the last window swallowed the tail: ${last} samples`);
+  assert.ok(Math.max(...widths) <= Math.min(...widths) + 2,
+    `windows should be even, got ${widths.join(',')}`);
+  // And the tail is genuinely dropped rather than hidden somewhere else.
+  const total = widths.reduce((a, b) => a + b, 0);
+  assert.ok(total < 40, `windows cover ${total} samples, far more than the called bases`);
+});

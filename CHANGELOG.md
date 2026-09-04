@@ -4,6 +4,21 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.43.0
+
+**The chromatogram lines up with the letters, and no longer bunches at the end of a read.**
+
+Both came from how a trace is cut into per-base windows. It walked the trace with a running
+cursor and a fixed +3 sample fudge at each step — against the ~4 samples a base spans, most of
+a base per step, and it did not cancel. Measured on a 1672 bp read, the peak belonging to a
+base fell outside its own window for 1670 of the 1672: the whole trace drawn about one base
+right of the letters. And the last base's window ran to the end of the trace, so whatever the
+sequencer recorded after the final call — on a PCR product, often a lot — was crammed into
+that one cell.
+
+A base's window is now the stretch closer to its own peak than to either neighbour's. Every
+peak sits at the centre of its own cell, and the last window is bounded like any other.
+
 ## 1.42.0
 
 **A sequence can be typed or pasted straight into the alignment**, for when there is no file
