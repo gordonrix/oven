@@ -147,6 +147,7 @@
     <script id="posted" type="application/json">[]</script>
     <script id="rightClick" type="application/json">{}</script>
     <script id="copyLog" type="application/json">[]</script>
+    <script id="copyJson" type="application/json"></script>
     <span id="saved" hidden>0</span>
     <pre id="aaError" style="display:none"></pre>
     <script>
@@ -157,7 +158,10 @@
           // Bridged because patchright evaluates in an isolated world, where
           // window.__oveEditor is not reachable.
           primers: Object.values(editor.getState().sequenceData.primers || {})
-            .map((p) => ({ name: p.name, start: p.start, end: p.end, forward: p.forward, bases: p.bases }))
+            .map((p) => ({ name: p.name, start: p.start, end: p.end, forward: p.forward, bases: p.bases })),
+          // Features too, so a test can see whether a copy carried them.
+          features: Object.values(editor.getState().sequenceData.features || {})
+            .map((f) => ({ name: f.name, start: f.start, end: f.end }))
         });
       };
       publish();
@@ -189,15 +193,33 @@
        * write still runs, and is allowed to fail -- a headless browser refuses
        * it without a user gesture.
        */
+      /*
+       * What a copy put on the clipboard.
+       *
+       * Two channels, because the editor uses whichever is available: it sets
+       * text/plain and application/json on the copy event when there is one,
+       * and falls back to navigator.clipboard.writeText when there is not. A
+       * headless browser performs neither, so both are recorded here.
+       */
       document.addEventListener('__captureCopies', () => {
         if (window.__copiesCaptured) return;
         window.__copiesCaptured = true;
         const log = document.getElementById('copyLog');
-        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
-        navigator.clipboard.writeText = (text) => {
+        const record = (text) => {
           const arr = JSON.parse(log.textContent || '[]');
           arr.push(String(text));
           log.textContent = JSON.stringify(arr);
+        };
+        // Bubble phase, so the editor's own handler has already run and set it.
+        document.addEventListener('copy', (e) => {
+          const text = e.clipboardData && e.clipboardData.getData('text/plain');
+          if (text) record(text);
+          const json = e.clipboardData && e.clipboardData.getData('application/json');
+          document.getElementById('copyJson').textContent = json || '';
+        });
+        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = (text) => {
+          record(text);
           return orig(text).catch(() => {});
         };
       });

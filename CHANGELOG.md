@@ -4,6 +4,21 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.45.0
+
+**Copying a stretch of sequence now carries its annotations.** Paste it into another plasmid
+and the features, parts and primers inside the selection come with it, the way Benchling
+behaves. **Edit → Copy Options** already chose whether partial ones travel; that now has an
+effect.
+
+Open Vector Editor's paste was ready for this all along — it reads an `application/json`
+flavour off the clipboard and inserts whatever it finds. Nothing ever wrote one: the copy
+calls `preventDefault` and then puts the bases on with `navigator.clipboard.writeText`, which
+takes plain text only. Both flavours are set on the copy event itself now.
+
+Pasting into a text editor still gives plain bases — the annotated flavour is only legible to
+another editor in the same window.
+
 ## 1.44.1
 
 **The strand bar on a search hit no longer strands itself at the top and bottom of the row.**

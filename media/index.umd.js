@@ -153226,7 +153226,37 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             );
           const textToCopy = (this.sequenceDataToCopy || {}).textToCopy !== void 0 ? this.sequenceDataToCopy.textToCopy : seqData.isProtein ? seqData.proteinSequence : seqData.sequence;
           seqData.textToCopy = textToCopy;
-          yield navigator.clipboard.writeText(textToCopy);
+          /*
+           * PATCH (oven): carry the annotations, not just the bases.
+           *
+           * handlePaste above already reads an `application/json` flavour off
+           * the clipboard and inserts whatever features, parts and primers it
+           * finds -- but nothing ever wrote one. Stock calls preventDefault and
+           * then puts the bases on with navigator.clipboard.writeText, which
+           * takes plain text only, so a copied feature was dropped every time.
+           *
+           * Both flavours are set on the event instead. That has to happen
+           * before the first await or the event has finished dispatching and
+           * setData is a no-op, which is why it sits here rather than in the
+           * onCopy callback below. writeText remains the fallback for a caller
+           * that reached this without a real copy event.
+           *
+           * A JSON flavour is readable only by another page in this browser,
+           * which is the intent: pasting into a text editor still gives bases.
+           */
+          let ovenWroteClipboard = false;
+          if (e2 && e2.clipboardData && typeof e2.clipboardData.setData === "function") {
+            try {
+              e2.clipboardData.setData("text/plain", textToCopy);
+              e2.clipboardData.setData("application/json", JSON.stringify(seqData));
+              ovenWroteClipboard = true;
+            } catch (err) {
+              ovenWroteClipboard = false;   // fall through to writeText
+            }
+          }
+          if (!ovenWroteClipboard) {
+            yield navigator.clipboard.writeText(textToCopy);
+          }
           if (isCut && !(readOnly2 || disableBpEditing) && !disableBpEditing) {
             this.handleDnaDelete(false);
             onCut(

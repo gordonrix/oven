@@ -239,6 +239,9 @@ open a sequence; toggling them yourself in the **View** menu always wins.
   `oven.viewType` changes that: `sequence` or `circular` for a single pane with the other
   as a tab you switch to. **Reopen the file** for a change to take effect
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
+- **Copy carries annotations.** Copy a stretch of sequence and paste it into another plasmid
+  and its features, parts and primers come with it. **Edit → Copy Options** chooses whether
+  partial ones are included. Pasting into anything else still gives plain bases
 - **Filter Cut Sites** is remembered between files, rather than resetting each time
 - Search hits are marked with a dark grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens an empty editor to try things in, backed by no file
