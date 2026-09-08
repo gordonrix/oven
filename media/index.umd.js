@@ -153247,8 +153247,24 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
           let ovenWroteClipboard = false;
           if (e2 && e2.clipboardData && typeof e2.clipboardData.setData === "function") {
             try {
+              /*
+               * proteinSequence is stripped from a DNA payload on purpose.
+               *
+               * seqData carries one because the copy asks for it, and the
+               * insert prefers it when working out how far to move everything
+               * downstream: `proteinSequence.length * 3` (see insertLength in
+               * insertSequenceDataAtPositionOrRange). That rounds down to a
+               * whole codon, so pasting 32 bases moved the annotations after
+               * the insertion by 30 and left every one of them two short. Only
+               * a genuinely protein payload should take that branch.
+               */
+              let ovenPayload = seqData;
+              if (!seqData.isProtein && seqData.proteinSequence !== void 0) {
+                ovenPayload = Object.assign({}, seqData);
+                delete ovenPayload.proteinSequence;
+              }
               e2.clipboardData.setData("text/plain", textToCopy);
-              e2.clipboardData.setData("application/json", JSON.stringify(seqData));
+              e2.clipboardData.setData("application/json", JSON.stringify(ovenPayload));
               ovenWroteClipboard = true;
             } catch (err) {
               ovenWroteClipboard = false;   // fall through to writeText

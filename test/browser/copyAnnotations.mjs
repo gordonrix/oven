@@ -26,7 +26,10 @@ const publish = async (page) => {
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('__publish')));
   return page.evaluate(() => {
     const sd = JSON.parse(document.getElementById('editorState').textContent || '{}');
-    return { len: (sd.sequence || '').length, features: (sd.features || []).map((f) => f.name) };
+    return {
+      len: (sd.sequence || '').length,
+      features: (sd.features || []).map((f) => ({ name: f.name, start: f.start, end: f.end }))
+    };
   });
 };
 
@@ -44,8 +47,9 @@ export default async function run(page) {
   await page.waitForTimeout(400);
 
   out.before = await publish(page);
-  if (!out.before.features.includes(FEATURE)) {
-    fail.push(`the fixture no longer has ${FEATURE}: ${JSON.stringify(out.before.features)}`);
+  const names = (state) => state.features.map((f) => f.name);
+  if (!names(out.before).includes(FEATURE)) {
+    fail.push(`the fixture no longer has ${FEATURE}: ${JSON.stringify(names(out.before))}`);
     return { ...out, FAILURES: fail, PASS: false };
   }
 
@@ -94,9 +98,42 @@ export default async function run(page) {
   if (grew !== TO - FROM + 1) {
     fail.push(`the paste added ${grew} bp, expected ${TO - FROM + 1}`);
   }
-  const copies = out.after.features.filter((n) => n === FEATURE).length;
+  const copies = names(out.after).filter((n) => n === FEATURE).length;
   if (copies !== 2) {
-    fail.push(`expected a second ${FEATURE} after pasting, got ${JSON.stringify(out.after.features)}`);
+    fail.push(`expected a second ${FEATURE} after pasting, got ${JSON.stringify(names(out.after))}`);
+  }
+
+  /* --- and everything downstream moves by the full insert ------------------ */
+
+  /*
+   * The payload carries a proteinSequence, because the copy asks for one. The
+   * insert prefers it when deciding how far to move the annotations after the
+   * insertion -- proteinSequence.length * 3 -- which rounds down to a whole
+   * codon. Pasting 121 bases moved them 120, and pasting a 32 bp spacer moved
+   * them 30, leaving every downstream annotation short by the remainder.
+   *
+   * 121 is deliberately not a multiple of 3, so the rounding shows.
+   */
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('__updateEditor', {
+    detail: { selectionLayer: { start: -1, end: -1 }, caretPosition: 5 } })));
+  await page.waitForTimeout(500);
+  const beforeSecond = await publish(page);
+  await page.keyboard.press('Meta+v');
+  await page.waitForTimeout(1600);
+  const afterSecond = await publish(page);
+
+  const at = (state, name) => {
+    const hit = state.features.find((f) => f.name === name);
+    return hit ? hit.start : null;
+  };
+  out.downstreamShift = {
+    grew: afterSecond.len - beforeSecond.len,
+    demoCDS: at(afterSecond, 'demo CDS') - at(beforeSecond, 'demo CDS')
+  };
+  // "demo CDS" starts after the caret, so it moves by the whole insert.
+  if (out.downstreamShift.demoCDS !== out.downstreamShift.grew) {
+    fail.push(`the sequence grew ${out.downstreamShift.grew} bp but downstream annotations `
+      + `moved ${out.downstreamShift.demoCDS} -- they will sit off the bases by the difference`);
   }
 
   out.FAILURES = fail;

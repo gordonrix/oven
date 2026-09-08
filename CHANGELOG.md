@@ -4,6 +4,18 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.45.1
+
+Pasting a sequence moved the annotations after it by less than the insert, leaving them
+sitting short of their bases — two short for a 32 bp paste, one for a 121 bp one.
+
+The payload carries a `proteinSequence`, because the copy asks for one, and the insert
+prefers it when working out how far to shift: `proteinSequence.length * 3`, which rounds down
+to a whole codon. It is stripped from a DNA payload now, so the shift is the number of bases
+actually inserted.
+
+Only pastes carrying annotations were affected — a plain-text paste always shifted correctly.
+
 ## 1.45.0
 
 **Copying a stretch of sequence now carries its annotations.** Paste it into another plasmid
