@@ -48,8 +48,54 @@ export default async function run(page) {
   }
   if (!out.controls.drop) fail.push('no drop zone');
   if (!out.controls.query) fail.push('no query box');
-  // The threshold only means something under Fuzzy.
-  if (!out.controls.identDisabled) fail.push('the identity box should start disabled under Exact');
+
+  /*
+   * The threshold stays editable under Exact, where it is only greyed. It used
+   * to be disabled, which meant the obvious way to ask for one -- clicking the
+   * box -- did nothing at all, and Exact is the default, so that was every
+   * first attempt.
+   */
+  if (out.controls.identDisabled) fail.push('the identity box should never be disabled');
+
+  const modeOn = () => page.evaluate(() => {
+    const wrap = document.querySelector('.oveseq-radios[data-group="mode"]');
+    const on = [...wrap.querySelectorAll('.oveseq-radio')].find((r) => r.classList.contains('is-on'));
+    return on ? on.textContent.trim() : null;
+  });
+  const greyed = () => page.evaluate(() =>
+    document.querySelector('.oveseq-ident').classList.contains('is-off'));
+
+  out.mode = { start: await modeOn(), greyedAtStart: await greyed() };
+  if (out.mode.start !== 'Exact') fail.push(`Exact should be the default, got ${out.mode.start}`);
+  if (!out.mode.greyedAtStart) fail.push('the threshold should read as inactive under Exact');
+
+  // Typing a threshold is a request for fuzzy matching, so it selects Fuzzy
+  // rather than being taken and then ignored.
+  const ident = page.locator('.oveseq-ident input');
+  await ident.click();
+  await ident.fill('80');
+  await page.waitForTimeout(300);
+  out.afterThreshold = {
+    mode: await modeOn(),
+    greyed: await greyed(),
+    focused: await page.evaluate(() =>
+      document.activeElement === document.querySelector('.oveseq-ident input'))
+  };
+  if (out.afterThreshold.mode !== 'Fuzzy') {
+    fail.push(`typing a threshold should select Fuzzy, mode is ${out.afterThreshold.mode}`);
+  }
+  if (out.afterThreshold.greyed) fail.push('the threshold should stop reading as inactive');
+  // Switching mode must not rebuild the strip out from under the caret.
+  if (!out.afterThreshold.focused) fail.push('the caret left the threshold box');
+
+  // Back to Exact greys it again without losing what was typed.
+  await page.locator('.oveseq-radio', { hasText: 'Exact' }).click();
+  await page.waitForTimeout(300);
+  out.backToExact = { greyed: await greyed(), value: await ident.inputValue() };
+  if (!out.backToExact.greyed) fail.push('Exact should grey the threshold again');
+  if (out.backToExact.value !== '80') {
+    fail.push(`the typed threshold should survive: ${out.backToExact.value}`);
+  }
 
   /*
    * --- the panel fills its tab --------------------------------------------
@@ -146,13 +192,10 @@ export default async function run(page) {
   out.afterFolderDrop = await folderCount();
   if (out.afterFolderDrop !== before + 1) fail.push('a dropped folder was not added');
 
-  /* --- fuzzy enables the threshold ----------------------------------------- */
+  /* --- the chosen threshold reaches the search ----------------------------- */
 
   await page.locator('.oveseq-radio', { hasText: 'Fuzzy' }).click();
   await page.waitForTimeout(400);
-  out.identAfterFuzzy = await page.evaluate(() =>
-    document.querySelector('.oveseq-ident input').disabled);
-  if (out.identAfterFuzzy) fail.push('the identity box should enable under Fuzzy');
 
   /* --- searching ----------------------------------------------------------- */
 
@@ -162,8 +205,16 @@ export default async function run(page) {
   await page.waitForTimeout(600);
 
   out.ranSearch = (await posted(page)).find((m) => m.type === 'seqsearch/run') || null;
-  if (!out.ranSearch) fail.push('Search posted nothing');
-  else if (out.ranSearch.exact !== false) fail.push('the search did not carry the Fuzzy choice');
+  if (!out.ranSearch) {
+    fail.push('Search posted nothing');
+  } else {
+    if (out.ranSearch.exact !== false) fail.push('the search did not carry the Fuzzy choice');
+    // The typed 80, not the 90 it started at -- an edited threshold that does
+    // not reach the host is the same as one that cannot be edited.
+    if (out.ranSearch.minIdentity !== 0.8) {
+      fail.push(`the search used a threshold of ${out.ranSearch.minIdentity}, expected 0.8`);
+    }
+  }
 
   out.headers = await headers(page);
   if (out.headers.join('|') !== 'Name|Pos|% ID|Length bp|Str') {

@@ -176,15 +176,20 @@
     controls.appendChild(radioPair('kind', [
       ['dna', 'Nucleotide'],
       ['protein', 'Amino acid']
-    ], draft.kind, (v) => { draft.kind = v; renderSetup(); }));
+    ], draft.kind, (v) => { draft.kind = v; pickRadio('kind', v); }));
 
     controls.appendChild(radioPair('mode', [
       ['exact', 'Exact'],
       ['fuzzy', 'Fuzzy']
-    ], draft.exact ? 'exact' : 'fuzzy', (v) => { draft.exact = v === 'exact'; renderSetup(); }));
+    ], draft.exact ? 'exact' : 'fuzzy', (v) => { draft.exact = v === 'exact'; syncMode(); }));
 
-    // Only meaningful under Fuzzy, so it is disabled rather than hidden -- a
-    // control that vanishes is harder to find again than one greyed out.
+    /*
+     * The threshold only means something under Fuzzy, and it is greyed under
+     * Exact to say so -- but it stays editable, and typing in it selects Fuzzy.
+     * Disabling it meant the obvious way to ask for a threshold, clicking the
+     * box, did nothing at all: Exact is the default, so that was every first
+     * attempt.
+     */
     const ident = el('label', 'oveseq-ident' + (draft.exact ? ' is-off' : ''));
     ident.appendChild(el('span', null, 'min identity'));
     const pct = el('input');
@@ -193,7 +198,16 @@
     pct.max = '100';
     pct.step = '1';
     pct.value = String(Math.round(draft.minIdentity * 100));
-    pct.disabled = draft.exact;
+    pct.title = 'Percent identity a fuzzy hit must reach';
+    const goFuzzy = () => {
+      if (!draft.exact) return;
+      draft.exact = false;
+      syncMode();
+    };
+    pct.addEventListener('focus', goFuzzy);
+    pct.addEventListener('input', goFuzzy);
+    // Clamped on the way out rather than per keystroke, so typing "7" on the
+    // way to "75" is not snapped up to the minimum under the caret.
     pct.addEventListener('change', () => {
       const v = Math.min(100, Math.max(50, Number(pct.value) || 90));
       draft.minIdentity = v / 100;
@@ -214,8 +228,10 @@
 
   function radioPair(group, options, selected, onPick) {
     const wrap = el('div', 'oveseq-radios');
+    wrap.dataset.group = group;
     for (const [value, label] of options) {
       const item = el('label', 'oveseq-radio' + (value === selected ? ' is-on' : ''));
+      item.dataset.value = value;
       const input = el('input');
       input.type = 'radio';
       input.name = group;
@@ -226,6 +242,31 @@
       wrap.appendChild(item);
     }
     return wrap;
+  }
+
+  /**
+   * Move a radio pair without rebuilding the strip.
+   *
+   * renderSetup() throws away and rebuilds every control, which takes the caret
+   * with it -- fine for a click on a radio, fatal for a click into the identity
+   * box that has to select Fuzzy on the way in.
+   */
+  function pickRadio(group, value) {
+    const wrap = document.querySelector(`.oveseq-radios[data-group="${group}"]`);
+    if (!wrap) return;
+    for (const item of wrap.querySelectorAll('.oveseq-radio')) {
+      const on = item.dataset.value === value;
+      item.classList.toggle('is-on', on);
+      const input = item.querySelector('input');
+      if (input) input.checked = on;
+    }
+  }
+
+  /** The threshold reads as inactive under Exact, but still takes a click. */
+  function syncMode() {
+    pickRadio('mode', draft.exact ? 'exact' : 'fuzzy');
+    const wrap = document.querySelector('.oveseq-ident');
+    if (wrap) wrap.classList.toggle('is-off', draft.exact);
   }
 
   function runSearch() {
