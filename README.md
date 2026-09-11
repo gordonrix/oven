@@ -10,8 +10,8 @@
 </p>
 
 Open `.gb`, `.gbk`, `.fasta`, `.fa` and `.dna` files in a tab, then design primers, collect
-them into an order, search your existing primer collection, edit codons, and align Sanger
-reads against the plasmid on screen.
+them into an order, search your existing primer collection, search your whole map library
+for a sequence, edit codons, and align Sanger reads against the plasmid on screen.
 
 ![A plasmid open in OVEN: the sequence map on the left, the circular map and primer search
 results on the right, and the right-click menu showing Search primers in
@@ -48,6 +48,8 @@ Added here:
 - **Primer cart** — collect primers across plasmid files into one order, with sessions, CSV
   export and cross-referencing against primers you already own
 - **Primer search** over your own primer collection, 3′-anchored, with attach-to-sequence
+- **Sequence search** across folders of maps — nucleotide or amino acid, exact or fuzzy,
+  all six reading frames
 - **New Primer as a side panel**, with an editable 5′ tail and mismatches marked in red
 - **Sanger alignment** against the open plasmid, with chromatograms, translated mutated
   codons, and origin-spanning reads handled
@@ -139,6 +141,39 @@ The **Filter** box searches names, sequences and the columns you are showing.
 
 Other settings: `oven.searchMinAnneal` (default 15), `oven.searchFullLengthOnly`,
 `oven.searchMaxHits`.
+
+## Sequence search
+
+Click **Sequence Search** to find a nucleotide or amino acid sequence across folders of maps
+— the reverse of primer search, which works on the one plasmid you have open.
+
+Add folders with **Browse…**, or drop them on the panel holding **⇧ Shift**. Files are
+refused; this takes folders. Each gets a chip with a tickbox for searching subfolders, and
+the list is remembered between sessions.
+
+```
+Constructs  and subfolders  817 files
+```
+
+Only `.gb` and `.gbk` are searched. Bases are read straight from the `ORIGIN` block rather
+than parsed, so 2,900 files index in under half a second.
+
+**Nucleotide or Amino acid**, and **Exact or Fuzzy** with an identity threshold. An amino
+acid query is searched against all six reading frames; hits come back in nucleotide
+coordinates with the frame named, so clicking one opens the file with the right bases
+selected.
+
+| | | | |
+|---|---|---|---|
+| pUC19.gb | 1204..1236 | 100% | 33 bp |
+| pGR-004.gb | 881..913 | 97.0% | 33 bp |
+
+Hits are ranked by matches minus mismatches, so a long near-perfect match sits above a short
+exact one. A hit must also cover at least **half the query** — every 11-mer occurs many times
+over in a megabase target, and without that floor a 33 bp search against a genome buries the
+answer under incidental fragments at 100% identity.
+
+Indels are not spanned: a match containing one comes back as two adjacent hits.
 
 ## Alignment
 

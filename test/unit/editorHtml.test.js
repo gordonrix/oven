@@ -77,11 +77,12 @@ test("saving goes through OVE's own File > Save", () => {
     'no Save in the button row');
 });
 
-test('the button row is the three panels, in order', () => {
+test('the button row is the four panels, in order', () => {
   const html = buildEditorHtml(Object.assign({}, OPTS, { cutSiteFilter: null }));
   const row = html.slice(html.indexOf('class="ove-toolbtns"'));
-  const labels = [...row.matchAll(/>([A-Z][A-Za-z ]+)</g)].map((m) => m[1]).slice(0, 3);
-  assert.deepStrictEqual(labels, ['Align', 'Primer Search', 'Primer Cart']);
+  const labels = [...row.matchAll(/>([A-Z][A-Za-z ]+)</g)].map((m) => m[1]).slice(0, 4);
+  assert.deepStrictEqual(labels,
+    ['Align', 'Sequence Search', 'Primer Search', 'Primer Cart']);
 });
 
 /*

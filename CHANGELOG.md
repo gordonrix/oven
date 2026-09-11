@@ -4,6 +4,29 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.46.0
+
+**Sequence Search** — a third panel, between Align and Primer Search, that answers the
+question Primer Search cannot: *which of my constructs contains this?* One query, many
+files.
+
+Register folders of `.gb`/`.gbk` maps by browsing or dropping them; each gets a chip with a
+subfolder tickbox, and the list is remembered between sessions. Search a nucleotide or an
+amino acid sequence, exactly or fuzzily with an identity threshold. Amino acid queries are
+searched against all six reading frames, and hits come back in nucleotide coordinates with
+the frame named, so clicking one opens the file with the right bases selected.
+
+Hits are ranked by matches minus mismatches, which puts a long near-perfect match above a
+short exact one. A hit must also cover at least half the query: every 11-mer occurs many
+times over in a megabase target, and without that floor a 33 bp search against a genome
+returns dozens of incidental fragments at 100% identity.
+
+Searching does not parse the maps — bases are read straight from the `ORIGIN` block, which
+is about 470× quicker than a full GenBank parse, so a folder of 2,900 files indexes in under
+half a second and an exact search across 17 Mbp takes about 50 ms.
+
+Indels are not spanned: a match containing one comes back as two adjacent hits.
+
 ## 1.45.1
 
 Pasting a sequence moved the annotations after it by less than the insert, leaving them

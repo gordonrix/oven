@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Sequence Search demo</title>
+    <!--
+      Drives media/seqSearchView.js without a host, the way AlignDemo.html does
+      for the alignment panel. The stub below stands in for
+      src/seqSearchPanel.js: it answers the same messages with the same state
+      shape, so the view is exercised exactly as it is in a real editor.
+    -->
+    <link rel="stylesheet" href="seqSearchView.css" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <script id="posted" type="application/json">[]</script>
+    <script>
+      window.__posted = [];
+      const syncPosted = () => {
+        document.getElementById('posted').textContent = JSON.stringify(window.__posted);
+      };
+
+      /* A tiny corpus, enough to rank against. */
+      const HITS = [
+        { file: '/maps/pUC19.gb', name: 'pUC19.gb', start: 1203, end: 1235,
+          strand: 1, frame: null, length: 33, identity: 1, score: 33 },
+        { file: '/maps/pGR-004.gb', name: 'pGR-004.gb', start: 880, end: 912,
+          strand: -1, frame: null, length: 33, identity: 0.9696969696969697, score: 31 },
+        { file: '/maps/pACYC184.gb', name: 'pACYC184.gb', start: 2050, end: 2077,
+          strand: 1, frame: null, length: 28, identity: 0.9107142857142857, score: 23 }
+      ];
+      const AA_HITS = [
+        { file: '/maps/pUC19.gb', name: 'pUC19.gb', start: 1203, end: 1226,
+          strand: 1, frame: 2, length: 8, identity: 1, score: 8 },
+        { file: '/maps/pGR-004.gb', name: 'pGR-004.gb', start: 44, end: 67,
+          strand: -1, frame: -3, length: 8, identity: 1, score: 8 }
+      ];
+
+      let state = {
+        folders: [], results: [], status: '', error: '', busy: false,
+        query: '', kind: 'dna', exact: true, minIdentity: 0.9
+      };
+      const send = () => window.postMessage({ type: 'seqsearch/state', state }, '*');
+
+      function acquireVsCodeApi() {
+        return {
+          postMessage: (m) => {
+            window.__posted.push(m);
+            syncPosted();
+
+            if (m.type === 'seqsearch/ready') { send(); return; }
+
+            if (m.type === 'seqsearch/browse') {
+              addFolder('/maps/Constructs', 817);
+              return;
+            }
+
+            if (m.type === 'seqsearch/addUris') {
+              // The host is the side that can tell a folder from a file; this
+              // stands in for that, refusing anything with an extension.
+              const refused = [];
+              for (const uri of m.uris) {
+                const name = uri.split('/').filter(Boolean).pop() || uri;
+                if (/\.[a-z0-9]+$/i.test(name)) { refused.push(name); continue; }
+                addFolder(uri.replace(/^file:\/\//, ''), 12, true);
+              }
+              if (refused.length) {
+                state = Object.assign({}, state, {
+                  status: `${refused.join(', ')} ${refused.length === 1 ? 'is a file' : 'are files'}`
+                    + ' — drop a folder instead.'
+                });
+                send();
+              }
+              return;
+            }
+
+            if (m.type === 'seqsearch/removeFolder') {
+              state = Object.assign({}, state, {
+                folders: state.folders.filter((f) => f.path !== m.path)
+              });
+              send();
+              return;
+            }
+
+            if (m.type === 'seqsearch/setSubfolders') {
+              state = Object.assign({}, state, {
+                folders: state.folders.map((f) =>
+                  (f.path === m.path ? Object.assign({}, f, { subfolders: m.subfolders }) : f))
+              });
+              send();
+              return;
+            }
+
+            if (m.type === 'seqsearch/run') {
+              const results = m.kind === 'protein' ? AA_HITS : HITS;
+              state = Object.assign({}, state, {
+                results, query: m.query, kind: m.kind, exact: m.exact,
+                minIdentity: m.minIdentity,
+                status: `${results.length} hits in 3 sequences · 4 ms`
+              });
+              send();
+              return;
+            }
+          }
+        };
+      }
+
+      function addFolder(path, files, quiet) {
+        if (state.folders.some((f) => f.path === path)) return;
+        state = Object.assign({}, state, {
+          folders: state.folders.concat([{ path, subfolders: true, files }]),
+          status: quiet ? state.status : `${files} sequences indexed`
+        });
+        send();
+      }
+
+      document.addEventListener('__clearPosted', () => { window.__posted.length = 0; syncPosted(); });
+    </script>
+
+    <div class="oveseq-root">
+      <div id="setup"></div>
+      <div id="results"></div>
+    </div>
+    <script src="seqSearchView.js"></script>
+    <script>
+      document.body.setAttribute('data-ready', 'true');
+    </script>
+  </body>
+</html>

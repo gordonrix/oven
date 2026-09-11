@@ -58,11 +58,12 @@ class DNAViewerProvider {
    * @param {vscode.ExtensionContext} context
    * @param {import('./cartStore').CartStore} cart
    */
-  constructor(context, cart, cartPanel, alignPanel) {
+  constructor(context, cart, cartPanel, alignPanel, seqSearchPanel) {
     this.context = context;
     this.cart = cart;
     this.cartPanel = cartPanel;
     this.alignPanel = alignPanel;
+    this.seqSearchPanel = seqSearchPanel;
   }
 
   async openCustomDocument(uri) {
@@ -75,6 +76,18 @@ class DNAViewerProvider {
 
   async resolveCustomEditor(document, webviewPanel) {
     const webview = webviewPanel.webview;
+
+    /*
+     * Track the open editors, so a Sequence Search hit can select its range in
+     * one that is already up rather than reopening the file. Keyed by path
+     * because that is all the panel knows about a hit.
+     */
+    DNAViewerProvider.live.set(document.uri.fsPath, webviewPanel);
+    webviewPanel.onDidDispose(() => {
+      if (DNAViewerProvider.live.get(document.uri.fsPath) === webviewPanel) {
+        DNAViewerProvider.live.delete(document.uri.fsPath);
+      }
+    });
     webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.file(path.join(this.context.extensionPath, 'media'))]
@@ -175,6 +188,21 @@ class DNAViewerProvider {
       if (message.type === 'cart/showPanel') {
         collapsePanels();
         this.cartPanel.show();
+        return;
+      }
+
+      if (message.type === 'seqsearch/open') {
+        collapsePanels();
+        if (this.seqSearchPanel) this.seqSearchPanel.show();
+        return;
+      }
+
+      if (message.type === 'editor/ready') {
+        const waiting = DNAViewerProvider.pendingReveal.get(document.uri.fsPath);
+        if (waiting) {
+          DNAViewerProvider.pendingReveal.delete(document.uri.fsPath);
+          webview.postMessage({ type: 'select/range', range: waiting });
+        }
         return;
       }
 
@@ -311,5 +339,40 @@ class DNAViewerProvider {
     });
   }
 }
+
+/*
+ * Editors currently on screen, by file path. Static because the reveal command
+ * is registered once at activation and has no instance to ask.
+ */
+DNAViewerProvider.live = new Map();
+
+/**
+ * Open a map with a range selected.
+ *
+ * An editor already showing the file is told to select; otherwise the file is
+ * opened and told once its webview reports for duty. Reopening a file that is
+ * already open would throw away an unsaved edit, so the two cases are not
+ * collapsed into one.
+ */
+DNAViewerProvider.revealRange = async (file, range) => {
+  const open = DNAViewerProvider.live.get(file);
+  if (open) {
+    open.reveal(open.viewColumn, false);
+    open.webview.postMessage({ type: 'select/range', range });
+    return;
+  }
+  DNAViewerProvider.pendingReveal.set(file, range);
+  try {
+    await vscode.commands.executeCommand(
+      'vscode.openWith', vscode.Uri.file(file), 'oven.editor', vscode.ViewColumn.One
+    );
+  } catch (e) {
+    DNAViewerProvider.pendingReveal.delete(file);
+    vscode.window.showErrorMessage(`Could not open ${file}: ${e.message}`);
+  }
+};
+
+/* A range waiting for its editor to finish mounting. */
+DNAViewerProvider.pendingReveal = new Map();
 
 module.exports = { DNAViewerProvider, pickInventoryFile };

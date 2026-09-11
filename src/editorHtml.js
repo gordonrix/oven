@@ -228,6 +228,8 @@ function buildEditorHtml(opts) {
     <div class="ove-toolbtns">
       <button id="ove-align-button" class="ove-align-btn"
               onclick="vscode.postMessage({type:'align/open'})">Align</button>
+      <button id="ove-seqsearch-button" class="ove-seqsearch-btn"
+              onclick="vscode.postMessage({type:'seqsearch/open'})">Sequence Search</button>
       <button id="ove-search-button" class="ove-search-btn"
               onclick="window.OveSearch.open()">Primer Search</button>
       <button id="ove-cart-button" class="ove-cart-btn"
@@ -265,12 +267,34 @@ ${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreate
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
       window.OveNewPrimer.init(editor);
+      vscode.postMessage({ type: "editor/ready" });
 
       /*
        * Collapse the editor's own split when a side panel opens beside it, so
        * the sequence gets the whole of the editor's half rather than a quarter
        * of the window. The folding itself is in media/panelLayout.js.
        */
+      /*
+       * Select a range on behalf of something outside the editor -- a Sequence
+       * Search hit, which knows a file and a span but has no handle on the
+       * editor that ends up showing it.
+       */
+      window.addEventListener("message", (event) => {
+        const msg = event.data || {};
+        if (msg.type !== "select/range" || !msg.range) return;
+        const r = msg.range;
+        editor.updateEditor({
+          selectionLayer: {
+            start: r.start,
+            end: r.end,
+            // The same strand classes the primer search reveal uses, so the
+            // strand bar hugs the right side of the letters.
+            className: r.strand === -1 ? "ove-strand-rev" : "ove-strand-fwd"
+          },
+          caretPosition: -1
+        });
+      });
+
       window.addEventListener("message", (event) => {
         if ((event.data || {}).type !== "panels/collapse") return;
         const merged = window.OvenPanels.merge(editor.getState().panelsShown);

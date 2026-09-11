@@ -8,6 +8,7 @@ const { CartStore } = require('./src/cartStore');
 const { CartPanel } = require('./src/cartPanel');
 const { DNAViewerProvider, pickInventoryFile } = require('./src/editorProvider');
 const { AlignPanels } = require('./src/alignPanel');
+const { SeqSearchPanel } = require('./src/seqSearchPanel');
 const mafft = require('./src/mafft');
 const { buildDemoHtml } = require('./src/editorHtml');
 
@@ -15,6 +16,20 @@ function activate(context) {
   const cart = new CartStore(context);
   const cartPanel = new CartPanel(context, cart);
   const alignPanel = new AlignPanels(context);
+  const seqSearchPanel = new SeqSearchPanel(context);
+
+  /*
+   * Open a map with a range selected, for a Sequence Search hit.
+   *
+   * A command rather than a direct call: the panel has no handle on the editor,
+   * and an editor that is already open has to be told rather than reopened. The
+   * provider keeps the live webviews and does the deciding.
+   */
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oven.revealRange', async (file, range) => {
+      await DNAViewerProvider.revealRange(file, range);
+    })
+  );
 
   /*
    * retainContextWhenHidden is not a performance tweak here -- do not drop it.
@@ -31,7 +46,7 @@ function activate(context) {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       'oven.editor',
-      new DNAViewerProvider(context, cart, cartPanel, alignPanel),
+      new DNAViewerProvider(context, cart, cartPanel, alignPanel, seqSearchPanel),
       { webviewOptions: { retainContextWhenHidden: true } }
     )
   );
@@ -57,6 +72,7 @@ function activate(context) {
       });
     }),
 
+    vscode.commands.registerCommand('oven.sequenceSearch', () => seqSearchPanel.show()),
     vscode.commands.registerCommand('oven.show', () => cartPanel.show()),
     vscode.commands.registerCommand('oven.copyTsv', () => cartPanel.copy([], 'tsv')),
     vscode.commands.registerCommand('oven.copySequences', () => cartPanel.copy([], 'seqs')),

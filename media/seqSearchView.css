@@ -1,0 +1,176 @@
+/*
+ * Sequence Search panel.
+ *
+ * Deliberately the alignment panel's vocabulary -- same chip shape, same drop
+ * zone, same greys -- so the two read as one family. media/alignView.css is the
+ * source of those values; where a number here matches one there, that is why.
+ */
+
+.oveseq-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  color: #182026;
+  background: #fff;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+/* --- folders -------------------------------------------------------------- */
+
+.oveseq-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 12px;
+  border: 2px dashed #c7cdd4;
+  border-radius: 5px;
+  color: #5c7080;
+  font-size: 12px;
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.oveseq-drop.is-over { border-color: #7050b3; background: #f3effa; }
+.oveseq-drophint { font-size: 11px; color: #738694; }
+
+.oveseq-folders { display: flex; flex-direction: column; gap: 4px; }
+
+.oveseq-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 8px;
+  font-size: 11px;
+  background: #f5f8fa;
+  border: 1px solid #dce3e8;
+  border-radius: 3px;
+}
+.oveseq-foldername {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  font-weight: 600;
+}
+/*
+ * Three weights of the same idea, lightest last: the folder is the thing, the
+ * file count is a fact about it, and "and subfolders" only qualifies the
+ * reach. #5c7080 is the alignment panel's stat grey; this is a step lighter so
+ * it recedes behind the count rather than competing with it.
+ */
+.oveseq-foldercount { color: #5c7080; font-variant-numeric: tabular-nums; }
+.oveseq-foldersub { color: #8a9ba8; }
+
+.oveseq-foldertick { margin-left: auto; display: flex; align-items: center; }
+.oveseq-foldertick input { margin: 0; }
+
+.oveseq-x {
+  border: none;
+  background: none;
+  color: #8a9ba8;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.oveseq-x:hover { color: #c23030; }
+
+/* --- the query ------------------------------------------------------------ */
+
+.oveseq-query {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid #c7cdd4;
+  border-radius: 3px;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: #182026;
+  box-sizing: border-box;
+}
+.oveseq-query:focus { outline: none; border-color: #7050b3; }
+
+.oveseq-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.oveseq-radios { display: flex; border: 1px solid #c7cdd4; border-radius: 3px; overflow: hidden; }
+.oveseq-radio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  background: #fff;
+}
+.oveseq-radio.is-on { background: #7050b3; color: #fff; }
+.oveseq-radio input { display: none; }
+
+.oveseq-ident { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #5c7080; }
+.oveseq-ident input {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid #c7cdd4;
+  border-radius: 3px;
+  font-size: 11px;
+}
+/* Disabled rather than hidden: a control that vanishes is harder to find again. */
+.oveseq-ident.is-off { opacity: .45; }
+
+.oveseq-btn {
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #7050b3;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.oveseq-btn:disabled { opacity: .6; cursor: default; }
+.oveseq-btn.secondary { background: #fff; color: #182026; border: 1px solid #c7cdd4; }
+.oveseq-go { margin-left: auto; }
+
+.oveseq-status { font-size: 11px; color: #5c7080; min-height: 14px; }
+.oveseq-status.is-error { color: #c23030; }
+
+/* --- results -------------------------------------------------------------- */
+
+.oveseq-hits { display: flex; flex-direction: column; }
+
+.oveseq-hit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 6px;
+  border-bottom: 1px solid #f0f3f5;
+  cursor: pointer;
+  font-size: 11px;
+}
+.oveseq-hit:hover { background: #f3effa; }
+
+.oveseq-hitname {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.oveseq-hitpos,
+.oveseq-hitlen { color: #5c7080; font-variant-numeric: tabular-nums; }
+.oveseq-hitid { color: #5c7080; font-variant-numeric: tabular-nums; }
+/* A perfect hit is the thing you are usually looking for, so it is not grey. */
+.oveseq-hitid.is-exact { color: #0f9960; font-weight: 600; }
+.oveseq-hitframe { color: #8a9ba8; }
