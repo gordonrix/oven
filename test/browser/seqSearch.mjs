@@ -12,8 +12,13 @@
 const posted = (page) => page.evaluate(() =>
   JSON.parse(document.getElementById('posted').textContent || '[]'));
 
+/** One array of cell texts per row, so a column can be checked by position. */
 const hits = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('.oveseq-hit')].map((h) => h.innerText.replace(/\n/g, ' ')));
+  [...document.querySelectorAll('.oveseq-hit')].map((row) =>
+    [...row.querySelectorAll('.oveseq-cell')].map((c) => c.textContent.trim())));
+
+const headers = (page) => page.evaluate(() =>
+  [...document.querySelectorAll('.oveseq-header .oveseq-cell')].map((c) => c.textContent.trim()));
 
 /** rgb(...) -> perceived lightness, for comparing two greys. */
 const lightness = (css) => {
@@ -45,6 +50,30 @@ export default async function run(page) {
   if (!out.controls.query) fail.push('no query box');
   // The threshold only means something under Fuzzy.
   if (!out.controls.identDisabled) fail.push('the identity box should start disabled under Exact');
+
+  /*
+   * --- the panel fills its tab --------------------------------------------
+   *
+   * The host sets no page height, so a root that only sizes to its content
+   * leaves the tab's own background showing underneath -- which looks like a
+   * short white strip floating on grey rather than a panel.
+   */
+  out.fill = await page.evaluate(() => {
+    const root = document.querySelector('.oveseq-root');
+    const box = root.getBoundingClientRect();
+    return {
+      bottom: Math.round(box.bottom),
+      viewport: window.innerHeight,
+      background: getComputedStyle(root).backgroundColor
+    };
+  });
+  if (out.fill.bottom < out.fill.viewport) {
+    fail.push(`the panel stops at ${out.fill.bottom} of ${out.fill.viewport}px `
+      + '-- it should reach the bottom of the tab');
+  }
+  if (!/255, 255, 255/.test(out.fill.background)) {
+    fail.push(`the panel should be white, got ${out.fill.background}`);
+  }
 
   /* --- a folder chip reads as three weights -------------------------------- */
 
@@ -136,15 +165,91 @@ export default async function run(page) {
   if (!out.ranSearch) fail.push('Search posted nothing');
   else if (out.ranSearch.exact !== false) fail.push('the search did not carry the Fuzzy choice');
 
+  out.headers = await headers(page);
+  if (out.headers.join('|') !== 'Name|Pos|% ID|Length bp|Str') {
+    fail.push(`unexpected columns: ${out.headers.join('|')}`);
+  }
+
   out.hits = await hits(page);
   if (out.hits.length !== 3) fail.push(`expected 3 hits, got ${out.hits.length}`);
-  // Best first, and coordinates 1-based the way the editor counts.
-  if (out.hits[0] && !/pUC19/.test(out.hits[0])) {
+  // Every row has to fill every column, or the grid stops lining up.
+  for (const row of out.hits) {
+    if (row.length !== out.headers.length) {
+      fail.push(`a row has ${row.length} cells for ${out.headers.length} columns`);
+      break;
+    }
+  }
+  // Best first by default -- the ranking the host sent, not a column sort.
+  if (out.hits[0] && out.hits[0][0] !== 'pUC19.gb') {
     fail.push(`the best hit should be first: ${JSON.stringify(out.hits[0])}`);
   }
-  if (out.hits[0] && !/1204\.\.1236/.test(out.hits[0])) {
+  // 1-based the way the editor counts.
+  if (out.hits[0] && out.hits[0][1] !== '1204..1236') {
     fail.push(`coordinates should be 1-based: ${JSON.stringify(out.hits[0])}`);
   }
+
+  /* --- clicking a header sorts by that column ------------------------------ */
+
+  const clickHeader = async (label) => {
+    await page.locator('.oveseq-header .oveseq-cell', { hasText: label }).first().click();
+    await page.waitForTimeout(300);
+  };
+  const names = (rows) => rows.map((r) => r[0]);
+
+  const ranked = names(out.hits);
+
+  await clickHeader('Name');
+  out.byName = names(await hits(page));
+  const alphabetical = [...ranked].sort();
+  if (out.byName.join() !== alphabetical.join()) {
+    fail.push(`sorting by Name gave ${out.byName.join()}, expected ${alphabetical.join()}`);
+  }
+
+  await clickHeader('Name');                       // second click reverses
+  out.byNameDesc = names(await hits(page));
+  if (out.byNameDesc.join() !== [...alphabetical].reverse().join()) {
+    fail.push(`the second click should reverse, got ${out.byNameDesc.join()}`);
+  }
+
+  // A third click goes back to the ranking, which is otherwise unreachable
+  // without re-running the search.
+  await clickHeader('Name');
+  out.backToRank = names(await hits(page));
+  if (out.backToRank.join() !== ranked.join()) {
+    fail.push(`the third click should restore the ranking, got ${out.backToRank.join()}`);
+  }
+
+  // A numeric column has to sort numerically, not as text.
+  await clickHeader('Length');
+  out.byLen = (await hits(page)).map((r) => Number(r[3]));
+  if (out.byLen.join() !== [...out.byLen].sort((a, b) => a - b).join()) {
+    fail.push(`Length sorted as ${out.byLen.join()}, which is not ascending`);
+  }
+  await clickHeader('Length');
+  await clickHeader('Length');                     // back to the ranking
+
+  /* --- the filter box ------------------------------------------------------ */
+
+  await page.locator('.oveseq-filter').fill('pGR');
+  await page.waitForTimeout(300);
+  out.filtered = names(await hits(page));
+  if (out.filtered.length !== 1 || !/pGR/.test(out.filtered[0])) {
+    fail.push(`filtering for pGR gave ${JSON.stringify(out.filtered)}`);
+  }
+  out.filterCount = await page.evaluate(() =>
+    (document.querySelector('.oveseq-count') || {}).textContent || '');
+  if (!/1 of 3/.test(out.filterCount)) {
+    fail.push(`the count should say what was hidden, got ${JSON.stringify(out.filterCount)}`);
+  }
+
+  // Typing must not cost the caret -- the box is rebuilt on a state push, but
+  // filtering is not a state push.
+  out.filterFocused = await page.evaluate(() =>
+    document.activeElement === document.querySelector('.oveseq-filter'));
+  if (!out.filterFocused) fail.push('the filter box lost focus while typing');
+
+  await page.locator('.oveseq-filter').fill('');
+  await page.waitForTimeout(300);
 
   /* --- clicking a hit asks for it to be opened ----------------------------- */
 
@@ -169,20 +274,26 @@ export default async function run(page) {
   await page.locator('.oveseq-query').fill('MKLVAGIE');
   await page.locator('.oveseq-go').click();
   await page.waitForTimeout(600);
+  out.aaHeaders = await headers(page);
   out.aaHits = await hits(page);
   if (!out.aaHits.length) {
     fail.push('an amino acid search returned nothing');
   } else {
+    // The unit changes with the kind of search, and it lives in the header
+    // rather than being repeated down every row.
+    if (out.aaHeaders[3] !== 'Length aa') {
+      fail.push(`protein hits should be measured in residues: ${out.aaHeaders[3]}`);
+    }
     // Without the frame the nucleotide coordinates of a protein hit are
     // unreadable -- you cannot tell which of three offsets it came from.
-    if (!/frame \+2/.test(out.aaHits[0])) {
-      fail.push(`a protein hit should name its frame: ${JSON.stringify(out.aaHits[0])}`);
+    if (out.aaHeaders[4] !== 'Frame') {
+      fail.push(`the last column should name the frame: ${out.aaHeaders[4]}`);
     }
-    if (!/8 aa/.test(out.aaHits[0])) {
-      fail.push(`a protein hit should be measured in residues: ${JSON.stringify(out.aaHits[0])}`);
+    if (out.aaHits[0][4] !== '+2') {
+      fail.push(`a protein hit should show its frame: ${JSON.stringify(out.aaHits[0])}`);
     }
-    if (!out.aaHits.some((h) => /frame -3/.test(h))) {
-      fail.push('no reverse-frame hit, so the negative frames were not rendered');
+    if (!out.aaHits.some((r) => r[4] === '\u22123')) {
+      fail.push(`no reverse-frame hit: ${JSON.stringify(out.aaHits.map((r) => r[4]))}`);
     }
   }
 

@@ -161,17 +161,22 @@ than parsed, so 2,900 files index in under half a second.
 **Nucleotide or Amino acid**, and **Exact or Fuzzy** with an identity threshold. An amino
 acid query is searched against all six reading frames; hits come back in nucleotide
 coordinates with the frame named, so clicking one opens the file with the right bases
-selected.
+selected. A file opened this way shows the sequence alone rather than the usual split — a
+circular map cannot show you where a 33 bp hit is. Opening it any other way still follows
+`oven.viewType`.
 
-| | | | |
-|---|---|---|---|
-| pUC19.gb | 1204..1236 | 100% | 33 bp |
-| pGR-004.gb | 881..913 | 97.0% | 33 bp |
+| Name | Pos | % ID | Length bp | Str |
+|---|---|---|---|---|
+| pUC19.gb | 1204..1236 | 100% | 33 | + |
+| pGR-004.gb | 881..913 | 97.0% | 33 | − |
 
 Hits are ranked by matches minus mismatches, so a long near-perfect match sits above a short
-exact one. A hit must also cover at least **half the query** — every 11-mer occurs many times
-over in a megabase target, and without that floor a 33 bp search against a genome buries the
-answer under incidental fragments at 100% identity.
+exact one. **Click a column to sort by it** — a second click reverses, a third goes back to
+the ranking. The **Filter** box narrows the list by name or folder.
+
+A hit must also cover at least **half the query** — every 11-mer occurs many times over in a
+megabase target, and without that floor a 33 bp search against a genome buries the answer
+under incidental fragments at 100% identity.
 
 Indels are not spanned: a match containing one comes back as two adjacent hits.
 

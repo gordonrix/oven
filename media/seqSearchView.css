@@ -6,6 +6,14 @@
  * source of those values; where a number here matches one there, that is why.
  */
 
+/*
+ * The panel host sets no page height of its own, so without this the root's
+ * `height: 100%` resolves against an auto-height body and collapses to its
+ * content, leaving the tab's own background showing below the results. Same
+ * reasoning, and the same fix, as media/alignView.css.
+ */
+html, body { height: 100%; margin: 0; }
+
 .oveseq-root {
   display: flex;
   flex-direction: column;
@@ -148,29 +156,85 @@
 
 /* --- results -------------------------------------------------------------- */
 
-.oveseq-hits { display: flex; flex-direction: column; }
-
-.oveseq-hit {
+.oveseq-resultsbar {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  padding: 4px 6px;
-  border-bottom: 1px solid #f0f3f5;
-  cursor: pointer;
+  padding-top: 2px;
+}
+
+/* Same control as the primer search table's filter, down to the focus colour. */
+.oveseq-filter {
+  flex: 1;
+  min-width: 90px;
+  padding: 4px 8px;
+  border: 1px solid #d3dae0;
+  border-radius: 3px;
   font-size: 11px;
 }
+.oveseq-filter:focus { outline: none; border-color: #7050b3; }
+
+.oveseq-count { font-size: 10px; color: #5c7080; white-space: nowrap; }
+
+/* The root is the scroller; a second one here would mean two scrollbars and a
+   header that sticks to the wrong edge. */
+.oveseq-table { display: flex; flex-direction: column; }
+
+/*
+ * One grid template shared by the header and every row, which is what keeps
+ * the columns lined up. Name takes the slack; the rest are sized to their
+ * widest plausible contents so the numbers do not shift as you sort.
+ */
+.oveseq-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 104px 52px 76px 48px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  border-bottom: 1px solid #f0f3f5;
+}
+
+.oveseq-hit { cursor: pointer; }
 .oveseq-hit:hover { background: #f3effa; }
 
-.oveseq-hitname {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
+.oveseq-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  border-bottom: 1px solid #e1e8ed;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #5c7080;
 }
-.oveseq-hitpos,
-.oveseq-hitlen { color: #5c7080; font-variant-numeric: tabular-nums; }
-.oveseq-hitid { color: #5c7080; font-variant-numeric: tabular-nums; }
+.oveseq-header .is-sortable { cursor: pointer; user-select: none; }
+.oveseq-header .is-sortable:hover { color: #182026; }
+.oveseq-header .is-sorted { color: #7050b3; }
+.oveseq-sortmark { font-size: 9px; }
+
+/* Every cell truncates rather than wraps: a row must stay one line tall, or
+   the table stops scanning vertically. */
+.oveseq-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Alignment is shared by the header and the body, so a column and its title
+   line up; the colours are body-only, or they would fight the header's own
+   grey and the purple a sorted title is given. */
+.oveseq-k-pos,
+.oveseq-k-len,
+.oveseq-k-ident { text-align: right; }
+.oveseq-k-frame { text-align: center; }
+
+.oveseq-body .oveseq-k-name { font-weight: 600; }
+.oveseq-body .oveseq-k-pos,
+.oveseq-body .oveseq-k-len,
+.oveseq-body .oveseq-k-ident { color: #5c7080; font-variant-numeric: tabular-nums; }
 /* A perfect hit is the thing you are usually looking for, so it is not grey. */
-.oveseq-hitid.is-exact { color: #0f9960; font-weight: 600; }
-.oveseq-hitframe { color: #8a9ba8; }
+.oveseq-body .oveseq-k-ident.is-exact { color: #0f9960; font-weight: 600; }
+
+/* Same green/red strand convention as the primer search table's Str column. */
+.oveseq-body .oveseq-k-frame { font-weight: 700; font-variant-numeric: tabular-nums; }
+.oveseq-body .oveseq-k-frame.fwd { color: #0f9960; }
+.oveseq-body .oveseq-k-frame.rev { color: #c23030; }

@@ -331,7 +331,7 @@ class DNAViewerProvider {
       rowViewCssUri: this.mediaUri(webview, 'rowView.css'),
       cutSiteFilter: this.context.globalState.get(CUT_SITES_KEY, null),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
-      viewType: config.viewType(),
+      viewType: DNAViewerProvider.takeViewType(document.uri.fsPath),
       readOnly: config.readOnly(),
       disableBpEditing: !config.allowSequenceEditing(),
       autoAddCreatedPrimers: config.autoAddCreatedPrimers(),
@@ -362,14 +362,33 @@ DNAViewerProvider.revealRange = async (file, range) => {
     return;
   }
   DNAViewerProvider.pendingReveal.set(file, range);
+  DNAViewerProvider.pendingViewType.set(file, 'sequence');
   try {
     await vscode.commands.executeCommand(
       'vscode.openWith', vscode.Uri.file(file), 'oven.editor', vscode.ViewColumn.One
     );
   } catch (e) {
     DNAViewerProvider.pendingReveal.delete(file);
+    DNAViewerProvider.pendingViewType.delete(file);
     vscode.window.showErrorMessage(`Could not open ${file}: ${e.message}`);
   }
+};
+
+/*
+ * A file opened from a search hit comes up as the sequence alone.
+ *
+ * You arrived looking at a particular stretch of bases, and the usual split
+ * hands half the width to a circular map that cannot show you the hit. The
+ * override lasts for that one open -- the oven.viewType setting is what every
+ * other way of opening the file still gets.
+ */
+DNAViewerProvider.pendingViewType = new Map();
+
+DNAViewerProvider.takeViewType = (fsPath) => {
+  const forced = DNAViewerProvider.pendingViewType.get(fsPath);
+  if (!forced) return config.viewType();
+  DNAViewerProvider.pendingViewType.delete(fsPath);
+  return forced;
 };
 
 /* A range waiting for its editor to finish mounting. */

@@ -20,6 +20,41 @@
   // only hears about them when Search is pressed.
   let draft = { query: '', kind: 'dna', exact: true, minIdentity: 0.9 };
 
+  /*
+   * Sort and filter are the panel's own business -- the host sends one ranked
+   * list and never hears about either, so neither costs a round trip or a
+   * re-search.
+   *
+   * `key: null` means the order the host sent, which is the ranking by score:
+   * identity and length together. That is the right answer most of the time,
+   * so clicking a column cycles ascending, descending, then back to it, the
+   * way the primer search table does.
+   */
+  let sort = { key: null, dir: 1 };
+  let filterText = '';
+
+  const COLUMNS = [
+    { key: 'name', label: () => 'Name', value: (h) => (h.name || '').toLowerCase() },
+    { key: 'pos', label: () => 'Pos', value: (h) => h.start },
+    { key: 'ident', label: () => '% ID', value: (h) => h.identity },
+    {
+      key: 'len',
+      // A search is all one kind, so the unit belongs in the header rather than
+      // repeated down every row.
+      label: () => (anyFrame() ? 'Length aa' : 'Length bp'),
+      value: (h) => h.length
+    },
+    {
+      key: 'frame',
+      label: () => (anyFrame() ? 'Frame' : 'Str'),
+      // For a protein hit the frame carries the strand in its sign, so the one
+      // column sorts sensibly either way.
+      value: (h) => (h.frame || h.strand)
+    }
+  ];
+
+  const anyFrame = () => state.results.some((h) => h.frame);
+
   function el(tag, cls, text) {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -202,42 +237,135 @@
     });
   }
 
+  /** Filtered and sorted, in that order -- filtering never changes the ranking. */
+  function visibleHits() {
+    let hits = state.results;
+
+    const q = filterText.trim().toLowerCase();
+    if (q) {
+      // The path as well as the name: folders are often the experiment, so
+      // narrowing to one is a thing worth being able to type.
+      hits = hits.filter((h) => `${h.name} ${h.file}`.toLowerCase().includes(q));
+    }
+
+    if (sort.key) {
+      const col = COLUMNS.find((c) => c.key === sort.key);
+      if (col) {
+        hits = hits.slice().sort((a, b) => {
+          const av = col.value(a);
+          const bv = col.value(b);
+          if (av === bv) return 0;
+          const numeric = typeof av === 'number' && typeof bv === 'number';
+          return (numeric ? av - bv : String(av).localeCompare(String(bv))) * sort.dir;
+        });
+      }
+    }
+    return hits;
+  }
+
+  function cycleSort(col) {
+    if (sort.key !== col.key) sort = { key: col.key, dir: 1 };
+    else if (sort.dir === 1) sort = { key: col.key, dir: -1 };
+    else sort = { key: null, dir: 1 };      // back to the ranking
+    renderRows();
+  }
+
+  function headerRow() {
+    const row = el('div', 'oveseq-row oveseq-header');
+    for (const col of COLUMNS) {
+      const sorted = sort.key === col.key;
+      const cell = el('div',
+        `oveseq-cell oveseq-k-${col.key} is-sortable` + (sorted ? ' is-sorted' : ''),
+        col.label());
+      cell.title = sorted && sort.dir === -1
+        ? 'Click to sort by rank again'
+        : 'Click to sort by this column';
+      cell.addEventListener('click', () => cycleSort(col));
+      if (sorted) cell.appendChild(el('span', 'oveseq-sortmark', sort.dir === 1 ? ' ▲' : ' ▼'));
+      row.appendChild(cell);
+    }
+    return row;
+  }
+
+  function hitRow(hit) {
+    const row = el('div', 'oveseq-row oveseq-hit');
+    row.title = `${hit.file}\nclick to open and select this range`;
+
+    row.appendChild(el('div', 'oveseq-cell oveseq-k-name', hit.name));
+
+    // 1-based and inclusive, the way the editor's own readouts count.
+    row.appendChild(el('div', 'oveseq-cell oveseq-k-pos', `${hit.start + 1}..${hit.end + 1}`));
+
+    const pct = el('div', 'oveseq-cell oveseq-k-ident',
+      `${(hit.identity * 100).toFixed(hit.identity === 1 ? 0 : 1)}%`);
+    // A perfect hit is the thing you are usually looking for, so it is not grey.
+    if (hit.identity === 1) pct.classList.add('is-exact');
+    row.appendChild(pct);
+
+    row.appendChild(el('div', 'oveseq-cell oveseq-k-len', String(hit.length)));
+
+    // The frame is what makes a protein hit's coordinates make sense; for a
+    // nucleotide hit the strand is all there is to say.
+    const rev = hit.frame ? hit.frame < 0 : hit.strand === -1;
+    const frame = el('div', `oveseq-cell oveseq-k-frame ${rev ? 'rev' : 'fwd'}`,
+      hit.frame ? `${hit.frame > 0 ? '+' : '\u2212'}${Math.abs(hit.frame)}` : (rev ? '\u2212' : '+'));
+    frame.title = hit.frame ? `Reading frame ${hit.frame}` : (rev ? 'Reverse strand' : 'Forward strand');
+    row.appendChild(frame);
+
+    row.addEventListener('click', () => post('seqsearch/open', {
+      file: hit.file, start: hit.start, end: hit.end, strand: hit.strand
+    }));
+    return row;
+  }
+
+  /** Just the table, so typing in the filter box does not rebuild the box. */
+  function renderRows() {
+    const body = document.querySelector('.oveseq-body');
+    const head = document.querySelector('.oveseq-table');
+    const count = document.querySelector('.oveseq-count');
+    if (!body || !head) return;
+
+    const hits = visibleHits();
+    body.textContent = '';
+    for (const hit of hits) body.appendChild(hitRow(hit));
+
+    const old = head.querySelector('.oveseq-header');
+    if (old) head.replaceChild(headerRow(), old);
+
+    if (count) {
+      const total = state.results.length;
+      count.textContent = hits.length === total
+        ? `${total} hit${total === 1 ? '' : 's'}`
+        : `${hits.length} of ${total} hits`;
+    }
+  }
+
   function renderResults() {
     const host = document.getElementById('results');
     host.textContent = '';
     if (!state.results.length) return;
 
-    const list = el('div', 'oveseq-hits');
-    for (const hit of state.results) {
-      const row = el('div', 'oveseq-hit');
-      row.title = `${hit.file}\nclick to open and select this range`;
+    /*
+     * The filter sits above the table and outside anything renderRows touches,
+     * so the caret survives every keystroke without the focus bookkeeping the
+     * primer search table needs.
+     */
+    const bar = el('div', 'oveseq-resultsbar');
+    const filter = el('input', 'oveseq-filter');
+    filter.type = 'search';
+    filter.placeholder = 'Filter…';
+    filter.value = filterText;
+    filter.addEventListener('input', () => { filterText = filter.value; renderRows(); });
+    bar.appendChild(filter);
+    bar.appendChild(el('div', 'oveseq-count', ''));
+    host.appendChild(bar);
 
-      row.appendChild(el('span', 'oveseq-hitname', hit.name));
+    const table = el('div', 'oveseq-table');
+    table.appendChild(headerRow());
+    table.appendChild(el('div', 'oveseq-body'));
+    host.appendChild(table);
 
-      // 1-based and inclusive, the way the editor's own readouts count.
-      row.appendChild(el('span', 'oveseq-hitpos', `${hit.start + 1}..${hit.end + 1}`));
-
-      const pct = el('span', 'oveseq-hitid', `${(hit.identity * 100).toFixed(hit.identity === 1 ? 0 : 1)}%`);
-      if (hit.identity === 1) pct.classList.add('is-exact');
-      row.appendChild(pct);
-
-      row.appendChild(el('span', 'oveseq-hitlen',
-        hit.frame ? `${hit.length} aa` : `${hit.length} bp`));
-
-      // The frame is what makes a protein hit's coordinates make sense.
-      if (hit.frame) {
-        row.appendChild(el('span', 'oveseq-hitframe',
-          `frame ${hit.frame > 0 ? '+' : ''}${hit.frame}`));
-      } else if (hit.strand === -1) {
-        row.appendChild(el('span', 'oveseq-hitframe', 'reverse'));
-      }
-
-      row.addEventListener('click', () => post('seqsearch/open', {
-        file: hit.file, start: hit.start, end: hit.end, strand: hit.strand
-      }));
-      list.appendChild(row);
-    }
-    host.appendChild(list);
+    renderRows();
   }
 
   function render() {

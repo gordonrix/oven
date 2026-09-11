@@ -4,6 +4,25 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.47.0
+
+Sequence Search, following the first cut of it:
+
+- **The results are a real table.** The values were listed along the right edge of each row
+  rather than in columns, so nothing lined up between rows. Name, Pos, % ID, Length and
+  Str/Frame now share one grid with the header.
+- **Click a column to sort by it**, again to reverse, a third time to go back to the ranking
+  by identity and length — which is the default, and otherwise unreachable without
+  re-running the search.
+- **A Filter box** over the results, like the one over primer search, narrowing by name or
+  folder.
+- **The panel fills its tab.** Its root sized to its content, so the tab's own background
+  showed through below the results instead of white. The alignment panel had the same bug
+  once, for the same reason: the host sets no page height.
+- **Opening a file from a hit shows the sequence alone** rather than the usual split. You got
+  there asking about a particular stretch of bases, and a circular map cannot show you where
+  a 33 bp hit is. Every other way of opening the file still follows `oven.viewType`.
+
 ## 1.46.0
 
 **Sequence Search** — a third panel, between Align and Primer Search, that answers the
