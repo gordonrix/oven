@@ -184,13 +184,12 @@
     ], draft.exact ? 'exact' : 'fuzzy', (v) => { draft.exact = v === 'exact'; syncMode(); }));
 
     /*
-     * The threshold only means something under Fuzzy, and it is greyed under
-     * Exact to say so -- but it stays editable, and typing in it selects Fuzzy.
-     * Disabling it meant the obvious way to ask for a threshold, clicking the
-     * box, did nothing at all: Exact is the default, so that was every first
-     * attempt.
+     * The threshold belongs to Fuzzy, so under Exact it is not there at all.
+     * It was greyed out instead, which read as a control you ought to be able
+     * to use and could not -- the question it raises is "why can I not type
+     * here", which is a worse question than "where is the threshold".
      */
-    const ident = el('label', 'oveseq-ident' + (draft.exact ? ' is-off' : ''));
+    const ident = el('label', 'oveseq-ident' + (draft.exact ? ' is-hidden' : ''));
     ident.appendChild(el('span', null, 'min identity'));
     const pct = el('input');
     pct.type = 'number';
@@ -199,13 +198,6 @@
     pct.step = '1';
     pct.value = String(Math.round(draft.minIdentity * 100));
     pct.title = 'Percent identity a fuzzy hit must reach';
-    const goFuzzy = () => {
-      if (!draft.exact) return;
-      draft.exact = false;
-      syncMode();
-    };
-    pct.addEventListener('focus', goFuzzy);
-    pct.addEventListener('input', goFuzzy);
     // Clamped on the way out rather than per keystroke, so typing "7" on the
     // way to "75" is not snapped up to the minimum under the caret.
     pct.addEventListener('change', () => {
@@ -262,11 +254,11 @@
     }
   }
 
-  /** The threshold reads as inactive under Exact, but still takes a click. */
+  /** Exact takes the threshold away with it; Fuzzy brings it back as it was. */
   function syncMode() {
     pickRadio('mode', draft.exact ? 'exact' : 'fuzzy');
     const wrap = document.querySelector('.oveseq-ident');
-    if (wrap) wrap.classList.toggle('is-off', draft.exact);
+    if (wrap) wrap.classList.toggle('is-hidden', draft.exact);
   }
 
   function runSearch() {

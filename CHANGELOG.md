@@ -16,10 +16,10 @@ Sequence Search, following the first cut of it:
   re-running the search.
 - **A Filter box** over the results, like the one over primer search, narrowing by name or
   folder.
-- **The min identity box is always editable.** It was disabled under Exact, which is the
-  default — so clicking the box, the obvious way to ask for a threshold, did nothing on every
-  first attempt. It is still greyed under Exact to show it is not in use, but typing in it
-  selects Fuzzy rather than taking the number and ignoring it.
+- **The min identity box appears only under Fuzzy.** It used to sit there greyed out under
+  Exact — the default — which read as a control you ought to be able to use and could not.
+  There is no threshold to set for an exact search, so it is simply not there; switching to
+  Fuzzy brings it back with whatever you last typed.
 - **The panel fills its tab.** Its root sized to its content, so the tab's own background
   showed through below the results instead of white. The alignment panel had the same bug
   once, for the same reason: the host sets no page height.

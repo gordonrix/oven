@@ -158,8 +158,7 @@ Constructs  and subfolders  817 files
 Only `.gb` and `.gbk` are searched. Bases are read straight from the `ORIGIN` block rather
 than parsed, so 2,900 files index in under half a second.
 
-**Nucleotide or Amino acid**, and **Exact or Fuzzy** with an identity threshold — typing a
-threshold selects Fuzzy, so you do not have to switch first. An amino
+**Nucleotide or Amino acid**, and **Exact or Fuzzy**, which adds an identity threshold. An amino
 acid query is searched against all six reading frames; hits come back in nucleotide
 coordinates with the frame named, so clicking one opens the file with the right bases
 selected. A file opened this way shows the sequence alone rather than the usual split — a

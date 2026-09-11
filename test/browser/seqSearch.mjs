@@ -40,8 +40,7 @@ export default async function run(page) {
   out.controls = await page.evaluate(() => ({
     drop: Boolean(document.querySelector('.oveseq-drop')),
     query: Boolean(document.querySelector('.oveseq-query')),
-    radios: [...document.querySelectorAll('.oveseq-radio')].map((r) => r.textContent.trim()),
-    identDisabled: document.querySelector('.oveseq-ident input').disabled
+    radios: [...document.querySelectorAll('.oveseq-radio')].map((r) => r.textContent.trim())
   }));
   for (const label of ['Nucleotide', 'Amino acid', 'Exact', 'Fuzzy']) {
     if (!out.controls.radios.includes(label)) fail.push(`no ${label} radio`);
@@ -49,52 +48,46 @@ export default async function run(page) {
   if (!out.controls.drop) fail.push('no drop zone');
   if (!out.controls.query) fail.push('no query box');
 
-  /*
-   * The threshold stays editable under Exact, where it is only greyed. It used
-   * to be disabled, which meant the obvious way to ask for one -- clicking the
-   * box -- did nothing at all, and Exact is the default, so that was every
-   * first attempt.
-   */
-  if (out.controls.identDisabled) fail.push('the identity box should never be disabled');
-
   const modeOn = () => page.evaluate(() => {
     const wrap = document.querySelector('.oveseq-radios[data-group="mode"]');
     const on = [...wrap.querySelectorAll('.oveseq-radio')].find((r) => r.classList.contains('is-on'));
     return on ? on.textContent.trim() : null;
   });
-  const greyed = () => page.evaluate(() =>
-    document.querySelector('.oveseq-ident').classList.contains('is-off'));
-
-  out.mode = { start: await modeOn(), greyedAtStart: await greyed() };
-  if (out.mode.start !== 'Exact') fail.push(`Exact should be the default, got ${out.mode.start}`);
-  if (!out.mode.greyedAtStart) fail.push('the threshold should read as inactive under Exact');
-
-  // Typing a threshold is a request for fuzzy matching, so it selects Fuzzy
-  // rather than being taken and then ignored.
   const ident = page.locator('.oveseq-ident input');
-  await ident.click();
-  await ident.fill('80');
-  await page.waitForTimeout(300);
-  out.afterThreshold = {
-    mode: await modeOn(),
-    greyed: await greyed(),
-    focused: await page.evaluate(() =>
-      document.activeElement === document.querySelector('.oveseq-ident input'))
-  };
-  if (out.afterThreshold.mode !== 'Fuzzy') {
-    fail.push(`typing a threshold should select Fuzzy, mode is ${out.afterThreshold.mode}`);
-  }
-  if (out.afterThreshold.greyed) fail.push('the threshold should stop reading as inactive');
-  // Switching mode must not rebuild the strip out from under the caret.
-  if (!out.afterThreshold.focused) fail.push('the caret left the threshold box');
 
-  // Back to Exact greys it again without losing what was typed.
+  /*
+   * The threshold belongs to Fuzzy, so under Exact -- the default -- there is
+   * nothing to see. It was greyed out instead, which read as a control you
+   * ought to be able to use and could not.
+   */
+  out.mode = { start: await modeOn(), identShown: await ident.isVisible() };
+  if (out.mode.start !== 'Exact') fail.push(`Exact should be the default, got ${out.mode.start}`);
+  if (out.mode.identShown) fail.push('Exact has no threshold, so the box should not be shown');
+
+  await page.locator('.oveseq-radio', { hasText: 'Fuzzy' }).click();
+  await page.waitForTimeout(300);
+  out.identUnderFuzzy = {
+    shown: await ident.isVisible(),
+    disabled: await ident.isDisabled()
+  };
+  if (!out.identUnderFuzzy.shown) fail.push('Fuzzy should bring the threshold back');
+  if (out.identUnderFuzzy.disabled) fail.push('the threshold should be editable under Fuzzy');
+
+  await ident.fill('80');
+  await page.waitForTimeout(200);
+
+  // Going back and forth must not cost what was typed: the strip is patched in
+  // place rather than rebuilt, which is the whole reason the value survives.
   await page.locator('.oveseq-radio', { hasText: 'Exact' }).click();
   await page.waitForTimeout(300);
-  out.backToExact = { greyed: await greyed(), value: await ident.inputValue() };
-  if (!out.backToExact.greyed) fail.push('Exact should grey the threshold again');
-  if (out.backToExact.value !== '80') {
-    fail.push(`the typed threshold should survive: ${out.backToExact.value}`);
+  out.hiddenAgain = await ident.isVisible();
+  if (out.hiddenAgain) fail.push('Exact should take the threshold away again');
+
+  await page.locator('.oveseq-radio', { hasText: 'Fuzzy' }).click();
+  await page.waitForTimeout(300);
+  out.keptValue = await ident.inputValue();
+  if (out.keptValue !== '80') {
+    fail.push(`the typed threshold should survive a round trip: ${out.keptValue}`);
   }
 
   /*
@@ -194,8 +187,6 @@ export default async function run(page) {
 
   /* --- the chosen threshold reaches the search ----------------------------- */
 
-  await page.locator('.oveseq-radio', { hasText: 'Fuzzy' }).click();
-  await page.waitForTimeout(400);
 
   /* --- searching ----------------------------------------------------------- */
 

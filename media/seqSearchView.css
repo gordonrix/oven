@@ -134,8 +134,9 @@ html, body { height: 100%; margin: 0; }
   border-radius: 3px;
   font-size: 11px;
 }
-/* Disabled rather than hidden: a control that vanishes is harder to find again. */
-.oveseq-ident.is-off { opacity: .45; }
+/* Gone rather than greyed: under Exact there is no threshold to set, and a
+   control you can see but not use invites the question why. */
+.oveseq-ident.is-hidden { display: none; }
 
 .oveseq-btn {
   padding: 4px 11px;
