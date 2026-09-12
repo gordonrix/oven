@@ -617,6 +617,13 @@ async function align(reference, reads, opts = {}) {
       seeds: hit ? hit.votes : 0,
       strand,
       rotation,
+      /*
+       * Both forms are needed. The rotated one goes into the joint alignment,
+       * where it reads linearly. The unrotated one is what is contiguous
+       * against a doubled reference, which is how a wrapping read gets folded
+       * back onto the circle -- rotating it first would split it there too.
+       */
+      oriented,
       sequence: rotateString(oriented, rotation)
     };
   });
@@ -639,7 +646,20 @@ async function align(reference, reads, opts = {}) {
   const sharedReferenceRow = aligned[0].sequence;
   const folded = new Array(pairs.length).fill(null);
   for (let i = 0; i < pairs.length; i++) {
-    if (!overhangsEnd(pairs[i].referenceRow, pairs[i].readRow)) continue;
+    /*
+     * Two ways a read crosses the origin, and both need folding.
+     *
+     * One runs off the right-hand end, which is what overhangsEnd sees. The
+     * other was rotated to undo the wrap before the joint alignment: it does
+     * not dangle, so nothing saw it, and that was the bug. Rotating makes a
+     * read linear only in its own frame -- against the reference it is still
+     * two pieces, and MAFFT places them as two runs. Where the pieces meet,
+     * any base matching both ends can go to either, and the arbitrary choice
+     * showed up as a short stretch of reference the read appeared not to
+     * cover when it plainly had.
+     */
+    const wraps = Boolean(prepared[i].rotation);
+    if (!wraps && !overhangsEnd(pairs[i].referenceRow, pairs[i].readRow)) continue;
     /*
      * Only a read that fits within one turn. Folding maps every read base to a
      * reference position, so a read longer than the reference would have two
@@ -649,7 +669,7 @@ async function align(reference, reads, opts = {}) {
     if (prepared[i].sequence.length > refSeq.length) continue;
     const twice = await runMafft(
       [{ name: 'reference', sequence: refSeq + refSeq },
-        { name: prepared[i].key, sequence: prepared[i].sequence }],
+        { name: prepared[i].key, sequence: prepared[i].oriented }],
       opts
     );
     const pair = splitPairs(twice)[0];
@@ -712,9 +732,15 @@ async function align(reference, reads, opts = {}) {
         anchored: p.anchored,
         offset: p.offset,
         seeds: p.seeds,
-        rotation: p.rotation,
+        /*
+         * Zero once folded, and that is not bookkeeping: the trace follows
+         * this. followAlignment flips, then rotates, then reorders by
+         * readIndex -- and readIndex now counts along the unrotated read, so
+         * rotating first would put the trace out of step with its own letters.
+         */
+        rotation: fold ? 0 : p.rotation,
         flippedByMafft: pair.flipped,
-        sequence: p.sequence,
+        sequence: fold ? p.oriented : p.sequence,
         referenceRow,
         readRow,
         /*

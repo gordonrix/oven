@@ -4,6 +4,34 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.48.0
+
+**A read crossing the origin no longer loses bases at the join, and keeps its trace.**
+
+Found on four 5 kb reads tiling a 10,327 bp plasmid. Two bases of the reference showed as
+uncovered even though the reads plainly covered them, and the two reads that crossed the
+origin drew no chromatogram at all. One cause behind both.
+
+A wrapping read was rotated to begin at the origin. That makes it linear in its own frame,
+but against the reference it is still two pieces, and MAFFT places them as two runs. Where
+the pieces meet, any base matching both ends can go to either — and here the two bases after
+the read's end were the same as the two at its start, so the choice was free. It went the
+wrong way, leaving reference the read had sequenced looking unread, at 100% identity, with
+nothing to flag it. The trace then had a row split across ~5,000 gap columns to draw itself
+onto, and drew nothing.
+
+Such a read is now folded onto the reference from an alignment against a doubled copy — the
+path already used for reads that run off the end, which places them contiguously across the
+origin and carries the coverage and read-order the trace follows. It never fired here,
+because its trigger only caught reads that dangle, and a rotated read does not dangle.
+
+On the four reads: coverage went from 10,325 to 10,327 of 10,327 bases, every read still at
+100% identity, and all four traces present and in step with their letters.
+
+A folded track now reports `rotation: 0`. The fold is what places the read, and the trace is
+flipped, rotated, then reordered — so a rotation left on it would put the trace out of step
+with its own letters.
+
 ## 1.47.0
 
 Sequence Search, following the first cut of it:

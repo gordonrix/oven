@@ -210,9 +210,56 @@ test('an origin-spanning read aligns end to end, not in two pieces', needsMafft,
   const { tracks } = await align(reference, [{ name: 'wrap', sequence: read }]);
   const t = tracks[0];
   assert.strictEqual(t.offset, cut);
-  assert.strictEqual(t.rotation, REF.length - cut);
   assert.strictEqual(t.mismatches, 0, 'a rotated read must align gap-free');
   assert.strictEqual(t.referenceRow.length, REF.length);
+  /*
+   * The rotation is spent by the fold, which is what finally places the read,
+   * so the track reports none. The trace follows this number -- it is flipped,
+   * rotated, then reordered -- and readIndex counts along the unrotated read,
+   * so a rotation left here would put the trace out of step with its letters.
+   */
+  assert.strictEqual(t.crossesOrigin, true);
+  assert.strictEqual(t.rotation, 0);
+});
+
+test('a wrapping read keeps the bases at an ambiguous join', needsMafft, async () => {
+  /*
+   * The bug this exists for, from four real 5 kb reads over a 10 kb plasmid.
+   *
+   * A wrapping read used to be rotated to start at the origin, which makes it
+   * linear in its own frame but leaves it as two pieces against the reference.
+   * MAFFT places those pieces, and where they meet it may choose either side
+   * for any base that matches both. Here the two bases after the read's end are
+   * the same as the two at its start, so the choice is free -- and the wrong
+   * one leaves reference the read plainly covered looking unsequenced, at 100%
+   * identity, with nothing to flag it.
+   */
+  // Long enough, and random enough, for the seed anchor to find the wrap.
+  let ref = makeSeq(2000, 20260912);
+  const from = 1500;
+  const to = 499;                      // inclusive, wrapping
+  // Make the join ambiguous: what follows the read equals what it starts on.
+  ref = ref.slice(0, to + 1) + ref.slice(from, from + 2) + ref.slice(to + 3);
+  const read = ref.slice(from) + ref.slice(0, to + 1);
+  const { tracks } = await align({ name: 'ref', sequence: ref, circular: true },
+    [{ name: 'wrap', sequence: read }]);
+  const t = tracks[0];
+
+  assert.strictEqual(t.mismatches, 0);
+  assert.ok(t.covered, 'a wrapping read should be folded, and folding brings coverage');
+
+  const seen = new Array(ref.length).fill(false);
+  for (const [a, b] of t.covered) {
+    if (a <= b) for (let i = a; i <= b; i++) seen[i] = true;
+    else { for (let i = a; i < ref.length; i++) seen[i] = true; for (let i = 0; i <= b; i++) seen[i] = true; }
+  }
+  assert.strictEqual(seen.filter(Boolean).length, read.length,
+    'the read covers exactly as many bases as it has');
+  // The join itself: 300 and 301 are the read's, 100 and 101 are not.
+  assert.ok(seen[from] && seen[from + 1],
+    `the read starts at ${from}, so those bases are covered`);
+  assert.ok(!seen[to + 1] && !seen[to + 2],
+    `the read ends at ${to}, so ${to + 1} and ${to + 2} are not covered`);
 });
 
 test('several reads align in one call and keep their order', needsMafft, async () => {
