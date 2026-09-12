@@ -35,12 +35,22 @@
        *   WINDOW   perfect, but covers only the middle        -> partial match
        *   DELETED  three bases missing                        -> mismatch
        */
-      const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(10); // 300 bp
+      /*
+       * ?wide makes the reference 6,000 bp instead of 300. The origin-crossing
+       * read then spans ~5,970 columns, which at 12px a base is past the
+       * 65,535px a canvas dimension can be -- the size at which a trace used to
+       * silently draw nothing. Default stays 300 so the ordinary checks are
+       * unaffected.
+       */
+      const WIDE = new URLSearchParams(location.search).has('wide');
+      const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(WIDE ? 200 : 10);
       const CLEAN = REF;
       // A Sanger-sized window: comfortably over the 50 bp floor below which a
       // perfect stretch is treated as luck rather than evidence.
       const WINDOW = REF.slice(60, 200);
       const WINDOW_ROW = '-'.repeat(60) + WINDOW + '-'.repeat(REF.length - 200);
+      // Where the origin-crossing read's second piece begins: its last 60 bases.
+      const TAIL = REF.length - 60;
       const DELETED = REF.slice(0, 150) + REF.slice(153);
       const DELETED_ROW = REF.slice(0, 150) + '---' + REF.slice(153);
 
@@ -103,15 +113,21 @@
              */
             sequenceData: {
               name: 'wrap-read',
-              sequence: REF.slice(30, 90) + REF.slice(240),
+              sequence: REF.slice(30, 90) + REF.slice(TAIL),
               circular: false,
               ovenReadIndex: Array.from({ length: 120 }, (_, i) => (i < 60 ? i + 60 : i - 60))
             },
             alignmentData: {
               name: 'wrap-read',
-              sequence: '-'.repeat(30) + REF.slice(30, 90) + '-'.repeat(150) + REF.slice(240)
+              sequence: '-'.repeat(30) + REF.slice(30, 90)
+                + '-'.repeat(TAIL - 90) + REF.slice(TAIL)
             },
-            ovenCoverage: { covered: [[30, 89], [240, 299]], deleted: [[0, 29]] }
+            ovenCoverage: {
+              covered: [[30, 89], [TAIL, REF.length - 1]], deleted: [[0, 29]]
+            },
+            // In the row's order too, the way followAlignment hands it over --
+            // this is the combination that drew nothing.
+            chromatogramData: fakeChrom(REF.slice(30, 90) + REF.slice(TAIL))
           },
           {
             // No chromatogramData at all -- stands in for a GenBank read, which

@@ -118,6 +118,47 @@ traces that either crawled along the bottom or ran off the top.
 
 An explicit `scalePct` prop still wins, so the linear editor keeps its own behaviour.
 
+## 3a. A wide trace drew nothing at all (`Chromatogram`, `drawTrace`)
+
+**Symptom.** Reads crossing the origin of a 10 kb plasmid showed no chromatogram — no error,
+no warning, an empty track. Reads on the same plasmid that did *not* cross the origin drew
+normally.
+
+**Cause.** `drawTrace` sized one canvas to the whole track:
+
+```js
+const maxWidth = seqLengthWithGaps * charWidth2;
+peakCanvas.width = maxWidth;
+```
+
+`seqLengthWithGaps` is the read's **column span**, not its base count. A read crossing the
+origin has its two ends at opposite ends of the reference, so its span is the entire
+plasmid: 10,327 columns at 12px a base is ~124,000px. A canvas dimension cannot exceed
+**65,535px**, and past it the canvas silently produces nothing.
+
+That is also why it looked specific to origin-crossing reads. On the same four reads, the
+one that did not cross spanned 5,169 columns — 62,028px, about 3,500px under the limit.
+Any read spanning more than ~5,460 columns hits this, origin or no origin, and zooming in
+lowers that number.
+
+**Fix.** Lay several canvases side by side, each a slice of the span:
+
+- `Chromatogram` works out `oveSliceCount` from the total width and renders that many
+  canvases, the first keeping the existing `marginLeft`;
+- `drawTrace` takes `xOffset` and `canvasWidth`, sizes the canvas to its slice, and
+  translates by `-xOffset` **after** setting the width, which resets the context;
+- both draw loops skip bases outside their slice, with one base of overlap each side so a
+  base on the join is drawn on both rather than clipped from each.
+
+Slices are 32,768px — half the limit, so a zoom step cannot cross it. A read needing one
+slice renders exactly as before.
+
+`test/browser/wideTrace.mjs`, against `AlignDemo.html?wide`, covers it: that reference is
+6,000 bp, which puts the origin-crossing read at ~71,600px. It asserts no canvas exceeds the
+limit and that the trace is drawn at **both** ends — the far piece is the one that used to
+vanish. A middle slice may legitimately be blank, since that is the arc the read never
+covered.
+
 ---
 
 ## Deliberately NOT patched

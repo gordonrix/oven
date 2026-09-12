@@ -148192,23 +148192,41 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     const canvasRef = reactExports.useRef();
     [scalePct, setScalePct] = useOveChromScale(chromatogramData, scalePct, setScalePct, props);
     const gapsBeforeRow = getGaps(row.start).gapsBefore;
+    /*
+     * PATCH (oven): how many canvases this trace needs.
+     *
+     * A canvas dimension cannot exceed 65,535px and draws nothing at all past
+     * it -- see the note in drawTrace. The span is the read's columns, not its
+     * bases, so an origin-crossing read on a 10 kb plasmid asks for ~124,000px.
+     * Slices are kept well under the limit so a zoom step cannot cross it.
+     */
+    const oveMaxCanvasPx = 32768;
+    const oveTotalWidth = (row.end - row.start + 1 + getGaps(row.end).gapsBefore - gapsBeforeRow) * charWidth2;
+    const oveSliceCount = Math.max(1, Math.ceil(oveTotalWidth / oveMaxCanvasPx));
+    const canvasRefs = reactExports.useRef([]);
     reactExports.useEffect(() => {
-      if (!chromatogramData || !chromatogramData.baseTraces || !canvasRef.current) {
+      if (!chromatogramData || !chromatogramData.baseTraces) {
         return true;
       }
-      const painter = new drawTrace({
-        isRowView,
-        showChromQualScores,
-        peakCanvas: canvasRef.current,
-        traceData: chromatogramData,
-        charWidth: charWidth2,
-        startBp: row.start,
-        endBp: row.end,
-        getGaps,
-        gapsBeforeRow,
-        scalePct
+      const canvases = canvasRefs.current.slice(0, oveSliceCount).filter(Boolean);
+      if (!canvases.length) return true;
+      canvases.forEach((peakCanvas, i) => {
+        const painter = new drawTrace({
+          isRowView,
+          showChromQualScores,
+          peakCanvas,
+          traceData: chromatogramData,
+          charWidth: charWidth2,
+          startBp: row.start,
+          endBp: row.end,
+          getGaps,
+          gapsBeforeRow,
+          scalePct,
+          xOffset: i * oveMaxCanvasPx,
+          canvasWidth: oveMaxCanvasPx
+        });
+        painter.paintCanvas();
       });
-      painter.paintCanvas();
       setHasDrawnOnce(true);
     }, [
       setHasDrawnOnce,
@@ -148221,7 +148239,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       isRowView,
       scalePct,
       getGaps,
-      canvasRef
+      canvasRef,
+      oveSliceCount
     ]);
     const marginLeft2 = gapsBeforeRow * charWidth2;
     if (chromatogramData.basePos && !chromatogramData.baseTraces) {
@@ -148294,7 +148313,19 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             display: "inline-block"
           }
         },
-        /* @__PURE__ */ React$2.createElement("canvas", { style: { marginLeft: marginLeft2 }, ref: canvasRef, height: oveChromHeight.value })
+        /*
+         * PATCH (oven): one canvas per slice, laid end to end. Usually one, and
+         * then this is what it always was. The margin belongs to the first.
+         */
+        Array.from({ length: oveSliceCount }, (_unused, i) => /* @__PURE__ */ React$2.createElement("canvas", {
+          key: i,
+          style: { marginLeft: i === 0 ? marginLeft2 : 0, verticalAlign: "top" },
+          ref: (el) => {
+            canvasRefs.current[i] = el;
+            if (i === 0) canvasRef.current = el;
+          },
+          height: oveChromHeight.value
+        }))
       )
     );
   }
@@ -148309,7 +148340,11 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     gapsBeforeRow,
     showChromQualScores,
     // isRowView,
-    scalePct
+    scalePct,
+    // PATCH (oven): which slice of the trace this canvas holds. See the note
+    // at peakCanvas.width below.
+    xOffset,
+    canvasWidth
   }) {
     const colors = {
       adenine: "green",
@@ -148323,7 +148358,31 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     const maxHeight = peakCanvas.height;
     const seqLengthWithGaps = endBp - startBp + 1 + getGaps(endBp).gapsBefore - gapsBeforeRow;
     const maxWidth = seqLengthWithGaps * charWidth2;
-    peakCanvas.width = maxWidth;
+    /*
+     * PATCH (oven): one canvas per slice, rather than one across the whole span.
+     *
+     * This was `peakCanvas.width = maxWidth`, and the width is the read's
+     * column span, not its base count -- so a read whose two ends sit at
+     * opposite ends of the reference, which is every read crossing the origin,
+     * asks for a canvas as wide as the whole plasmid. A 10 kb reference at 12px
+     * a base is ~124,000px, past the 65,535px a canvas dimension can be, and
+     * over that a canvas silently draws nothing at all. The reads it hit drew
+     * no trace and reported no error.
+     *
+     * The caller now lays several canvases side by side and gives each the
+     * offset it starts at; each draws its own slice, translated.
+     */
+    const sliceStart = xOffset || 0;
+    const sliceWidth = canvasWidth == null
+      ? maxWidth
+      : Math.min(canvasWidth, Math.max(0, maxWidth - sliceStart));
+    peakCanvas.width = Math.max(1, sliceWidth);
+    // After setting width, which resets the context, so this has to come after.
+    ctx.setTransform(1, 0, 0, 1, -sliceStart, 0);
+    // A base either side of the slice, so one straddling the join is drawn on
+    // both canvases rather than clipped away on each.
+    const sliceFrom = sliceStart - charWidth2;
+    const sliceTo = sliceStart + sliceWidth + charWidth2;
     const scaledHeight = maxHeight - bottomBuffer;
     this.drawPeaks = function(traceType, lineColor) {
       ctx.beginPath();
@@ -148332,6 +148391,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
         const gapsBefore = getGaps(baseIndex - 1).gapsBefore || 0;
         const gapsAt = getGaps(baseIndex).gapsBefore;
         const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;
+        // PATCH (oven): nothing to draw outside this canvas's slice.
+        if (startXPosition < sliceFrom || startXPosition > sliceTo) continue;
         const hasGaps = gapsBefore !== gapsAt;
         const traceLength = traceForIndex.length;
         const tracePointSpacing = charWidth2 / traceLength;
@@ -148357,6 +148418,8 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       for (let baseIndex = startBp; baseIndex <= endBp; baseIndex++) {
         const gapsAt = getGaps(baseIndex).gapsBefore;
         const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;
+        // PATCH (oven): as above.
+        if (startXPosition < sliceFrom || startXPosition > sliceTo) continue;
         ctx.rect(
           startXPosition,
           scaledHeight - traceData.qualNums[baseIndex] * scalePctQual,

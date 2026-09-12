@@ -396,10 +396,17 @@ export default async function run(page) {
 
   // One track per sequence: the reference plus two reads.
   if (out.rendered.rowItems < 4) fail.push(`expected 4 tracks, saw ${out.rendered.rowItems}`);
-  // Two reads carry trace data; the GenBank one must render without, which is
-  // the case that has to keep working for non-trace formats.
-  if (out.rendered.canvases !== 2) {
-    fail.push(`expected exactly 2 chromatogram canvases, saw ${out.rendered.canvases}`);
+  /*
+   * Three reads carry trace data -- the clean one, the windowed one and the one
+   * crossing the origin. The GenBank read must render without, which is the
+   * case that has to keep working for non-trace formats.
+   *
+   * Counting canvases rather than tracks now: a trace too wide for one canvas
+   * is drawn across several (see patches/README.md 3a). At this reference size
+   * every one of them fits in a single canvas, so three is still three.
+   */
+  if (out.rendered.canvases !== 3) {
+    fail.push(`expected exactly 3 chromatogram canvases, saw ${out.rendered.canvases}`);
   }
   if (!out.rendered.featureLabels) {
     fail.push('the reference annotations are not drawn along the top');

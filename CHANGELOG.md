@@ -4,6 +4,27 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.49.0
+
+**A chromatogram too wide for one canvas now draws.** This is the other half of the
+origin-crossing problem in 1.48.0 — that fixed the missing bases, and the trace was a
+separate cause.
+
+A canvas dimension cannot exceed 65,535px, and past it a canvas silently draws nothing: no
+error, no warning, an empty track. The chromatogram was one canvas as wide as the read's
+column span — and a span is not a base count. A read crossing the origin has its two ends at
+opposite ends of the reference, so on a 10,327 bp plasmid it asked for ~124,000px and drew
+nothing.
+
+That is why it looked specific to origin-crossing reads. On the same four reads, the one
+that did not cross spanned 62,028px and drew fine — about 3,500px under the limit. **Any**
+read spanning more than ~5,460 columns hits this, origin or not, and zooming in lowers that
+number, so this was waiting for anyone with a larger construct.
+
+The trace is now drawn across as many canvases as it needs, each a slice of the span, sized
+at half the limit so a zoom step cannot cross it. A trace that fits in one canvas renders
+exactly as before.
+
 ## 1.48.0
 
 **A read crossing the origin no longer loses bases at the join, and keeps its trace.**
