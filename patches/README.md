@@ -153,10 +153,14 @@ lowers that number.
 Slices are 32,768px — half the limit, so a zoom step cannot cross it. A read needing one
 slice renders exactly as before.
 
+The container also gets `whiteSpace: "nowrap"`. The slices are inline-blocks, so without it
+they wrap once they pass the container width, and the tail of a trace is drawn back
+underneath its own start — one trace that reads as two stacked ones.
+
 `test/browser/wideTrace.mjs`, against `AlignDemo.html?wide`, covers it: that reference is
 6,000 bp, which puts the origin-crossing read at ~71,600px. It asserts no canvas exceeds the
-limit and that the trace is drawn at **both** ends — the far piece is the one that used to
-vanish. A middle slice may legitimately be blank, since that is the arc the read never
+limit, that the slices lie end to end on one line, and that the trace is drawn at **both**
+ends — the far piece is the one that used to vanish. A middle slice may legitimately be blank, since that is the arc the read never
 covered.
 
 ---

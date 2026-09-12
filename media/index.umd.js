@@ -148310,7 +148310,14 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
             position: "relative",
             left: 0,
             // left: posOfSeqRead,
-            display: "inline-block"
+            display: "inline-block",
+            /*
+             * PATCH (oven): the slices are inline-blocks, so without this they
+             * wrap onto a second line once they pass the container width and
+             * the tail of the trace is drawn back underneath its own start --
+             * one trace, rendered as two stacked ones.
+             */
+            whiteSpace: "nowrap"
           }
         },
         /*

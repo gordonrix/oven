@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.49.1
+
+The sliced chromatogram from 1.49.0 drew as **two stacked traces** on a wide read. The
+slices are inline-blocks, so once they passed the container width they wrapped onto a second
+line, and the tail of a trace was drawn back underneath its own start.
+
+They are kept on one line now. The check that covers this asserts each slice begins exactly
+where the one before it ends — a slice's width says nothing about where it landed, which is
+why the first version of the check passed while the trace was visibly doubled.
+
 ## 1.49.0
 
 **A chromatogram too wide for one canvas now draws.** This is the other half of the

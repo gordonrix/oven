@@ -61,7 +61,11 @@ export default async function run(page) {
         canvases: canvases.length,
         widths: canvases.map((c) => c.width),
         total: canvases.reduce((n, c) => n + c.width, 0),
-        painted: canvases.map((c) => check(c))
+        painted: canvases.map((c) => check(c)),
+        // Where each slice actually landed, which is not something its width
+        // can tell you.
+        lefts: canvases.map((c) => Math.round(c.getBoundingClientRect().left)),
+        tops: canvases.map((c) => Math.round(c.getBoundingClientRect().top))
       };
     });
   }, paintedIn.toString());
@@ -82,6 +86,25 @@ export default async function run(page) {
     if (ends.some((p) => p !== true)) {
       fail.push(`a trace is blank at one end: ${JSON.stringify(trace.painted)} `
         + `(widths ${trace.widths})`);
+    }
+
+    /*
+     * The slices have to lie end to end on one line. They are inline-blocks, so
+     * they wrap once they pass the container width unless something stops them
+     * -- and a wrapped tail is drawn back underneath the start of its own
+     * trace, which reads as two stacked traces where there is one.
+     */
+    for (let i = 1; i < trace.lefts.length; i++) {
+      const want = trace.lefts[i - 1] + trace.widths[i - 1];
+      if (trace.lefts[i] !== want) {
+        fail.push(`slice ${i} starts at ${trace.lefts[i]}, not ${want} where the one `
+          + `before it ends -- the trace has wrapped onto another line`);
+        break;
+      }
+      if (trace.tops[i] !== trace.tops[0]) {
+        fail.push(`slice ${i} sits ${trace.tops[i] - trace.tops[0]}px below the first`);
+        break;
+      }
     }
   }
 
