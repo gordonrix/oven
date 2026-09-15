@@ -262,6 +262,66 @@ test('a wrapping read keeps the bases at an ambiguous join', needsMafft, async (
     `the read ends at ${to}, so ${to + 1} and ${to + 2} are not covered`);
 });
 
+test('a deletion spanning the origin is a gap, not a shredded read', needsMafft, async () => {
+  /*
+   * From four real clones of a 4,130 bp plasmid, each read 1,186 bp.
+   *
+   * The clone is missing an arc that crosses the origin, so it joins two
+   * reference stretches whose order is reversed on a linear reference. No
+   * arrangement of gaps can say that, and MAFFT does not give up -- it shreds
+   * the read instead. The real one came back in eight pieces spread over 2 kb
+   * at 91% identity with 935 gaps, none of which was true.
+   *
+   * Neither of the other two origin cases fires here: the read itself does not
+   * cross the origin and does not run off the end. Only the deletion wraps.
+   */
+  const ref = makeSeq(2000, 5150);
+  // The clone keeps 1500-1699 and 200-799; everything else is gone, and what
+  // is gone spans the origin.
+  const read = ref.slice(1500, 1700) + ref.slice(200, 800);
+  const { tracks } = await align({ name: 'ref', sequence: ref, circular: true },
+    [{ name: 'deleted', sequence: read }]);
+  const t = tracks[0];
+
+  assert.ok(t.covered, 'the read should be folded, and folding brings coverage');
+  assert.strictEqual(t.substitutions, 0, 'every base of the read matches somewhere');
+
+  // In one piece each side of the join, not scattered.
+  assert.strictEqual(t.covered.length, 2,
+    `expected two covered stretches, got ${JSON.stringify(t.covered)}`);
+
+  const seen = new Array(ref.length).fill(false);
+  for (const [a, b] of t.covered) {
+    if (a <= b) for (let i = a; i <= b; i++) seen[i] = true;
+    else { for (let i = a; i < ref.length; i++) seen[i] = true; for (let i = 0; i <= b; i++) seen[i] = true; }
+  }
+  assert.strictEqual(seen.filter(Boolean).length, read.length,
+    'the read covers exactly as many bases as it has');
+
+  /*
+   * And the two absences are told apart, which is the whole point: what the
+   * clone has lost is a deletion, and what the read simply stopped short of is
+   * not. Drawn the same way they would say opposite things.
+   */
+  assert.ok(t.deleted && t.deleted.length, 'the missing arc should be a deletion');
+  const [from, to] = t.deleted[0];
+  assert.ok(from > to, `the deletion should wrap the origin, got ${from}..${to}`);
+
+  /*
+   * The deletion is what the read read straight through and did not find --
+   * between 1699 and 200 going forward, which is 500 bases. It is NOT
+   * everything uncovered: the other 700, from 800 up to 1499, is reference
+   * this read simply stopped short of. Marking that as lost would report a
+   * deletion the clone does not have.
+   */
+  const deletedLength = ref.length - from + to + 1;
+  assert.strictEqual(deletedLength, 500,
+    `the deletion should be the 500 between the read's two ends, got ${deletedLength}`);
+  assert.strictEqual(seen.filter(Boolean).length + deletedLength, 1300);
+  assert.strictEqual(ref.length - seen.filter(Boolean).length - deletedLength, 700,
+    'the rest is reference the read never reached, and is neither');
+});
+
 test('several reads align in one call and keep their order', needsMafft, async () => {
   const snp = REF.slice(0, 100) + (REF[100] === 'A' ? 'C' : 'A') + REF.slice(101);
   const { tracks } = await align(reference, [

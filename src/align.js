@@ -322,6 +322,26 @@ function overhangsEnd(referenceRow, readRow) {
 }
 
 /**
+ * How many separate pieces the read was placed in.
+ *
+ * One is an ordinary read. Two is a read sitting either side of the origin.
+ * More than that means MAFFT could not express what the read actually says and
+ * scattered it instead -- which is what a deletion spanning the origin looks
+ * like against a linear reference, since the read's two halves are in the wrong
+ * order to be joined by a gap.
+ */
+function readRunCount(readRow) {
+  let runs = 0;
+  let inRun = false;
+  for (let i = 0; i < readRow.length; i++) {
+    const has = readRow[i] !== '-';
+    if (has && !inRun) runs++;
+    inRun = has;
+  }
+  return runs;
+}
+
+/**
  * Place a read onto reference coordinates using an alignment against the
  * doubled reference.
  *
@@ -659,7 +679,21 @@ async function align(reference, reads, opts = {}) {
      * cover when it plainly had.
      */
     const wraps = Boolean(prepared[i].rotation);
-    if (!wraps && !overhangsEnd(pairs[i].referenceRow, pairs[i].readRow)) continue;
+    const dangles = Boolean(overhangsEnd(pairs[i].referenceRow, pairs[i].readRow));
+    /*
+     * A third way, and the one that looks least like the others: the read does
+     * not cross the origin, the *deletion* does. A clone missing an arc that
+     * spans the origin joins two reference stretches whose order is reversed
+     * on a linear reference, and no arrangement of gaps can say that -- so
+     * MAFFT shreds the read into fragments rather than admitting defeat. A
+     * 1,186 bp read came back in eight pieces spread over 2 kb, at 91%
+     * identity with 935 gaps, none of it true.
+     *
+     * Against a doubled reference the two stretches are in order and one gap
+     * joins them, which is exactly what folding is for.
+     */
+    const scattered = readRunCount(pairs[i].readRow) > 2;
+    if (!wraps && !dangles && !scattered) continue;
     /*
      * Only a read that fits within one turn. Folding maps every read base to a
      * reference position, so a read longer than the reference would have two
@@ -676,11 +710,29 @@ async function align(reference, reads, opts = {}) {
     const fold = foldOntoReference(pair.referenceRow, pair.readRow, refSeq.length);
     // Only keep it if it actually placed the read; a read that genuinely
     // belongs nowhere should stay as MAFFT left it rather than be forced on.
-    if (fold.covered.length) {
-      folded[i] = Object.assign(fold, {
-        readRow: toSharedColumns(fold.placed, sharedReferenceRow)
-      });
-    }
+    if (!fold.covered.length) continue;
+
+    const candidate = Object.assign(fold, {
+      readRow: toSharedColumns(fold.placed, sharedReferenceRow)
+    });
+
+    /*
+     * Keep whichever explains more of the read.
+     *
+     * Not fewer mismatches: a deletion the clone really has is counted as
+     * mismatch, and the honest answer -- a 2 kb deletion -- therefore scores
+     * far worse than the shredded one that quietly pretends the bases are
+     * scattered about. What matters is how much of the read the reference
+     * accounts for, so that is what is compared. Ties go to the fold, which is
+     * the one that knows what it covered.
+     */
+    const explains = (stats) => stats.compared - stats.substitutions;
+    const asIs = countDifferences(pairs[i].referenceRow, pairs[i].readRow, { wraps });
+    const asFolded = countDifferences(sharedReferenceRow, candidate.readRow, {
+      covered: fold.covered,
+      deleted: fold.deleted
+    });
+    if (explains(asFolded) >= explains(asIs)) folded[i] = candidate;
   }
 
   /*

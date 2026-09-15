@@ -4,6 +4,34 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.52.0
+
+**A deletion that spans the origin is now drawn as one gap instead of shredding the read.**
+
+Found on four clones of a 4,130 bp plasmid. Each 1,186 bp read came back in **eight pieces
+spread over 2 kb**, at 91% identity with 935 gaps, none of it true. They now place in two
+pieces with 0–2 substitutions and every base accounted for.
+
+The clone is missing an arc that crosses the origin, so it joins two reference stretches
+whose order is reversed on a linear reference. No arrangement of gaps can express that, and
+MAFFT does not give up — it scatters the read instead. This is a third way the origin breaks
+an alignment, and it looks nothing like the other two: the read itself neither crosses the
+origin nor runs off the end. Only the deletion wraps. Aligning against a doubled reference
+puts the two stretches back in order with one gap between them, which is what the existing
+fold was already for; it simply never fired here.
+
+Where two placements are possible, the one that **explains more of the read** wins — not the
+one with fewer mismatches. A real 2 kb deletion counts as 2 kb of mismatch, so scoring that
+way preferred the shredded alignment that quietly pretends the bases are scattered about.
+
+**What the colours mean is unchanged and now actually reachable here:** sequence the clone
+has lost is drawn in red, and reference the read simply never reached stays unmarked. They
+are different facts and drawn differently.
+
+Note: where the junction falls inside a repeat it is ambiguous. On these clones the boundary
+varies by up to 34 bases between reads — a near-identical 35 bp repeat sits there — while the
+deletion length is the same 2,132 in every one.
+
 ## 1.51.1
 
 1.51.0 fixed the menus but not **the Select Inverse button in the status bar**, which is the
