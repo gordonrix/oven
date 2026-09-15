@@ -4,6 +4,23 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.50.0
+
+**The alignment view's track-name column can be resized, and long names wrap.**
+
+The drag handle at the column's right edge did nothing: it kept the handler from its first
+render, which closed over the starting width of 140, and each move measured only the last few
+pixels — so every event set the width to 140 plus a nudge rather than accumulating. Dragging
+120px right actually took the column from 137px to 37px.
+
+Names were also `nowrap` in a column with `overflow: hidden`, so anything longer than the
+column was cut off with no way to read the rest. That is every real Sanger filename, which
+carries plate, well and direction in one unbroken token. They wrap now, breaking mid-token
+since there is no whitespace to break at.
+
+The column has a 40px floor as well — it could previously be dragged away entirely, taking
+the handle with it.
+
 ## 1.49.1
 
 The sliced chromatogram from 1.49.0 drew as **two stacked traces** on a wide read. The

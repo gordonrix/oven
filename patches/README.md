@@ -163,6 +163,48 @@ limit, that the slices lie end to end on one line, and that the trace is drawn a
 ends — the far piece is the one that used to vanish. A middle slice may legitimately be blank, since that is the arc the read never
 covered.
 
+## 3b. The name column could not be resized, and cut long names off (`HorizontalPanelDragHandle`, `alignmentTrackName`)
+
+**Symptom.** The drag handle at the right edge of the alignment view's track-name column did
+nothing — the column twitched and sprang back. Names longer than the column were cut off with
+no way to read the rest, which is every real Sanger filename: they carry plate, well and
+direction.
+
+**Cause, the handle.** `HorizontalPanelDragHandle` keeps its move handler in a ref:
+
+```js
+const resize = reactExports.useRef((e2) => {
+  const dx = xStart.current - e2.clientX;
+  onDrag({ dx });                       // the FIRST onDrag, forever
+  xStart.current = e2.clientX;
+});
+```
+
+A ref's initial value is kept for the life of the component, so that closure holds the
+`onDrag` from the first render — which closes over the starting `nameDivWidth` of 140. Each
+move also resets `xStart`, so `dx` is only the last few pixels. Every event therefore set the
+width to *140 plus a nudge* instead of accumulating. Dragging 120px right actually took the
+column from 137px to 37px.
+
+**Cause, the names.** `.alignmentTrackName` was `whiteSpace: "nowrap"` with
+`overflow: hidden`.
+
+**Fix.**
+
+- the handle holds `onDrag` in a ref reassigned every render, so the move handler calls the
+  current one;
+- `document.removeEventListener("mousemove", mouseup.current)` — the listener was added as
+  `"mouseup"`, so it was never removed and another was added on every drag;
+- a floor of 40px on the width, or the column could be dragged away entirely, taking the
+  handle with it;
+- `whiteSpace: "normal"` and `overflowWrap: "anywhere"` on the column. `anywhere` rather than
+  `break-word` because these names are one unbroken token, and `break-word` only breaks where
+  there is whitespace.
+
+`test/browser/trackNames.mjs` covers both: a 42-character name must take more than one line
+and not run past the column edge, and the handle must move the column by what it was dragged
+and back again. Unpatched it fails with "drawn on 1 line" and "137 -> 37".
+
 ---
 
 ## Deliberately NOT patched

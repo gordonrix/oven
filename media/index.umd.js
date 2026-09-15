@@ -136149,14 +136149,30 @@ ${seq.sequence}
   const VersionHistoryView$1 = withEditorProps(VersionHistoryView);
   function HorizontalPanelDragHandle({ onDrag }) {
     const xStart = reactExports.useRef(0);
+    /*
+     * PATCH (oven): call whatever onDrag is current, not the one this component
+     * first rendered with.
+     *
+     * `resize` is a ref, so its initial function is kept for the life of the
+     * component, and that closure holds the first onDrag -- which in the
+     * alignment view closes over the name column's starting width of 140. Each
+     * mousemove also resets xStart, so dx is only the last few pixels. Every
+     * event therefore set the width to 140 plus a nudge instead of accumulating,
+     * and the column twitched and sprang back: a drag handle that visibly does
+     * nothing.
+     */
+    const latest = reactExports.useRef(onDrag);
+    latest.current = onDrag;
     const resize = reactExports.useRef((e2) => {
       const dx = xStart.current - e2.clientX;
-      onDrag({ dx });
+      latest.current({ dx });
       xStart.current = e2.clientX;
     });
     const mouseup = reactExports.useRef(() => {
       document.removeEventListener("mousemove", resize.current, false);
-      document.removeEventListener("mousemove", mouseup.current, false);
+      // PATCH (oven): this said "mousemove", so the mouseup listener was never
+      // removed and another was added on every drag.
+      document.removeEventListener("mouseup", mouseup.current, false);
     });
     return /* @__PURE__ */ React$2.createElement(
       "div",
@@ -172177,7 +172193,16 @@ ${seqDataToCopy}\r
                 minWidth: nameDivWidth - 3,
                 overflow: "hidden",
                 scrollbarWidth: "none",
-                whiteSpace: "nowrap"
+                /*
+                 * PATCH (oven): was "nowrap", which cut a long name off at the
+                 * column edge with no way to read the rest. Sanger filenames
+                 * carry the plate, well and direction and are routinely longer
+                 * than the column is wide. anywhere, not break-word, because
+                 * these names are one unbroken token -- break-word only helps
+                 * where there are spaces to break at.
+                 */
+                whiteSpace: "normal",
+                overflowWrap: "anywhere"
               },
               "data-title": name2,
               key: i2
@@ -172285,7 +172310,9 @@ ${seqDataToCopy}\r
               HorizontalPanelDragHandle,
               {
                 onDrag: ({ dx }) => {
-                  setNameDivWidth(Math.min(nameDivWidth - dx, width - 20));
+                  // PATCH (oven): a floor too. Dragged past it the column
+                  // collapsed to nothing and there was no handle left to grab.
+                  setNameDivWidth(Math.max(40, Math.min(nameDivWidth - dx, width - 20)));
                 }
               }
             )

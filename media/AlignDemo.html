@@ -49,6 +49,7 @@
       // perfect stretch is treated as luck rather than evidence.
       const WINDOW = REF.slice(60, 200);
       const WINDOW_ROW = '-'.repeat(60) + WINDOW + '-'.repeat(REF.length - 200);
+      const LONG_NAME = 'NFQCV3-plate7-B09_pDEMO-018_forward.1-of-2';
       // Where the origin-crossing read's second piece begins: its last 60 bases.
       const TAIL = REF.length - 60;
       const DELETED = REF.slice(0, 150) + REF.slice(153);
@@ -89,8 +90,14 @@
             alignmentData: { name: 'demo-reference', sequence: REF }
           },
           {
-            sequenceData: { name: 'clean-read', sequence: CLEAN, circular: false },
-            alignmentData: { name: 'clean-read', sequence: CLEAN },
+            /*
+             * A name longer than the name column is wide, which is what a real
+             * Sanger filename looks like: plate, well and direction, one
+             * unbroken token. It used to be cut off at the column edge with no
+             * way to read the rest.
+             */
+            sequenceData: { name: LONG_NAME, sequence: CLEAN, circular: false },
+            alignmentData: { name: LONG_NAME, sequence: CLEAN },
             chromatogramData: fakeChrom(CLEAN)
           },
           {
