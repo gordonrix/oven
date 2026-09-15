@@ -104218,6 +104218,44 @@ ${latestSubscriptionCallbackError.current.stack}
    * whose whole point is to set up a selection you then act on.
    */
   let ovenLastEditorFocus = null;
+  /**
+   * PATCH (oven): put the caret back in the editor after something else took it.
+   *
+   * `force` is the difference between the two ways focus is lost. A menu drops
+   * it -- the menu closes and hands it to nobody, so it lands on the body, and
+   * the right thing is to take it back only then, never from a dialog field
+   * that wanted it. A button in the status bar instead *keeps* focus once
+   * clicked, so focus never reaches the body and waiting for it is waiting
+   * forever; those sites ask for the hand-back outright.
+   */
+  function ovenGiveFocusBack(force) {
+    if (typeof document === "undefined" || !ovenLastEditorFocus) return;
+    /*
+     * Watch for a few frames rather than checking once: a menu is still
+     * closing when its handler returns, so focus is on the menu item at that
+     * moment and only falls to the body a frame or two later. Checking
+     * immediately saw the menu item, decided something else held focus, and
+     * did nothing.
+     */
+    const deadline = Date.now() + 500;
+    const restore = () => {
+      if (!document.contains(ovenLastEditorFocus)) return;
+      if (force) {
+        ovenLastEditorFocus.focus();
+        return;
+      }
+      if (Date.now() > deadline) return;
+      const active = document.activeElement;
+      if (active && active !== document.body) {
+        // Something took it -- a dialog's field, say. Leave it alone, but keep
+        // watching in case that was only the closing menu.
+        requestAnimationFrame(restore);
+        return;
+      }
+      ovenLastEditorFocus.focus();
+    };
+    requestAnimationFrame(restore);
+  }
   if (typeof document !== "undefined") {
     document.addEventListener("focusin", (e2) => {
       const target = e2 && e2.target;
@@ -104243,27 +104281,7 @@ ${latestSubscriptionCallbackError.current.stack}
          * its field this does nothing, and if it focuses a tick later it wins
          * anyway, since it runs after this.
          */
-        if (typeof document === "undefined" || !ovenLastEditorFocus) return;
-        /*
-         * Watch for a few frames rather than checking once: the menu is still
-         * closing when the handler returns, so focus is on the menu item and
-         * only falls to the body a frame or two later. Checking immediately
-         * saw the menu item, decided something else held focus, and did
-         * nothing.
-         */
-        const deadline = Date.now() + 500;
-        const restore = () => {
-          if (Date.now() > deadline) return;
-          const active = document.activeElement;
-          if (active && active !== document.body) {
-            // Something took it -- a dialog's field, say. Leave it alone, but
-            // keep watching in case that was just the closing menu.
-            requestAnimationFrame(restore);
-            return;
-          }
-          if (document.contains(ovenLastEditorFocus)) ovenLastEditorFocus.focus();
-        };
-        requestAnimationFrame(restore);
+        ovenGiveFocusBack(false);
       };
       const properties2 = [
         "icon",
@@ -176461,7 +176479,15 @@ ${bases}\r
       {
         minimal: true,
         disabled: sequenceLength <= 0,
-        onClick: handleInverse2,
+        /*
+         * PATCH (oven): and then give the editor the caret back. A button keeps
+         * focus once clicked, so this one left the new selection drawn on an
+         * editor no shortcut could reach -- cmd+C after it copied nothing.
+         */
+        onClick: (e2) => {
+          handleInverse2(e2);
+          ovenGiveFocusBack(true);
+        },
         style: { marginLeft: 5, color: "#48AFF0" },
         small: true
       },

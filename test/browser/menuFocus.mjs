@@ -1,5 +1,5 @@
 /*
- * Running a command from a menu must leave the editor usable.
+ * Changing the selection from the chrome must leave the editor usable.
  *
  *   node <browser-automation>/browser.mjs \
  *     http://127.0.0.1:8742/media/EditorDemo.html --script test/browser/menuFocus.mjs
@@ -14,6 +14,11 @@
  * The rule being tested is narrow on purpose: focus is handed back only when it
  * was dropped, never taken from something that wanted it. Find... opens a field
  * and has to keep it.
+ *
+ * The status bar's own Select Inverse is a separate path and needs its own
+ * check: it is a button, so it *keeps* focus when clicked rather than dropping
+ * it, and waiting for focus to reach the body waits forever. Fixing the menus
+ * did nothing for it, which is the version people actually click.
  */
 
 const SELECTION = { start: 0, end: 11 };   // GAATTCGGATCC in the fixture
@@ -128,6 +133,29 @@ export default async function run(page) {
     }
     if (!/INPUT|TEXTAREA/.test(out.focusAfterFind)) {
       fail.push(`Find... left focus on ${out.focusAfterFind}, expected its input`);
+    }
+  }
+
+  /* --- the same thing from the status bar, which is a different path ------- */
+
+  await select();
+  const statusButton = page.locator('button', { hasText: 'Select Inverse' }).first();
+  out.statusButtonFound = await statusButton.count();
+  if (!out.statusButtonFound) {
+    fail.push('no Select Inverse button in the status bar');
+  } else {
+    await statusButton.click();
+    await page.waitForTimeout(900);
+    out.focusAfterStatusButton = await focus();
+    if (!/veVectorInteractionWrapper/.test(out.focusAfterStatusButton)) {
+      fail.push(`the status bar button left focus on ${out.focusAfterStatusButton}`);
+    }
+    const fromButton = await copyByHotkey();
+    if (!fromButton) {
+      fail.push('cmd+C copied nothing after Select Inverse from the status bar');
+    } else if (whole && fromButton !== whole.slice(SELECTION.end + 1)) {
+      fail.push(`the status bar inverse copied ${fromButton.length} bases, `
+        + `expected ${whole.length - SELECTION.end - 1}`);
     }
   }
 

@@ -230,10 +230,16 @@ Two details matter:
 - it never takes focus from something that wanted it. `Find…` opens a field and keeps it; a
   dialog that focuses its input a tick later wins anyway, because it runs after this.
 
-`test/browser/menuFocus.mjs` covers it: Select Inverse from the menu must leave focus on the
-editor and `cmd+C` must copy exactly the inverted range, and `Find…` must keep focus in its
-input. Unpatched it fails with "copied nothing after Select Inverse" and "focus went to
-BODY".
+**The status bar's own Select Inverse is a second path**, and fixing the menus did nothing
+for it — which is the one people actually click. It is a `Button`, so it *keeps* focus when
+clicked rather than dropping it: focus never reaches the body, so the rule above correctly
+declines to act and waiting for it waits forever. Its `onClick` asks for the hand-back
+outright, which is what `ovenGiveFocusBack(force)` is for.
+
+`test/browser/menuFocus.mjs` covers both: Select Inverse from the Edit menu **and** from the
+status bar must each leave focus on the editor with `cmd+C` copying exactly the inverted
+range, and `Find…` must keep focus in its input. Unpatched they fail with "copied nothing
+after Select Inverse" and "left focus on BUTTON.bp3-button".
 
 ---
 

@@ -4,6 +4,13 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.51.1
+
+1.51.0 fixed the menus but not **the Select Inverse button in the status bar**, which is the
+one you actually click. A button keeps focus when clicked rather than dropping it, so focus
+never lands on the page body and the rule added in 1.51.0 — hand focus back only when it was
+dropped — correctly declined to act. That path now asks for the hand-back outright.
+
 ## 1.51.0
 
 **A command run from a menu no longer leaves the editor unable to take a shortcut.**
