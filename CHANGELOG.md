@@ -4,6 +4,21 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.51.0
+
+**A command run from a menu no longer leaves the editor unable to take a shortcut.**
+
+Select Inverse from the Edit menu highlighted the inverted selection, and then `cmd+C` copied
+nothing — nor did any of the copy variants. The menu closes and hands focus back to nobody,
+so it lands on the page body, and Open Vector Editor's shortcuts are bound to the editor. The
+selection was drawn and looked live; the editor was inert.
+
+Every menu command had this, Select All included. It only bites on the ones whose whole point
+is to set up a selection you then act on.
+
+Focus is now handed back after a command — but only when it was *dropped*, never taken from
+something that wanted it, so `Find…` still keeps its field.
+
 ## 1.50.0
 
 **The alignment view's track-name column can be resized, and long names wrap.**

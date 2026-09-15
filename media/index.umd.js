@@ -104207,6 +104207,24 @@ ${latestSubscriptionCallbackError.current.stack}
   const isSafari = /^((?!chrome|android).)*safari/i.test(
     navigator.userAgent
   );
+  /*
+   * PATCH (oven): the editor that last had the caret.
+   *
+   * Running a command from a menu leaves focus on document.body: the menu
+   * closes and hands it back to nobody. The selection is still there and still
+   * drawn, but no hotkey reaches the editor, so Select Inverse followed by
+   * cmd+C copied nothing -- the selection looked live and was inert. Every
+   * menu command has this, Select All included; it is only obvious on the ones
+   * whose whole point is to set up a selection you then act on.
+   */
+  let ovenLastEditorFocus = null;
+  if (typeof document !== "undefined") {
+    document.addEventListener("focusin", (e2) => {
+      const target = e2 && e2.target;
+      const wrapper = target && target.closest && target.closest(".veVectorInteractionWrapper");
+      if (wrapper) ovenLastEditorFocus = wrapper;
+    }, true);
+  }
   function genericCommandFactory(config) {
     const out = {};
     for (const cmdId in config.commandDefs) {
@@ -104217,6 +104235,35 @@ ${latestSubscriptionCallbackError.current.stack}
           cmdId,
           def.handler && def.handler.apply(command, config.getArguments(cmdId, execArgs))
         );
+        /*
+         * PATCH (oven): give focus back, but only if nothing else wanted it.
+         *
+         * Body means it was dropped rather than taken. A command that opens a
+         * dialog is unaffected either way: if the dialog has already focused
+         * its field this does nothing, and if it focuses a tick later it wins
+         * anyway, since it runs after this.
+         */
+        if (typeof document === "undefined" || !ovenLastEditorFocus) return;
+        /*
+         * Watch for a few frames rather than checking once: the menu is still
+         * closing when the handler returns, so focus is on the menu item and
+         * only falls to the body a frame or two later. Checking immediately
+         * saw the menu item, decided something else held focus, and did
+         * nothing.
+         */
+        const deadline = Date.now() + 500;
+        const restore = () => {
+          if (Date.now() > deadline) return;
+          const active = document.activeElement;
+          if (active && active !== document.body) {
+            // Something took it -- a dialog's field, say. Leave it alone, but
+            // keep watching in case that was just the closing menu.
+            requestAnimationFrame(restore);
+            return;
+          }
+          if (document.contains(ovenLastEditorFocus)) ovenLastEditorFocus.focus();
+        };
+        requestAnimationFrame(restore);
       };
       const properties2 = [
         "icon",

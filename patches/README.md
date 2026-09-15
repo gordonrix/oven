@@ -205,6 +205,36 @@ column from 137px to 37px.
 and not run past the column edge, and the handle must move the column by what it was dragged
 and back again. Unpatched it fails with "drawn on 1 line" and "137 -> 37".
 
+## 3c. A command run from a menu left the editor unable to take a hotkey (`genericCommandFactory`)
+
+**Symptom.** Select Inverse from the Edit menu highlighted the inverse selection, and then
+`cmd+C` copied nothing — nor did any of the copy variants. The selection was drawn and
+looked live; the editor was inert.
+
+**Cause.** The menu closes and hands focus back to nobody, so `document.activeElement` ends
+up as `document.body`. Open Vector Editor's hotkeys are bound to the editor element, so
+nothing reaches them. Every menu command has this — Select All too — but it only bites on
+the ones whose point is to set up a selection you then act on.
+
+**Fix.** In `genericCommandFactory`, which is the single funnel for menu, toolbar and hotkey
+invocations: remember the `.veVectorInteractionWrapper` that last held focus (a capturing
+`focusin` listener on `document`), and after a command runs, hand focus back **only if it was
+dropped** — that is, only if it lands on `document.body`.
+
+Two details matter:
+
+- it watches over several frames rather than checking once. The menu is still closing when
+  the handler returns, so focus is on the menu item at that moment and only falls to the body
+  a frame or two later. Checking immediately saw the menu item, concluded something else held
+  focus, and did nothing.
+- it never takes focus from something that wanted it. `Find…` opens a field and keeps it; a
+  dialog that focuses its input a tick later wins anyway, because it runs after this.
+
+`test/browser/menuFocus.mjs` covers it: Select Inverse from the menu must leave focus on the
+editor and `cmd+C` must copy exactly the inverted range, and `Find…` must keep focus in its
+input. Unpatched it fails with "copied nothing after Select Inverse" and "focus went to
+BODY".
+
 ---
 
 ## Deliberately NOT patched
