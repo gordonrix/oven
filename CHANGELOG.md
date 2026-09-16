@@ -4,6 +4,17 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.54.0
+
+**A linear sequence opens on the Linear Map.** Open Vector Editor has one — the whole
+sequence on a single rail, with its features and an axis, the linear counterpart of the
+Circular Map — and OVEN never offered the tab, so every `.gb` opened as a circle regardless.
+A linear sequence drawn that way comes out as a circle with a gap in it; OVE says so itself,
+in a warning on that tab, which you met on every linear file.
+
+Both map tabs are now always present and the one that suits the sequence is the one you land
+on. A linear map of a plasmid is sometimes exactly what you want, so nothing is taken away.
+
 ## 1.53.1
 
 **Copy in the alignment said it worked and copied nothing.** Select a stretch, press `cmd+C`,

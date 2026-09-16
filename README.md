@@ -283,9 +283,11 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 ## Other
 
 - Select a DNA file → **Open With → OVEN**, and set it as the default if you like
-- Sequences open with the **Circular Map** in a tab on the right, beside the sequence.
-  `oven.viewType` changes that: `sequence` or `circular` for a single pane with the other
-  as a tab you switch to. **Reopen the file** for a change to take effect
+- Sequences open with a **whole-sequence map** in a tab on the right, beside the sequence:
+  the **Circular Map** for a circular sequence, the **Linear Map** for a linear one. Both
+  tabs are always there, so either is a click away. `oven.viewType` changes the layout:
+  `sequence` or `circular` for a single pane with the rest as tabs you switch to.
+  **Reopen the file** for a change to take effect
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
 - **Copy carries annotations.** Copy a stretch of sequence and paste it into another plasmid
   and its features, parts and primers come with it. **Edit → Copy Options** chooses whether

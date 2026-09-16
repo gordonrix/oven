@@ -122,17 +122,27 @@
         }
       });
       window.__oveEditor = editor;
+      /*
+       * ?linear opens the same sequence as a linear one, which is what a plain
+       * .gb without "circular" in its LOCUS line is. ?map brings a map tab up
+       * instead of the sequence -- separate flags because every other check
+       * here works on the sequence letters and must keep landing on them.
+       */
+      const params = new URLSearchParams(location.search);
+      const LINEAR = params.has('linear');
+      const MAP = params.has('map');
       editor.updateEditor({
         sequenceData: {
-          name: 'demo-plasmid', circular: true, sequence: SEQ,
+          name: 'demo-plasmid', circular: !LINEAR, sequence: SEQ,
           features: [
             { id: 'f1', name: 'demo CDS', start: 12, end: 110, forward: true, type: 'CDS' },
             { id: 'f2', name: 'rev CDS', start: 150, end: 248, forward: false, type: 'CDS' }
           ]
         },
         panelsShown: [[
-          { id: 'sequence', name: 'Sequence Map', active: true },
-          { id: 'circular', name: 'Circular Map', active: false },
+          { id: 'sequence', name: 'Sequence Map', active: !MAP },
+          { id: 'circular', name: 'Circular Map', active: MAP && !LINEAR },
+          { id: 'rail', name: 'Linear Map', active: MAP && LINEAR },
           { id: 'properties', name: 'Properties', active: false }
         ]],
         readOnly: false,

@@ -92,19 +92,19 @@ test('the button row is the four panels, in order', () => {
  */
 
 /** The ids in each group, in order, from the JS literal panelsShown returns. */
-function groups(viewType) {
-  return new Function(`return ${panelsShown(viewType)}`)()
+function groups(viewType, circular = true) {
+  return new Function(`return ${panelsShown(viewType, circular)}`)()
     .map((group) => group.map((panel) => panel.id));
 }
 
 /** The id of the tab that opens active, per group. */
-function activeIds(viewType) {
-  return new Function(`return ${panelsShown(viewType)}`)()
+function activeIds(viewType, circular = true) {
+  return new Function(`return ${panelsShown(viewType, circular)}`)()
     .map((group) => (group.find((panel) => panel.active) || {}).id || null);
 }
 
-test('split puts the sequence on the left and the circular map on the right', () => {
-  assert.deepStrictEqual(groups('split'), [['sequence', 'properties'], ['circular']]);
+test('split puts the sequence on the left and the maps on the right', () => {
+  assert.deepStrictEqual(groups('split'), [['sequence', 'properties'], ['circular', 'rail']]);
   // Both halves show something without a click.
   assert.deepStrictEqual(activeIds('split'), ['sequence', 'circular']);
 });
@@ -112,11 +112,28 @@ test('split puts the sequence on the left and the circular map on the right', ()
 test('the single-pane view types put everything in one group', () => {
   for (const viewType of ['sequence', 'circular']) {
     assert.strictEqual(groups(viewType).length, 1, `${viewType} should not split`);
-    assert.deepStrictEqual(groups(viewType)[0], ['sequence', 'circular', 'properties']);
+    assert.deepStrictEqual(groups(viewType)[0],
+      ['sequence', 'circular', 'rail', 'properties']);
   }
   // Each names its own tab as the one to open on.
   assert.deepStrictEqual(activeIds('sequence'), ['sequence']);
   assert.deepStrictEqual(activeIds('circular'), ['circular']);
+});
+
+test('a linear sequence opens on the Linear Map, not the circular one', () => {
+  /*
+   * Open Vector Editor draws a linear sequence in the Circular Map as a circle
+   * with a gap in it, and warns on that tab that you probably want the other
+   * one. Landing there by default was that warning, every time, on every linear
+   * file.
+   */
+  assert.deepStrictEqual(activeIds('split', false), ['sequence', 'rail']);
+  assert.deepStrictEqual(activeIds('circular', false), ['rail']);
+
+  // Both maps stay available: a linear map of a plasmid is sometimes the one
+  // you want, and a circular sequence should not lose the tab either.
+  assert.deepStrictEqual(groups('split', false)[1], ['circular', 'rail']);
+  assert.deepStrictEqual(groups('split', true)[1], ['circular', 'rail']);
 });
 
 test('an unknown view type falls back to a single pane rather than nothing', () => {

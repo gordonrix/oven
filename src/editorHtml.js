@@ -4,31 +4,52 @@
 /**
  * Which OVE panels to show, per the oven.viewType setting.
  * Returned as a JS literal because it goes straight into the inline script.
+ *
+ * @param {string} viewTypeConfig  'split' | 'sequence' | 'circular'
+ * @param {boolean} circular       whether this sequence is circular
  */
-function panelsShown(viewTypeConfig) {
+function panelsShown(viewTypeConfig, circular) {
   /*
    * Groups are laid out left to right, so the sequence group comes first and the
-   * circular map sits in a tab on the right. It used to be the other way round,
-   * which put the thing you read and edit in the right-hand half.
+   * map sits in a tab on the right. It used to be the other way round, which put
+   * the thing you read and edit in the right-hand half.
    *
    * Properties stays with the sequence rather than beside the map: it is a form
    * about the sequence, and pairing it with the map would leave the left group
    * with a single tab and nothing to switch between.
+   *
+   * Both maps are offered, and the one that fits the sequence is the one you
+   * land on: Open Vector Editor draws a linear sequence in the Circular Map as
+   * a circle with a gap, which is a confusing way to meet a plasmid that is not
+   * one -- it says so itself, in a warning on that tab. The other is always a
+   * click away, since a linear map of a circular sequence is sometimes exactly
+   * what you want.
    */
+  const map = circular === false ? 'rail' : 'circular';
+
   if (viewTypeConfig === 'split') {
     return `[
             [
               { id: "sequence", name: "Sequence Map", active: true },
               { id: "properties", name: "Properties", active: false }
             ],
-            [ { id: "circular", name: "Circular Map", active: true } ]
+            [
+              { id: "circular", name: "Circular Map", active: ${map === 'circular'} },
+              { id: "rail", name: "Linear Map", active: ${map === 'rail'} }
+            ]
           ]`;
   }
 
+  /*
+   * One group: the map tab that fits is the active one when the setting asks
+   * for a map, and both are present either way.
+   */
+  const wantsMap = viewTypeConfig === 'circular';
   return `[
             [
               { id: "sequence", name: "Sequence Map", active: ${viewTypeConfig === 'sequence'} },
-              { id: "circular", name: "Circular Map", active: ${viewTypeConfig === 'circular'} },
+              { id: "circular", name: "Circular Map", active: ${wantsMap && map === 'circular'} },
+              { id: "rail", name: "Linear Map", active: ${wantsMap && map === 'rail'} },
               { id: "properties", name: "Properties", active: false }
             ]
           ]`;
@@ -120,8 +141,8 @@ const BASE_STYLE = `
  * Both verified against the bundled OVE build; swapping them re-breaks the
  * Create menu or silently unlocks base editing.
  */
-function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers,
-  showSelectionStats, withCart, cutSiteFilter }) {
+function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing,
+  autoAddCreatedPrimers, showSelectionStats, withCart, cutSiteFilter }) {
   return `
       /*
        * "Melting Temp of Selection" has no ...ByDefault prop -- unlike GC
@@ -182,7 +203,7 @@ function bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAd
 
       editor.updateEditor({
         sequenceData: ${sequenceJson},
-        panelsShown: ${panelsShown(viewType)},
+        panelsShown: ${panelsShown(viewType, circular)},
         readOnly: ${Boolean(readOnly)}${cutSiteFilter ? `,
         // Restored from globalState. Applied here rather than after mounting so
         // the filter is right on the first render instead of flickering through
@@ -196,7 +217,7 @@ function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, panelLayoutUri, pickerUri,
     searchUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
-    sequenceJson, viewType, readOnly,
+    sequenceJson, viewType, circular, readOnly,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
     cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey } = opts;
 
@@ -260,7 +281,7 @@ function buildEditorHtml(opts) {
     <script src="${aminoAcidUri}"></script>
     <script src="${newPrimerUri}"></script>
     <script>
-${bootScript({ sequenceJson, viewType, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter })}
+${bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
       window.OveStrandBar.init();

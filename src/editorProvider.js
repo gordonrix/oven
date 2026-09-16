@@ -332,6 +332,9 @@ class DNAViewerProvider {
       cutSiteFilter: this.context.globalState.get(CUT_SITES_KEY, null),
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
       viewType: DNAViewerProvider.takeViewType(document.uri.fsPath),
+      // Which map the editor opens on: a linear sequence drawn as a circle with
+      // a gap is a confusing way to meet it.
+      circular: Boolean(parsed && parsed.circular),
       readOnly: config.readOnly(),
       disableBpEditing: !config.allowSequenceEditing(),
       autoAddCreatedPrimers: config.autoAddCreatedPrimers(),
