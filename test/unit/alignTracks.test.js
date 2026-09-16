@@ -246,3 +246,57 @@ test('a read with no annotations brings none', () => {
   assert.deepStrictEqual(followAlignmentAnnotations({}, { strand: 1, length: 10 }), {});
   assert.deepStrictEqual(followAlignmentAnnotations(null, { strand: 1, length: 10 }), {});
 });
+
+test('an annotation crossing the origin is kept, not dropped', () => {
+  /*
+   * From a real plasmid: join(4072..4075, 1..657), which GenBank writes as one
+   * annotation whose end comes before its start. Reading only start and end
+   * gave nothing to iterate between 4072 and 656, so the whole thing vanished
+   * without a word -- a feature silently missing from the query track.
+   */
+  const moved = followAlignmentAnnotations(
+    { features: [{ id: 'w', name: 'wraps', start: 90, end: 9, forward: true }] },
+    { strand: 1, readIndex: null, length: 100 }
+  );
+  assert.ok(moved.features && moved.features.length, 'the annotation was dropped');
+  const covered = moved.features.reduce((n, f) => n + (f.end - f.start + 1), 0);
+  assert.strictEqual(covered, 20, '90..99 and 0..9 is twenty bases');
+});
+
+test('the parts of a join are followed separately', () => {
+  const moved = followAlignmentAnnotations(
+    {
+      features: [{
+        id: 'j', name: 'joined', start: 10, end: 60, forward: true,
+        locations: [{ start: 10, end: 19 }, { start: 50, end: 60 }]
+      }]
+    },
+    { strand: 1, readIndex: null, length: 100 }
+  );
+  const ranges = moved.features.map((f) => [f.start, f.end]).sort((a, b) => a[0] - b[0]);
+  // The gap between the parts is not part of the annotation and must not be
+  // filled in by reading start and end alone.
+  assert.deepStrictEqual(ranges, [[10, 19], [50, 60]]);
+  // Each piece stands alone; carrying the join onto both would draw it twice.
+  assert.ok(moved.features.every((f) => f.locations === undefined));
+});
+
+test('pieces that end up touching are drawn as one', () => {
+  /*
+   * An origin-spanning annotation lands as two pieces that abut once the row
+   * starts somewhere else. Left apart they are drawn as two features with the
+   * name printed twice at the seam.
+   */
+  const readIndex = [];
+  for (let i = 50; i < 100; i++) readIndex.push(i);
+  for (let i = 0; i < 50; i++) readIndex.push(i);
+
+  const moved = followAlignmentAnnotations(
+    { features: [{ id: 'w', name: 'wraps', start: 95, end: 4, forward: true }] },
+    { strand: 1, readIndex, length: 100 }
+  );
+  // Read 95-99 sit at columns 45-49 and read 0-4 at columns 50-54: one run.
+  assert.strictEqual(moved.features.length, 1,
+    `expected one merged piece, got ${JSON.stringify(moved.features.map((f) => [f.start, f.end]))}`);
+  assert.deepStrictEqual([moved.features[0].start, moved.features[0].end], [45, 54]);
+});

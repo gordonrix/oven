@@ -4,6 +4,15 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.55.1
+
+**A query annotation crossing the origin is no longer dropped.** GenBank writes those as a
+`join(...)`, or as one annotation whose end comes before its start; the transform added in
+1.53.0 read only start and end, found nothing to walk between them, and the annotation
+vanished from the query track without a word. Both forms are followed now, each part
+separately, and parts that end up touching are drawn as one rather than repeating the name at
+the seam.
+
 ## 1.55.0
 
 **Open Vector Editor's own alignment tool is gone from the toolbar.** It aligned sequences

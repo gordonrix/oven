@@ -305,50 +305,83 @@ function followAlignmentAnnotations(sequenceData, { strand, readIndex, length })
 
     const moved = [];
     for (const annotation of list) {
-      let start = Number(annotation.start);
-      let end = Number(annotation.end);
-      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
       let forward = annotation.forward !== undefined
         ? annotation.forward
         : annotation.strand !== -1;
 
-      if (strand === -1) {
-        const flippedStart = length - 1 - end;
-        end = length - 1 - start;
-        start = flippedStart;
-        forward = !forward;
+      /*
+       * The bases this annotation actually sits on, as plain ranges.
+       *
+       * A GenBank join gives several; one that crosses the origin gives a
+       * single range with its end before its start. Reading only start and end
+       * dropped both -- a `join(4072..4075,1..657)` has nothing to iterate
+       * between 4072 and 656, so the whole annotation silently vanished.
+       */
+      const ranges = [];
+      const push = (from, to) => {
+        if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+        if (from <= to) ranges.push([from, to]);
+        else { ranges.push([from, length - 1]); ranges.push([0, to]); }
+      };
+      if (Array.isArray(annotation.locations) && annotation.locations.length) {
+        for (const location of annotation.locations) push(Number(location.start), Number(location.end));
+      } else {
+        push(Number(annotation.start), Number(annotation.end));
       }
+      if (!ranges.length) continue;
 
-      if (!columnOf) {
-        moved.push(Object.assign({}, annotation, {
-          start, end, forward, strand: forward ? 1 : -1
-        }));
-        continue;
-      }
+      const flipped = strand === -1
+        ? ranges.map(([from, to]) => [length - 1 - to, length - 1 - from])
+        : ranges;
+      if (strand === -1) forward = !forward;
 
-      // Walk the annotation in read order and break it where the row does.
-      let runStart = null;
-      let previous = null;
-      const flush = (from, to) => {
-        if (from === null) return;
+      const pieces = [];
+      const emit = (from, to) => { pieces.push([Math.min(from, to), Math.max(from, to)]); };
+      const finish = (from, to) => {
         moved.push(Object.assign({}, annotation, {
           id: `${annotation.id || annotation.name || kind}-${from}`,
-          start: Math.min(from, to),
-          end: Math.max(from, to),
+          start: from,
+          end: to,
           forward,
-          strand: forward ? 1 : -1
+          strand: forward ? 1 : -1,
+          // Each piece stands alone once split; a join copied onto every piece
+          // would have the viewer draw the whole thing again per piece.
+          locations: undefined
         }));
       };
-      for (let at = start; at <= end && at < length; at++) {
-        const col = columnOf[at];
-        if (col < 0) continue;
-        if (runStart === null) { runStart = col; previous = col; continue; }
-        if (col === previous + 1) { previous = col; continue; }
-        flush(runStart, previous);
-        runStart = col;
-        previous = col;
+
+      for (const [from, to] of flipped) {
+        if (!columnOf) { emit(from, to); continue; }
+
+        // Walk it in read order and break it again wherever the row does.
+        let runStart = null;
+        let previous = null;
+        for (let at = from; at <= to && at < length; at++) {
+          const col = columnOf[at];
+          if (col < 0) continue;
+          if (runStart === null) { runStart = col; previous = col; continue; }
+          if (col === previous + 1) { previous = col; continue; }
+          emit(runStart, previous);
+          runStart = col;
+          previous = col;
+        }
+        if (runStart !== null) emit(runStart, previous);
       }
-      flush(runStart, previous);
+
+      /*
+       * Put touching pieces back together. A join whose parts sit next to each
+       * other once moved -- which is what an origin-spanning annotation becomes
+       * when the row starts somewhere else -- would otherwise be drawn as two
+       * abutting features, with the name printed twice at the seam.
+       */
+      pieces.sort((a, b) => a[0] - b[0]);
+      let open = null;
+      for (const [from, to] of pieces) {
+        if (open && from <= open[1] + 1) { open[1] = Math.max(open[1], to); continue; }
+        if (open) finish(open[0], open[1]);
+        open = [from, to];
+      }
+      if (open) finish(open[0], open[1]);
     }
     if (moved.length) out[kind] = moved;
   }
