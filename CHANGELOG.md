@@ -4,6 +4,25 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.53.0
+
+**A GenBank read's own annotations now show on its track.** Features, parts and primers from
+a `.gb`/`.gbk` read were dropped on the way to the viewer, so there was no way to see them at
+all. They are handed over now, put through the same flip and reorder as the read's sequence —
+untransformed they would land somewhere else entirely, which is worse than not drawing them.
+An annotation a fold splits comes back as two pieces rather than one band straight across.
+
+**Query Annotations** joins the eye menu: one tickbox saying whether the query tracks draw
+whatever the reference is drawing. That keeps reference and query annotations separately
+toggleable without a tickbox per kind per side, which would be six more rows of menu to answer
+one question. Things that are not annotations — the sequence, the axis, the trace, the
+colouring — are unaffected.
+
+**The chromatogram controls are disabled when there is no trace.** Against GenBank or FASTA
+reads the Chromatogram tickbox and the trace-height and peak-height controls did nothing and
+said nothing about why. They are greyed and carry a reason now — disabled rather than hidden,
+since a control that vanishes is harder to find again than one visibly out of use.
+
 ## 1.52.0
 
 **A deletion that spans the origin is now drawn as one gap instead of shredding the read.**

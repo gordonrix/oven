@@ -131706,7 +131706,17 @@ ${seq.sequence}
     cdsFeatureTranslations: false,
     cutsites: false,
     primers: false,
-    compactNames: false
+    compactNames: false,
+    /*
+     * PATCH (oven): whether the query tracks draw their own annotations.
+     *
+     * A read from a GenBank file carries features of its own. Without this
+     * there was no way to see the reference's annotations and not the queries'
+     * -- short of a second tickbox for every kind, which is six more rows in a
+     * menu to answer one question. This reuses whatever is already ticked and
+     * says which tracks it applies to.
+     */
+    queryAnnotations: true
   };
   const defaultVisibilities = {
     alignmentAnnotationVisibility: alignmentAnnotationSettings,
@@ -148418,6 +148428,34 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     );
   }
   __name(Chromatogram, "Chromatogram");
+  /*
+   * PATCH (oven): what a query track is allowed to draw.
+   *
+   * Query Annotations off means the reference keeps whatever is ticked and the
+   * reads draw none of it. The alternative was a second tickbox per kind, which
+   * is six more rows of menu to answer one question.
+   *
+   * The reference is untouched either way, and so is anything that is not an
+   * annotation -- the sequence, the axis, the trace and the colouring are
+   * properties of the track, not things drawn on top of it.
+   */
+  const OVEN_QUERY_ANNOTATIONS = [
+    "features",
+    "parts",
+    "primers",
+    "translations",
+    "cdsFeatureTranslations",
+    "orfs",
+    "orfTranslations",
+    "cutsites"
+  ];
+  function ovenTrackAnnotationVisibility(visibility, isTemplate) {
+    if (isTemplate || !visibility || visibility.queryAnnotations !== false) return visibility;
+    const out = Object.assign({}, visibility);
+    for (const kind of OVEN_QUERY_ANNOTATIONS) out[kind] = false;
+    return out;
+  }
+  __name(ovenTrackAnnotationVisibility, "ovenTrackAnnotationVisibility");
   function drawTrace({
     traceData,
     charWidth: charWidth2,
@@ -156863,7 +156901,9 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     // alignmentAnnotationLabelVisibility = {},
     // alignmentAnnotationLabelVisibilityToggle
     annotationsWithCounts,
-    currentPairwiseAlignmentIndex
+    currentPairwiseAlignmentIndex,
+    // PATCH (oven): false when no read in the view carries a trace.
+    ovenHasChromatogram
   }) {
     let annotationCountToUse = {};
     if (currentPairwiseAlignmentIndex) {
@@ -156878,12 +156918,21 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
         className: "alignmentAnnotationVisibilityToolInner"
       },
       map$5(togglableAlignmentAnnotationSettings, (visible, annotationName) => {
+        /*
+         * PATCH (oven): chromatogram is an .ab1 thing. With no trace in the
+         * view the tickbox did nothing and said nothing, so it is disabled and
+         * says why.
+         */
+        const ovenDisabled = annotationName === "chromatogram" && !ovenHasChromatogram;
         return /* @__PURE__ */ React$2.createElement(
           MenuItem,
           {
+            disabled: ovenDisabled,
+            title: ovenDisabled ? "No .ab1 read in this alignment" : undefined,
             icon: visible ? "tick" : "",
             onClick: (e2) => {
               e2.stopPropagation();
+              if (ovenDisabled) return;
               if (annotationName === "axis") {
                 return alignmentAnnotationVisibilityToggle({
                   axisNumbers: !visible,
@@ -172410,7 +172459,10 @@ ${seqDataToCopy}\r
               caretPosition: tempTrimmingCaret[i2] || -1,
               selectionLayer: selectionLayer22,
               isInAlignment: true,
-              annotationVisibilityOverrides: alignmentVisibilityToolOptions.alignmentAnnotationVisibility,
+              annotationVisibilityOverrides: ovenTrackAnnotationVisibility(
+                alignmentVisibilityToolOptions.alignmentAnnotationVisibility,
+                isTemplate
+              ),
               linearViewAnnotationLabelVisibilityOverrides: alignmentVisibilityToolOptions.alignmentAnnotationLabelVisibility,
               marginWith: 0,
               orfClicked: annotationClicked,
@@ -173269,7 +173321,9 @@ ${bases}\r
           "cdsFeatureTranslations",
           "chromatogram",
           "dnaColors",
-          "compactNames"
+          "compactNames",
+          // PATCH (oven): see the note on the default.
+          "queryAnnotations"
         ];
         const togglableAlignmentAnnotationSettings = {};
         map$5(alignmentAnnotationsToToggle, (annotation) => {
@@ -173277,6 +173331,21 @@ ${bases}\r
             togglableAlignmentAnnotationSettings[annotation] = alignmentAnnotationVisibility[annotation];
           }
         });
+        /*
+         * PATCH (oven): is there a trace to show at all?
+         *
+         * Chromatogram only means something for an .ab1. Against GenBank or
+         * FASTA reads the tickbox and the scale buttons did nothing, with
+         * nothing to say why -- so they are disabled instead.
+         */
+        let ovenHasChromatogram = false;
+        if (alignmentTracks) {
+          ovenHasChromatogram = alignmentTracks.some((t2) => t2 && t2.chromatogramData);
+        } else if (pairwiseAlignments) {
+          ovenHasChromatogram = pairwiseAlignments.some(
+            (pair) => pair.some((t2) => t2 && t2.chromatogramData)
+          );
+        }
         const annotationsWithCounts = [];
         if (alignmentTracks) {
           let totalNumOfFeatures = 0;
@@ -173350,7 +173419,9 @@ ${bases}\r
               }));
             },
             togglableAlignmentAnnotationSettings,
-            annotationsWithCounts
+            annotationsWithCounts,
+            // PATCH (oven): see the note where this is worked out.
+            ovenHasChromatogram
           }
         });
       },

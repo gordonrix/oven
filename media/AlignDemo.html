@@ -43,6 +43,12 @@
        * unaffected.
        */
       const WIDE = new URLSearchParams(location.search).has('wide');
+      /*
+       * ?nochrom drops every trace, standing in for an alignment of GenBank or
+       * FASTA reads. The chromatogram controls have nothing to act on then and
+       * must say so rather than sitting there doing nothing.
+       */
+      const NOCHROM = new URLSearchParams(location.search).has('nochrom');
       const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(WIDE ? 200 : 10);
       const CLEAN = REF;
       // A Sanger-sized window: comfortably over the 50 bp floor below which a
@@ -56,6 +62,7 @@
       const DELETED_ROW = REF.slice(0, 150) + '---' + REF.slice(153);
 
       function fakeChrom(seq) {
+        if (NOCHROM) return undefined;
         return {
           baseCalls: seq.split(''),
           qualNums: seq.split('').map(() => 45),
@@ -101,7 +108,13 @@
             chromatogramData: fakeChrom(CLEAN)
           },
           {
-            sequenceData: { name: 'window-read', sequence: WINDOW, circular: false },
+            sequenceData: {
+              name: 'window-read', sequence: WINDOW, circular: false,
+              // A GenBank read brings its own features; do they draw?
+              features: [
+                { id: 'qf1', name: 'query feature', start: 10, end: 60, strand: 1, type: 'CDS' }
+              ]
+            },
             alignmentData: { name: 'window-read', sequence: WINDOW_ROW },
             chromatogramData: fakeChrom(WINDOW)
           },

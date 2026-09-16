@@ -383,3 +383,11 @@ html, body { height: 100%; margin: 0; }
   cursor: pointer;
 }
 .ovealign-ctlbtn:hover { background: #e8eef2; }
+
+/*
+ * The chromatogram controls with no trace to act on. Greyed rather than hidden:
+ * a control that vanishes is harder to find again than one visibly inactive,
+ * and it still carries a title saying why.
+ */
+.ovealign-topctl.is-off { opacity: .45; }
+.ovealign-topctl.is-off .ovealign-ctlbtn { cursor: default; }

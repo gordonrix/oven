@@ -25,7 +25,9 @@ const vscode = require('vscode');
 const config = require('./config');
 const mafft = require('./mafft');
 const { align, mutatedCodons } = require('./align');
-const { parseFile, trimByQuality, followAlignment, SEQUENCE_EXTENSIONS } = require('./alignTracks');
+const {
+  parseFile, trimByQuality, followAlignment, followAlignmentAnnotations, SEQUENCE_EXTENSIONS
+} = require('./alignTracks');
 
 class AlignPanel {
   constructor(context, opts) {
@@ -476,8 +478,22 @@ class AlignPanel {
         return out;
       });
 
+      /*
+       * A GenBank read's own features, moved to match the row. An .ab1 has
+       * none, so this is empty for a Sanger read and costs nothing.
+       *
+       * They are the query's annotations, and the viewer draws them under the
+       * same tickboxes as the reference's -- Query Annotations in the eye menu
+       * turns the whole lot off without needing a second tickbox per kind.
+       */
+      const queryAnnotations = followAlignmentAnnotations(read.raw && read.raw.sequenceData, {
+        strand: track.strand,
+        readIndex: track.readIndex,
+        length: (track.columnOrderSequence || track.sequence || '').length
+      });
+
       return {
-        sequenceData: {
+        sequenceData: Object.assign({}, queryAnnotations, {
           name: read.name,
           // Oriented and rotated to match the row -- and, for a read folded
           // across the origin, reordered to match it as well.
@@ -488,7 +504,7 @@ class AlignPanel {
           // read as sequenced, so the axis can go on numbering them as read
           // positions rather than counting along the row.
           ovenReadIndex: track.readIndex || undefined
-        },
+        }),
         alignmentData: { name: read.name, sequence: row.sequence },
         ovenCoverage: track.covered
           ? { covered: toColumns(track.covered), deleted: toColumns(track.deleted) }

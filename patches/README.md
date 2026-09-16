@@ -241,6 +241,39 @@ status bar must each leave focus on the editor with `cmd+C` copying exactly the 
 range, and `Find…` must keep focus in its input. Unpatched they fail with "copied nothing
 after Select Inverse" and "left focus on BUTTON.bp3-button".
 
+## 3d. Query annotations, and chromatogram controls with no chromatogram (`alignmentAnnotationSettings`, `VisibilityOptions`, the track render)
+
+**Symptom.** A read from a GenBank file carries features of its own, and there was no way to
+see them: the alignment drew the reference's annotations only. Separately, the Chromatogram
+tickbox and the trace-scale controls were live against GenBank or FASTA reads, where they did
+nothing and said nothing about why.
+
+**Fix, query annotations.** `queryAnnotations` joins `alignmentAnnotationSettings` (default
+on) and `alignmentAnnotationsToToggle`, so it appears in the eye menu. At the per-track
+render, `ovenTrackAnnotationVisibility` returns the visibility unchanged for the template and,
+for a query with the box unticked, a copy with the annotation kinds forced off — features,
+parts, primers, translations, CDS translations, ORFs and cutsites.
+
+One tickbox rather than one per kind per side: the alternative is six more rows of menu to
+answer a single question. It reuses whatever is already ticked and only says *which tracks*
+it applies to. Anything that is not an annotation — the sequence, the axis, the trace, the
+colouring — is a property of the track and is left alone.
+
+The annotations themselves are supplied by `src/alignPanel.js`, put through the same flip and
+reorder as the read's sequence by `followAlignmentAnnotations` — untransformed they land
+somewhere else entirely, which is worse than not drawing them.
+
+**Fix, the chromatogram controls.** The alignment's props gain `ovenHasChromatogram`, true
+when any track carries `chromatogramData`. The Chromatogram menu item is disabled without one
+and carries a title saying why. `media/alignView.js` greys its own trace-height and peak-height
+controls on the same condition — disabled rather than hidden, since a control that vanishes is
+harder to find again than one visibly out of use.
+
+`test/browser/queryAnnotations.mjs` covers both, and runs twice: against `AlignDemo.html`,
+where a query feature must draw and Query Annotations must hide it while leaving the
+reference's count unchanged; and against `?nochrom`, which drops every trace, where the
+tickbox and all the panel controls must be disabled.
+
 ---
 
 ## Deliberately NOT patched

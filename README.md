@@ -214,6 +214,14 @@ Each read gets a verdict:
 
 Hover a read for its counts, identity, strand and rotation.
 
+**A read from a `.gb` or `.gbk` file brings its own annotations**, drawn on its own track and
+put through the same flip and reorder as its sequence. **Query Annotations** in the eye menu
+says whether the reads draw whatever the reference is drawing, so the two can be shown
+separately without a tickbox per annotation type.
+
+The chromatogram controls are greyed out when no `.ab1` is in the alignment, since there is
+no trace for them to act on.
+
 **Reads that cross the origin are handled**, and the reference is never rotated, so its
 coordinates hold.
 

@@ -17,6 +17,7 @@ const {
   parseFile, isSupported, trimByQuality, qualitySpan,
   smoothChromatogram, SMOOTH_TARGET,
   reverseComplementChromatogram, rotateChromatogram, followAlignment
+, followAlignmentAnnotations
 } = require('../../src/alignTracks');
 const { revComp } = require('../../media/cartShared');
 
@@ -182,4 +183,66 @@ test('coarse traces are smoothed, dense ones are left alone', () => {
 
   const dense = { baseTraces: Array.from({ length: 20 }, () => bp(new Array(12).fill(500))) };
   assert.equal(smoothChromatogram(dense), dense, 'a dense trace is returned untouched');
+});
+
+/* --- a read's own annotations, moved to match the row -------------------- */
+
+test('a query annotation follows the read when it is flipped', () => {
+  /*
+   * A GenBank read brings features in its own coordinates. The row draws the
+   * read reverse-complemented when it aligned that way, so a feature handed
+   * over untransformed lands somewhere else entirely -- which is worse than not
+   * drawing it: wrong, and confident.
+   */
+  const moved = followAlignmentAnnotations(
+    { features: [{ id: 'f', name: 'gene', start: 10, end: 19, strand: 1, forward: true }] },
+    { strand: -1, readIndex: null, length: 100 }
+  );
+  assert.strictEqual(moved.features.length, 1);
+  // 10..19 of 100 counts back to 80..89, and the strand turns over with it.
+  assert.deepStrictEqual(
+    [moved.features[0].start, moved.features[0].end, moved.features[0].forward],
+    [80, 89, false]
+  );
+});
+
+test('a forward read keeps its annotations where they were', () => {
+  const moved = followAlignmentAnnotations(
+    { features: [{ id: 'f', name: 'gene', start: 10, end: 19, forward: true }] },
+    { strand: 1, readIndex: null, length: 100 }
+  );
+  assert.deepStrictEqual(
+    [moved.features[0].start, moved.features[0].end, moved.features[0].forward],
+    [10, 19, true]
+  );
+});
+
+test('a folded read splits an annotation the row splits', () => {
+  /*
+   * A read folded across the origin is handed over in column order, so bases
+   * contiguous in the read need not be contiguous in the row. An annotation
+   * spanning the join has to come back as two pieces, or it would be drawn as
+   * one band straight across the middle of the plasmid.
+   *
+   * readIndex here says the row's first 10 columns are read bases 10-19 and
+   * the next 10 are read bases 0-9 -- the shape a fold produces.
+   */
+  const readIndex = [];
+  for (let i = 10; i < 20; i++) readIndex.push(i);
+  for (let i = 0; i < 10; i++) readIndex.push(i);
+
+  const moved = followAlignmentAnnotations(
+    { features: [{ id: 'f', name: 'spans', start: 5, end: 14, forward: true }] },
+    { strand: 1, readIndex, length: 20 }
+  );
+  const ranges = moved.features.map((f) => [f.start, f.end]).sort((a, b) => a[0] - b[0]);
+  // Read 5-9 sit at columns 15-19; read 10-14 sit at columns 0-4.
+  assert.deepStrictEqual(ranges, [[0, 4], [15, 19]]);
+  // Two pieces of one feature must not collide as one id.
+  assert.notStrictEqual(moved.features[0].id, moved.features[1].id);
+});
+
+test('a read with no annotations brings none', () => {
+  assert.deepStrictEqual(followAlignmentAnnotations({}, { strand: 1, length: 10 }), {});
+  assert.deepStrictEqual(followAlignmentAnnotations(null, { strand: 1, length: 10 }), {});
 });

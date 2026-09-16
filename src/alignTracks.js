@@ -266,8 +266,98 @@ function followAlignment(chrom, { strand, rotation, readIndex }) {
   return out;
 }
 
+/* The annotation kinds a GenBank read can bring with it. */
+const ANNOTATION_KINDS = ['features', 'parts', 'primers'];
+
+/**
+ * Put a read's own annotations through the same transform its sequence took.
+ *
+ * A GenBank read carries features in its own coordinates, but the row draws the
+ * read flipped, and for a read folded across the origin, reordered. Handed over
+ * untransformed the features land somewhere else entirely, which is worse than
+ * not drawing them: wrong and confident.
+ *
+ * Flip first, then reorder -- the same order as followAlignment, because the
+ * reorder is expressed over the already-oriented read.
+ *
+ * A folded read can split an annotation in two: its bases are contiguous in the
+ * read and need not be contiguous in the row. Those come back as one piece per
+ * run, which is what the viewer can draw.
+ *
+ * @param {object} sequenceData the read's own parsed data
+ * @param {object} track        {strand, readIndex, sequence}
+ * @returns {object} {features, parts, primers} in row coordinates
+ */
+function followAlignmentAnnotations(sequenceData, { strand, readIndex, length }) {
+  const out = {};
+  if (!sequenceData) return out;
+
+  // Column of each read base, for a folded read. Identity otherwise.
+  let columnOf = null;
+  if (readIndex && readIndex.length) {
+    columnOf = new Array(length).fill(-1);
+    for (let col = 0; col < readIndex.length; col++) columnOf[readIndex[col]] = col;
+  }
+
+  for (const kind of ANNOTATION_KINDS) {
+    const list = sequenceData[kind];
+    if (!Array.isArray(list) || !list.length) continue;
+
+    const moved = [];
+    for (const annotation of list) {
+      let start = Number(annotation.start);
+      let end = Number(annotation.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+      let forward = annotation.forward !== undefined
+        ? annotation.forward
+        : annotation.strand !== -1;
+
+      if (strand === -1) {
+        const flippedStart = length - 1 - end;
+        end = length - 1 - start;
+        start = flippedStart;
+        forward = !forward;
+      }
+
+      if (!columnOf) {
+        moved.push(Object.assign({}, annotation, {
+          start, end, forward, strand: forward ? 1 : -1
+        }));
+        continue;
+      }
+
+      // Walk the annotation in read order and break it where the row does.
+      let runStart = null;
+      let previous = null;
+      const flush = (from, to) => {
+        if (from === null) return;
+        moved.push(Object.assign({}, annotation, {
+          id: `${annotation.id || annotation.name || kind}-${from}`,
+          start: Math.min(from, to),
+          end: Math.max(from, to),
+          forward,
+          strand: forward ? 1 : -1
+        }));
+      };
+      for (let at = start; at <= end && at < length; at++) {
+        const col = columnOf[at];
+        if (col < 0) continue;
+        if (runStart === null) { runStart = col; previous = col; continue; }
+        if (col === previous + 1) { previous = col; continue; }
+        flush(runStart, previous);
+        runStart = col;
+        previous = col;
+      }
+      flush(runStart, previous);
+    }
+    if (moved.length) out[kind] = moved;
+  }
+  return out;
+}
+
 module.exports = {
   parseFile, isSupported, SEQUENCE_EXTENSIONS,
+  followAlignmentAnnotations, ANNOTATION_KINDS,
   smoothChromatogram, resample, SMOOTH_BELOW, SMOOTH_TARGET,
   trimByQuality, qualitySpan, sliceTrack,
   reverseComplementChromatogram, rotateChromatogram, reorderChromatogram, followAlignment

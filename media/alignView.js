@@ -160,7 +160,19 @@
     return b;
   }
 
+  /** A control button that is there but cannot be used. */
+  function disable(button) {
+    button.disabled = true;
+    return button;
+  }
+
   const AMPLITUDE_STEP = 1.3;
+
+  /** Does any read in the current alignment carry a trace? */
+  function hasChromatogram() {
+    const tracks = (state.alignment && state.alignment.tracks) || [];
+    return tracks.some((t) => t && t.chromatogramData);
+  }
 
   function renderTopControls() {
     if (!topBarRoot || !window.OveChromScale) return;
@@ -168,12 +180,22 @@
     topBarRoot.className = 'ovealign-topctl';
 
     /*
+     * Both controls here are about drawing a trace, and a trace only comes from
+     * an .ab1. Against GenBank or FASTA reads they did nothing and said nothing
+     * about why, so they are disabled and say so instead of being hidden --
+     * a control that vanishes is harder to find again than one greyed out.
+     */
+    const live = hasChromatogram();
+    topBarRoot.classList.toggle('is-off', !live);
+    const why = 'No .ab1 read in this alignment';
+
+    /*
      * Track height: how tall each chromatogram window is. Shaped like OVE's
      * zoom slider next to it -- an icon each side saying which way is bigger --
      * because it does the same kind of job.
      */
     const height = el('div', 'ovealign-ctlgroup');
-    height.title = 'Height of every chromatogram window';
+    height.title = live ? 'Height of every chromatogram window' : why;
     height.appendChild(gapIcon(2)('Shorter windows'));
     const slider = el('input', 'ovealign-ctlslider');
     slider.type = 'range';
@@ -181,6 +203,7 @@
     slider.max = '220';
     slider.step = '2';
     slider.value = String(window.OveChromScale.height());
+    slider.disabled = !live;
     slider.addEventListener('input', () => {
       window.OveChromScale.setHeight(Number(slider.value));
     });
@@ -194,13 +217,17 @@
      * particular file came off the instrument hot or faint.
      */
     const amp = el('div', 'ovealign-ctlgroup');
-    amp.title = 'Peak height within each chromatogram';
+    amp.title = live ? 'Peak height within each chromatogram' : why;
     amp.appendChild(traceIcon('Peak height'));
-    amp.appendChild(ctlButton('▲', 'Taller peaks',
+    const ampButton = (label, title, onClick) => {
+      const b = ctlButton(label, live ? title : why, onClick);
+      return live ? b : disable(b);
+    };
+    amp.appendChild(ampButton('▲', 'Taller peaks',
       () => window.OveChromScale.nudge(AMPLITUDE_STEP)));
-    amp.appendChild(ctlButton('▼', 'Shorter peaks',
+    amp.appendChild(ampButton('▼', 'Shorter peaks',
       () => window.OveChromScale.nudge(1 / AMPLITUDE_STEP)));
-    amp.appendChild(ctlButton('⤢', 'Fit peaks to the window',
+    amp.appendChild(ampButton('⤢', 'Fit peaks to the window',
       () => window.OveChromScale.reset()));
     topBarRoot.appendChild(amp);
   }
