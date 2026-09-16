@@ -171852,8 +171852,31 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
         verticalVisibleRange: { start: 0, end: 0 }
       })
     );
+    /*
+     * PATCH (oven): the selection as it is now, not as redux last heard it.
+     *
+     * selectionLayerUpdate writes easyStore immediately and redux through a
+     * debounce, so for a moment after a drag the store still holds the old
+     * range -- usually {start: -1, end: -1}, which yields no bases at all.
+     * Copy read the store, so a copy soon after selecting put an empty string
+     * on the clipboard. execCommand reports success for that, the toast said
+     * "Selection Copied", and the clipboard kept whatever it had before.
+     */
+    const ovenLiveSelection = reactExports.useCallback(() => {
+      /*
+       * easyStore wins whenever it has one, including when what it has is no
+       * selection at all. Falling back to redux in that case reintroduces the
+       * bug the other way round: clicking to put the caret down clears the
+       * range here at once while redux still holds the old one, and a copy
+       * then quietly took a stretch the user had already deselected.
+       */
+      const live = easyStore2.current && easyStore2.current.selectionLayer;
+      if (live) return live;
+      const alignment = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
+      return alignment.selectionLayer || {};
+    }, [id2, store2]);
     const getAllAlignmentsFastaText = reactExports.useCallback(() => {
-      const selectionLayer22 = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2].selectionLayer || {};
+      const selectionLayer22 = ovenLiveSelection();
       const seqDataOfAllTracksToCopy = [];
       alignmentTracks.forEach((track) => {
         const seqDataToCopy = getSequenceDataBetweenRange(
@@ -171867,7 +171890,7 @@ ${seqDataToCopy}\r
         );
       });
       return seqDataOfAllTracksToCopy.join("");
-    }, [alignmentTracks, id2, store2]);
+    }, [alignmentTracks, ovenLiveSelection]);
     /*
      * PATCH (oven): what the selection of one track is, as plain text.
      *
@@ -171877,9 +171900,8 @@ ${seqDataToCopy}\r
     const ovenTrackText = reactExports.useCallback((trackIndex) => {
       const track = alignmentTracks[trackIndex];
       if (!track) return "";
-      const selection = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2].selectionLayer || {};
-      return getSequenceDataBetweenRange(track.alignmentData, selection).sequence;
-    }, [alignmentTracks, id2, store2]);
+      return getSequenceDataBetweenRange(track.alignmentData, ovenLiveSelection()).sequence;
+    }, [alignmentTracks, ovenLiveSelection]);
     reactExports.useEffect(() => {
       const handleAlignmentCopy = /* @__PURE__ */ __name((event) => {
         if (event.key === "c" && !event.shiftKey && (event.metaKey === true || event.ctrlKey === true)) {
@@ -171897,8 +171919,16 @@ ${seqDataToCopy}\r
           const seqDataToCopy = ovenTrackText(0);
           input.value = seqDataToCopy;
           input.select();
-          const copySuccess = document.execCommand("copy");
-          if (!copySuccess) {
+          /*
+           * PATCH (oven): copying nothing is not a copy. execCommand returns
+           * true for an empty selection, so the toast said "Selection Copied"
+           * while the clipboard kept whatever it held before -- the one thing
+           * a copy must never quietly do.
+           */
+          const copySuccess = seqDataToCopy ? document.execCommand("copy") : false;
+          if (!seqDataToCopy) {
+            window.toastr.error("Nothing selected to copy");
+          } else if (!copySuccess) {
             window.toastr.error("Selection Not Copied");
           } else {
             window.toastr.success("Selection Copied");
@@ -172837,16 +172867,20 @@ ${seqDataToCopy}\r
                       // reference entries below still work.
                       const clickedIndex = clicked ? Number(clicked.index) : -1;
 
-                      const ovenSelection = /* @__PURE__ */ __name(() => {
-                        const { selectionLayer: sel } = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
-                        return sel;
-                      }, "ovenSelection");
+                      // PATCH (oven): the live selection, for the same reason
+                      // as the hotkey above.
+                      const ovenSelection = ovenLiveSelection;
                       const ovenBases = /* @__PURE__ */ __name((track) => getSequenceDataBetweenRange(
                         track.alignmentData,
                         ovenSelection()
                       ).sequence, "ovenBases");
                       const ovenCopyTrack = /* @__PURE__ */ __name((track, asFasta) => __async(this, null, function* () {
                         const bases = ovenBases(track);
+                        // PATCH (oven): nothing selected is not a copy.
+                        if (!bases) {
+                          window.toastr.error("Nothing selected to copy");
+                          return;
+                        }
                         const name22 = (track.alignmentData && track.alignmentData.name) || (track.sequenceData && track.sequenceData.name) || "sequence";
                         yield navigator.clipboard.writeText(asFasta ? `>${name22}\r
 ${bases}\r

@@ -274,6 +274,34 @@ where a query feature must draw and Query Annotations must hide it while leaving
 reference's count unchanged; and against `?nochrom`, which drops every trace, where the
 tickbox and all the panel controls must be disabled.
 
+## 3e. Copy in the alignment said it worked and copied nothing (`ovenLiveSelection`)
+
+**Symptom.** Select a stretch of the alignment, press `cmd+C`, get a "Selection Copied"
+toast — and the clipboard still holds whatever it held before.
+
+**Cause, the selection.** `selectionLayerUpdate` writes the new range to `easyStore`
+immediately and to redux through a **debounce**. Every copy path read redux, so a copy soon
+after dragging saw the range from before — usually `{start: -1, end: -1}`, which yields no
+bases. Both the stock FASTA copy and the reference copy did this.
+
+**Cause, the toast.** `document.execCommand("copy")` returns **true** for an empty
+selection. So the copy "succeeded", the success toast fired, and the clipboard was left
+untouched — a copy that quietly does nothing while saying it did.
+
+**Fix.** One `ovenLiveSelection()` used by `getAllAlignmentsFastaText`, `ovenTrackText` and
+the right-click copies. It prefers `easyStore`, which is always current.
+
+`easyStore` wins **even when what it holds is no selection**. Falling back to redux in that
+case reintroduces the bug the other way round: clearing a range updates `easyStore` at once
+while redux still holds the old one, and a copy would then take a stretch already deselected.
+
+Copying nothing is also reported as nothing now, in the hotkey and right-click paths alike.
+
+`test/browser/alignCopy.mjs` covers both: with nothing selected the clipboard must be left
+alone *and* not reported as copied, and a drag followed straight away by `cmd+C` must copy
+exactly as many bases as are selected. Unpatched it fails with `copied "" with nothing
+selected` and `an empty selection reported "Selection Copied"`.
+
 ---
 
 ## Deliberately NOT patched

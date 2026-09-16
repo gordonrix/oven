@@ -1022,10 +1022,11 @@
    const triggerClipboardCommand = /* @__PURE__ */ __name((type2, props) => {
      const wrapper = document.querySelector(
        `.${props.editorName} .veVectorInteractionWrapper`
-@@ -150613,6 +151183,35 @@
+@@ -150612,6 +151182,35 @@
+       isDisabled: (props) => props.sequenceLength === 0,
        handler: (props) => triggerClipboardCommand("copy", props),
        hotkey: "mod+c"
-     },
++    },
 +    /*
 +     * PATCH (oven): the copy variants the right-click menu already offers,
 +     * as commands -- which is what gives them hotkeys and an entry in View
@@ -1054,11 +1055,10 @@
 +      handler: (props) => ovenCopyVariant("reverseComplementTranslation", props),
 +      hotkey: OVEN_COPY_HOTKEYS.reverseComplementTranslation,
 +      hotkeyProps: { preventDefault: true }
-+    },
+     },
      paste: {
        isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip,
-       isHidden: (props) => props.readOnly || props.disableBpEditing,
-@@ -151077,9 +151676,93 @@
+@@ -151077,10 +151676,94 @@
        hotkeyProps: { preventDefault: true }
      },
      newPrimer: {
@@ -1091,7 +1091,7 @@
 +       */
 +      hotkey: (typeof window !== "undefined" && window.__ovenNewPrimerHotkey) || "mod+shift+k",
 +      hotkeyProps: { preventDefault: true }
-+    },
+     },
 +    /*
 +     * PATCH (oven): Search Primers as a command.
 +     *
@@ -1151,9 +1151,10 @@
 +      },
 +      hotkey: (typeof window !== "undefined" && window.__ovenSearchPrimersHotkey) || "mod+alt+f",
 +      hotkeyProps: { preventDefault: true }
-     },
++    },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
+       isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.caretPosition === -1 && "You must first place cursor" || !props.sequenceData.circular && "Disabled for Linear Sequences" || props.sequenceLength === 0,
 @@ -151354,7 +152037,14 @@
      },
      simulatePCR: {
@@ -1329,8 +1330,9 @@
              charWidth2
            );
 -          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
-           if (!range2.isMatch) {
+-          if (!range2.isMatch) {
 -            redPath += toAdd;
++          if (!range2.isMatch) {
 +            // ove-vscode patch: a one-base difference is a fraction of a pixel
 +            // wide at minimap scale, so widen the mark -- horizontally only,
 +            // and centred on the position it actually marks. Stroking the path
@@ -1376,11 +1378,10 @@
                if (annotationName === "axis") {
                  return alignmentAnnotationVisibilityToggle({
                    axisNumbers: !visible,
-@@ -169480,6 +170275,24 @@
-           "Add Joined Feature Span"
+@@ -169481,6 +170276,24 @@
          ));
        }, "renderLocations"));
-+    }
+     }
 +    componentDidUpdate(prevProps) {
 +      /*
 +       * PATCH (oven): flipping Strand re-reads the bases from the selection.
@@ -1398,9 +1399,10 @@
 +        sequence: this.props.sequenceData && this.props.sequenceData.sequence,
 +        forward: this.props.forward
 +      });
-     }
++    }
      componentDidMount() {
        const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
+       this.notes = store$1(
 @@ -169668,7 +170481,7 @@
            {
              style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
@@ -1685,11 +1687,45 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -170952,13 +171867,34 @@
+@@ -170937,8 +171852,31 @@
+         verticalVisibleRange: { start: 0, end: 0 }
+       })
+     );
++    /*
++     * PATCH (oven): the selection as it is now, not as redux last heard it.
++     *
++     * selectionLayerUpdate writes easyStore immediately and redux through a
++     * debounce, so for a moment after a drag the store still holds the old
++     * range -- usually {start: -1, end: -1}, which yields no bases at all.
++     * Copy read the store, so a copy soon after selecting put an empty string
++     * on the clipboard. execCommand reports success for that, the toast said
++     * "Selection Copied", and the clipboard kept whatever it had before.
++     */
++    const ovenLiveSelection = reactExports.useCallback(() => {
++      /*
++       * easyStore wins whenever it has one, including when what it has is no
++       * selection at all. Falling back to redux in that case reintroduces the
++       * bug the other way round: clicking to put the caret down clears the
++       * range here at once while redux still holds the old one, and a copy
++       * then quietly took a stretch the user had already deselected.
++       */
++      const live = easyStore2.current && easyStore2.current.selectionLayer;
++      if (live) return live;
++      const alignment = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
++      return alignment.selectionLayer || {};
++    }, [id2, store2]);
+     const getAllAlignmentsFastaText = reactExports.useCallback(() => {
+-      const selectionLayer22 = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2].selectionLayer || {};
++      const selectionLayer22 = ovenLiveSelection();
+       const seqDataOfAllTracksToCopy = [];
+       alignmentTracks.forEach((track) => {
+         const seqDataToCopy = getSequenceDataBetweenRange(
+@@ -170952,17 +171890,45 @@
          );
        });
        return seqDataOfAllTracksToCopy.join("");
-+    }, [alignmentTracks, id2, store2]);
+-    }, [alignmentTracks, id2, store2]);
++    }, [alignmentTracks, ovenLiveSelection]);
 +    /*
 +     * PATCH (oven): what the selection of one track is, as plain text.
 +     *
@@ -1699,9 +1735,8 @@
 +    const ovenTrackText = reactExports.useCallback((trackIndex) => {
 +      const track = alignmentTracks[trackIndex];
 +      if (!track) return "";
-+      const selection = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2].selectionLayer || {};
-+      return getSequenceDataBetweenRange(track.alignmentData, selection).sequence;
-     }, [alignmentTracks, id2, store2]);
++      return getSequenceDataBetweenRange(track.alignmentData, ovenLiveSelection()).sequence;
++    }, [alignmentTracks, ovenLiveSelection]);
      reactExports.useEffect(() => {
        const handleAlignmentCopy = /* @__PURE__ */ __name((event) => {
          if (event.key === "c" && !event.shiftKey && (event.metaKey === true || event.ctrlKey === true)) {
@@ -1720,8 +1755,22 @@
 +          const seqDataToCopy = ovenTrackText(0);
            input.value = seqDataToCopy;
            input.select();
-           const copySuccess = document.execCommand("copy");
-@@ -170975,7 +171911,7 @@
+-          const copySuccess = document.execCommand("copy");
+-          if (!copySuccess) {
++          /*
++           * PATCH (oven): copying nothing is not a copy. execCommand returns
++           * true for an empty selection, so the toast said "Selection Copied"
++           * while the clipboard kept whatever it held before -- the one thing
++           * a copy must never quietly do.
++           */
++          const copySuccess = seqDataToCopy ? document.execCommand("copy") : false;
++          if (!seqDataToCopy) {
++            window.toastr.error("Nothing selected to copy");
++          } else if (!copySuccess) {
+             window.toastr.error("Selection Not Copied");
+           } else {
+             window.toastr.success("Selection Copied");
+@@ -170975,7 +171941,7 @@
        return () => {
          document.removeEventListener("keydown", handleAlignmentCopy);
        };
@@ -1730,7 +1779,7 @@
      const scrollAlignmentToPercent = /* @__PURE__ */ __name((scrollPercentage) => {
        const scrollPercentageToUse = Math.min(Math.max(scrollPercentage, 0), 1);
        easyStore2.current.percentScrolled = scrollPercentageToUse;
-@@ -171371,7 +172307,16 @@
+@@ -171371,7 +172337,16 @@
                  minWidth: nameDivWidth - 3,
                  overflow: "hidden",
                  scrollbarWidth: "none",
@@ -1748,7 +1797,7 @@
                },
                "data-title": name2,
                key: i2
-@@ -171479,7 +172424,9 @@
+@@ -171479,7 +172454,9 @@
                HorizontalPanelDragHandle,
                {
                  onDrag: ({ dx }) => {
@@ -1759,7 +1808,7 @@
                  }
                }
              )
-@@ -171512,7 +172459,10 @@
+@@ -171512,7 +172489,10 @@
                caretPosition: tempTrimmingCaret[i2] || -1,
                selectionLayer: selectionLayer22,
                isInAlignment: true,
@@ -1771,7 +1820,7 @@
                linearViewAnnotationLabelVisibilityOverrides: alignmentVisibilityToolOptions.alignmentAnnotationLabelVisibility,
                marginWith: 0,
                orfClicked: annotationClicked,
-@@ -171866,69 +172816,88 @@
+@@ -171866,69 +172846,92 @@
                      selectionLayerRightClicked: selectionLayerRightClicked ? (...args) => {
                        selectionLayerRightClicked(...args, props);
                      } : (...args) => {
@@ -1825,16 +1874,20 @@
 +                      // reference entries below still work.
 +                      const clickedIndex = clicked ? Number(clicked.index) : -1;
 +
-+                      const ovenSelection = /* @__PURE__ */ __name(() => {
-+                        const { selectionLayer: sel } = store2.getState().VectorEditor.__allEditorsOptions.alignments[id2] || {};
-+                        return sel;
-+                      }, "ovenSelection");
++                      // PATCH (oven): the live selection, for the same reason
++                      // as the hotkey above.
++                      const ovenSelection = ovenLiveSelection;
 +                      const ovenBases = /* @__PURE__ */ __name((track) => getSequenceDataBetweenRange(
 +                        track.alignmentData,
 +                        ovenSelection()
 +                      ).sequence, "ovenBases");
 +                      const ovenCopyTrack = /* @__PURE__ */ __name((track, asFasta) => __async(this, null, function* () {
 +                        const bases = ovenBases(track);
++                        // PATCH (oven): nothing selected is not a copy.
++                        if (!bases) {
++                          window.toastr.error("Nothing selected to copy");
++                          return;
++                        }
 +                        const name22 = (track.alignmentData && track.alignmentData.name) || (track.sequenceData && track.sequenceData.name) || "sequence";
 +                        yield navigator.clipboard.writeText(asFasta ? `>${name22}\r
 +${bases}\r
@@ -1916,7 +1969,7 @@
                          ],
                          void 0,
                          event
-@@ -172352,7 +173321,9 @@
+@@ -172352,7 +173355,9 @@
            "cdsFeatureTranslations",
            "chromatogram",
            "dnaColors",
@@ -1927,7 +1980,7 @@
          ];
          const togglableAlignmentAnnotationSettings = {};
          map$5(alignmentAnnotationsToToggle, (annotation) => {
-@@ -172360,6 +173331,21 @@
+@@ -172360,6 +173365,21 @@
              togglableAlignmentAnnotationSettings[annotation] = alignmentAnnotationVisibility[annotation];
            }
          });
@@ -1949,7 +2002,7 @@
          const annotationsWithCounts = [];
          if (alignmentTracks) {
            let totalNumOfFeatures = 0;
-@@ -172433,7 +173419,9 @@
+@@ -172433,7 +173453,9 @@
                }));
              },
              togglableAlignmentAnnotationSettings,
@@ -1960,7 +2013,7 @@
            }
          });
        },
-@@ -175562,7 +176550,15 @@
+@@ -175562,7 +176584,15 @@
        {
          minimal: true,
          disabled: sequenceLength <= 0,
@@ -1977,7 +2030,7 @@
          style: { marginLeft: 5, color: "#48AFF0" },
          small: true
        },
-@@ -180303,6 +181299,18 @@
+@@ -180303,6 +181333,18 @@
      editor.getState = () => {
        return store.getState().VectorEditor[editorName];
      };
@@ -1996,7 +2049,7 @@
      return editor;
    }
    __name(createVectorEditor, "createVectorEditor");
-@@ -180348,6 +181356,8 @@
+@@ -180348,6 +181390,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

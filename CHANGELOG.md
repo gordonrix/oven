@@ -4,6 +4,20 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.53.1
+
+**Copy in the alignment said it worked and copied nothing.** Select a stretch, press `cmd+C`,
+get "Selection Copied" — and the clipboard still holds what it held before.
+
+Two faults behind one symptom. The selection reaches the store through a **debounce** while
+the view has it immediately, so a copy soon after dragging read the range from *before* —
+usually none at all. And `execCommand` returns success for copying an empty string, so the
+toast was cheerful over a clipboard that never changed.
+
+Every copy path in the alignment now reads the live selection, and copying nothing is
+reported as copying nothing. This affected the stock "copy as FASTA" too, not only the
+reference copy.
+
 ## 1.53.0
 
 **A GenBank read's own annotations now show on its track.** Features, parts and primers from
