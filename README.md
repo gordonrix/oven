@@ -284,8 +284,9 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 
 - Select a DNA file → **Open With → OVEN**, and set it as the default if you like
 - Sequences open with a **whole-sequence map** in a tab on the right, beside the sequence:
-  the **Circular Map** for a circular sequence, the **Linear Map** for a linear one. Both
-  tabs are always there, so either is a click away. `oven.viewType` changes the layout:
+  the **Circular Map** for a circular sequence, the **Linear Map** for a linear one. A linear
+  sequence gets no Circular Map tab at all — Open Vector Editor only draws it there to warn
+  you off it. A circular sequence keeps both. `oven.viewType` changes the layout:
   `sequence` or `circular` for a single pane with the rest as tabs you switch to.
   **Reopen the file** for a change to take effect
 - Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`

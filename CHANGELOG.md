@@ -4,6 +4,14 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.56.0
+
+**A linear sequence no longer offers a Circular Map tab at all.** 1.54.0 stopped it *opening*
+there but left the tab; since Open Vector Editor draws a linear sequence as a circle with a
+gap and warns on that tab that you want the other one, the tab existed only to be a wrong
+turn. A circular sequence keeps both maps — a linear map of a plasmid is a reasonable thing
+to want.
+
 ## 1.55.2
 
 **Red letters on query annotations are gone.** A GenBank CDS carries a `/translation`

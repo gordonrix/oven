@@ -120,20 +120,27 @@ test('the single-pane view types put everything in one group', () => {
   assert.deepStrictEqual(activeIds('circular'), ['circular']);
 });
 
-test('a linear sequence opens on the Linear Map, not the circular one', () => {
+test('a linear sequence has no Circular Map at all', () => {
   /*
    * Open Vector Editor draws a linear sequence in the Circular Map as a circle
-   * with a gap in it, and warns on that tab that you probably want the other
-   * one. Landing there by default was that warning, every time, on every linear
-   * file.
+   * with a gap in it, and warns on that tab that you want the other one. A tab
+   * whose only purpose is to be a wrong turn should not be there, so a linear
+   * sequence does not get one -- in either layout.
    */
+  assert.deepStrictEqual(groups('split', false), [['sequence', 'properties'], ['rail']]);
+  assert.deepStrictEqual(groups('circular', false)[0], ['sequence', 'rail', 'properties']);
+  assert.deepStrictEqual(groups('sequence', false)[0], ['sequence', 'rail', 'properties']);
+
+  // And it opens on the map it does have.
   assert.deepStrictEqual(activeIds('split', false), ['sequence', 'rail']);
   assert.deepStrictEqual(activeIds('circular', false), ['rail']);
+});
 
-  // Both maps stay available: a linear map of a plasmid is sometimes the one
-  // you want, and a circular sequence should not lose the tab either.
-  assert.deepStrictEqual(groups('split', false)[1], ['circular', 'rail']);
+test('a circular sequence keeps both maps', () => {
+  // A linear map of a plasmid is a reasonable thing to want, so nothing is
+  // taken away here -- only the Circular Map opens.
   assert.deepStrictEqual(groups('split', true)[1], ['circular', 'rail']);
+  assert.deepStrictEqual(activeIds('split', true), ['sequence', 'circular']);
 });
 
 test('an unknown view type falls back to a single pane rather than nothing', () => {

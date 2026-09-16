@@ -40,14 +40,20 @@ function panelsShown(viewTypeConfig, circular) {
    * about the sequence, and pairing it with the map would leave the left group
    * with a single tab and nothing to switch between.
    *
-   * Both maps are offered, and the one that fits the sequence is the one you
-   * land on: Open Vector Editor draws a linear sequence in the Circular Map as
-   * a circle with a gap, which is a confusing way to meet a plasmid that is not
-   * one -- it says so itself, in a warning on that tab. The other is always a
-   * click away, since a linear map of a circular sequence is sometimes exactly
-   * what you want.
+   * A linear sequence gets the Linear Map and no Circular Map at all. Open
+   * Vector Editor draws a linear sequence there as a circle with a gap in it and
+   * warns, on the tab, that you want the other one -- so the tab exists only to
+   * be a wrong turn. A circular sequence keeps both, because a linear map of a
+   * plasmid is a reasonable thing to want.
    */
-  const map = circular === false ? 'rail' : 'circular';
+  const maps = circular === false
+    ? [['rail', 'Linear Map', true]]
+    : [['circular', 'Circular Map', true], ['rail', 'Linear Map', false]];
+
+  const asPanels = (indent, activeWhen) => maps
+    .map(([id, name, isDefault]) => `${indent}{ id: "${id}", name: "${name}", `
+      + `active: ${activeWhen(isDefault)} }`)
+    .join(',\n');
 
   if (viewTypeConfig === 'split') {
     return `[
@@ -56,22 +62,20 @@ function panelsShown(viewTypeConfig, circular) {
               { id: "properties", name: "Properties", active: false }
             ],
             [
-              { id: "circular", name: "Circular Map", active: ${map === 'circular'} },
-              { id: "rail", name: "Linear Map", active: ${map === 'rail'} }
+${asPanels('              ', (isDefault) => isDefault)}
             ]
           ]`;
   }
 
   /*
-   * One group: the map tab that fits is the active one when the setting asks
-   * for a map, and both are present either way.
+   * One group: the map that fits is the active one when the setting asks for a
+   * map, and the sequence otherwise.
    */
   const wantsMap = viewTypeConfig === 'circular';
   return `[
             [
               { id: "sequence", name: "Sequence Map", active: ${viewTypeConfig === 'sequence'} },
-              { id: "circular", name: "Circular Map", active: ${wantsMap && map === 'circular'} },
-              { id: "rail", name: "Linear Map", active: ${wantsMap && map === 'rail'} },
+${asPanels('              ', (isDefault) => wantsMap && isDefault)},
               { id: "properties", name: "Properties", active: false }
             ]
           ]`;

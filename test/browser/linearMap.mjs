@@ -25,18 +25,25 @@ export default async function run(page) {
   await page.waitForSelector('.veVectorInteractionWrapper', { timeout: 60000 });
   await page.waitForTimeout(2500);
 
+  out.linearFile = await page.evaluate(() => location.search.includes('linear'));
   out.state = await page.evaluate(() => ({
     hasCircularTab: Boolean(document.querySelector('.veTabCircularMap')),
     hasLinearTab: Boolean(document.querySelector('.veTabLinearMap')),
     activeTab: (document.querySelector('.veTabActive') || {}).textContent || null,
     circularDrawn: Boolean(document.querySelector('[class*=CircularView]'))
   }));
-  out.linearFile = await page.evaluate(() => location.search.includes('linear'));
-
-  // Both maps are offered whatever the sequence is: a linear map of a plasmid
-  // is sometimes the one you want, and a circular sequence keeps its tab too.
-  if (!out.state.hasCircularTab) fail.push('no Circular Map tab');
+  /*
+   * A linear sequence gets no Circular Map tab at all. OVE only draws it there
+   * to warn you off it, so the tab exists solely to be a wrong turn. A circular
+   * sequence keeps both -- a linear map of a plasmid is a reasonable want.
+   */
   if (!out.state.hasLinearTab) fail.push('no Linear Map tab');
+  if (out.linearFile && out.state.hasCircularTab) {
+    fail.push('a linear sequence still offers a Circular Map tab');
+  }
+  if (!out.linearFile && !out.state.hasCircularTab) {
+    fail.push('a circular sequence lost its Circular Map tab');
+  }
 
   const want = out.linearFile ? 'Linear Map' : 'Circular Map';
   if (out.state.activeTab !== want) {

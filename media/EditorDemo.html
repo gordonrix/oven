@@ -147,9 +147,11 @@
             { id: 'f2', name: 'rev CDS', start: 150, end: 248, forward: false, type: 'CDS' }
           ]
         },
+        // Mirrors src/editorHtml.js: a linear sequence has no Circular Map tab
+        // at all, since OVE only draws it there to warn you off it.
         panelsShown: [[
           { id: 'sequence', name: 'Sequence Map', active: !MAP },
-          { id: 'circular', name: 'Circular Map', active: MAP && !LINEAR },
+          ...(LINEAR ? [] : [{ id: 'circular', name: 'Circular Map', active: MAP }]),
           { id: 'rail', name: 'Linear Map', active: MAP && LINEAR },
           { id: 'properties', name: 'Properties', active: false }
         ]],
