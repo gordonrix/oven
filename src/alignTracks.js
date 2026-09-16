@@ -346,7 +346,22 @@ function followAlignmentAnnotations(sequenceData, { strand, readIndex, length })
           strand: forward ? 1 : -1,
           // Each piece stands alone once split; a join copied onto every piece
           // would have the viewer draw the whole thing again per piece.
-          locations: undefined
+          locations: undefined,
+          /*
+           * `bases` is dropped, and it has to be.
+           *
+           * The viewer draws an annotation's bases along it and reds anything
+           * that does not match the template underneath. The parser fills this
+           * in from a CDS's /translation qualifier, so for a coding feature it
+           * holds protein, not DNA -- six residues drawn one-per-base over
+           * eighteen bases, every one of them "not matching", every one red.
+           * What it looked like was a mutation; what it was is an amino acid
+           * string being compared to DNA.
+           *
+           * Nothing is lost: the bases under the annotation are the track's own
+           * sequence, already drawn.
+           */
+          bases: undefined
         }));
       };
 

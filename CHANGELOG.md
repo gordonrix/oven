@@ -4,6 +4,21 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.55.2
+
+**Red letters on query annotations are gone.** A GenBank CDS carries a `/translation`
+qualifier, and the parser puts it in the annotation's `bases`. The viewer draws an
+annotation's bases along it and reds every character that does not match the template
+underneath — and protein never matches DNA, so a six-residue translation was drawn one
+character per base across eighteen bases, every one of them red, on the annotation *and* in
+the translations row. It looked like a mutation and was an amino acid string being compared
+against DNA.
+
+`bases` is no longer carried across. Nothing is lost: the bases under an annotation are the
+track's own sequence, already on screen. A real difference now reads the way it should —
+the query's translation simply shows the residues it codes for, with the differing bases
+highlighted.
+
 ## 1.55.1
 
 **A query annotation crossing the origin is no longer dropped.** GenBank writes those as a

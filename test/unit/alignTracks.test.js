@@ -300,3 +300,32 @@ test('pieces that end up touching are drawn as one', () => {
     `expected one merged piece, got ${JSON.stringify(moved.features.map((f) => [f.start, f.end]))}`);
   assert.deepStrictEqual([moved.features[0].start, moved.features[0].end], [45, 54]);
 });
+
+test('a query annotation does not bring its bases across', () => {
+  /*
+   * The parser fills `bases` in from a CDS's /translation qualifier, so for a
+   * coding feature it holds protein. The viewer draws an annotation's bases
+   * along it and reds every character that does not match the template below,
+   * and protein never matches DNA: six residues, drawn one per base over
+   * eighteen, every one of them red. It read as a mutation and was an amino
+   * acid string being compared against DNA -- twice over, once on the
+   * annotation and once in the translations row.
+   *
+   * Nothing is lost by dropping it: the bases under the annotation are the
+   * track's own sequence, which is already on screen.
+   */
+  const moved = followAlignmentAnnotations(
+    {
+      features: [{
+        id: 'c', name: 'CDS (CIEFSF)', start: 10, end: 27, forward: true,
+        type: 'CDS', bases: 'CIEFSF'
+      }]
+    },
+    { strand: 1, readIndex: null, length: 100 }
+  );
+  assert.strictEqual(moved.features.length, 1);
+  assert.strictEqual(moved.features[0].bases, undefined);
+  // The annotation itself is still there, in the right place.
+  assert.deepStrictEqual([moved.features[0].start, moved.features[0].end], [10, 27]);
+  assert.strictEqual(moved.features[0].name, 'CDS (CIEFSF)');
+});
