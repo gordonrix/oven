@@ -4,6 +4,13 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.55.0
+
+**Open Vector Editor's own alignment tool is gone from the toolbar.** It aligned sequences
+pasted into a dialog and kept the results in browser storage; OVEN's **Align** reads files
+from the workspace. Two buttons a few pixels apart, both saying align, doing different
+things. Removed through OVE's supported `toolList` prop rather than a patch.
+
 ## 1.54.0
 
 **A linear sequence opens on the Linear Map.** Open Vector Editor has one — the whole

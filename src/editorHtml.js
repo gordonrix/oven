@@ -1,6 +1,28 @@
 /* Builds the HTML for the OVE webviews (the custom editor and the demo command). */
 'use strict';
 
+/*
+ * Open Vector Editor's default toolbar, with "alignmentTool" taken out -- see
+ * where this is passed. Spelled out rather than filtered from a default we
+ * cannot reach: the list lives inside the bundle, so a copy here is the only
+ * way to say it, and a new upstream tool would need adding on purpose.
+ */
+const TOOL_LIST = [
+  'saveTool',
+  'downloadTool',
+  'importTool',
+  'undoTool',
+  'redoTool',
+  'cutsiteTool',
+  'featureTool',
+  'partTool',
+  'oligoTool',
+  'orfTool',
+  'editTool',
+  'findTool',
+  'visibilityTool'
+];
+
 /**
  * Which OVE panels to show, per the oven.viewType setting.
  * Returned as a JS literal because it goes straight into the inline script.
@@ -165,6 +187,19 @@ function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditi
         disableSetReadOnly: false,
         disableBpEditing: ${Boolean(disableBpEditing)},
         showGCContentByDefault: ${Boolean(showSelectionStats)},
+        /*
+         * Open Vector Editor's own toolbar, minus its alignment tool.
+         *
+         * That tool aligns sequences you paste into a dialog and keeps the
+         * results in browser storage, which is not where anything else here
+         * lives -- our Align reads files from the workspace and writes nothing
+         * to a store you cannot see. Two buttons a few pixels apart doing
+         * different things under the same word is worse than one.
+         *
+         * This is OVE's supported toolList prop rather than a patch: the list
+         * is its default with "alignmentTool" removed.
+         */
+        ToolBarProps: { toolList: ${JSON.stringify(TOOL_LIST)} },
         ${withCart ? `rightClickOverrides: window.OveSearch.rightClickOverrides,
         // Merged, not replaced: OVE takes a single panelMap, so both of our
         // panels have to arrive in the same object.
@@ -352,4 +387,4 @@ ${bootScript({
 </html>`;
 }
 
-module.exports = { buildEditorHtml, buildDemoHtml, panelsShown };
+module.exports = { buildEditorHtml, buildDemoHtml, panelsShown, TOOL_LIST };

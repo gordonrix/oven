@@ -104,5 +104,26 @@ export default async function run(page) {
     if (!tip.startsWith(el)) fail.push(`label ${JSON.stringify(tip)} does not start with "${el}"`);
   });
 
+  /* --- Open Vector Editor's own alignment tool is not in the toolbar ------- */
+
+  /*
+   * It aligns sequences pasted into a dialog and keeps the results in browser
+   * storage; our Align reads files from the workspace. Two buttons a few pixels
+   * apart, both called align, doing different things.
+   *
+   * Removed through OVE's toolList prop rather than a patch, so this is really
+   * checking that the prop is still being passed and still spelled right.
+   */
+  out.oveAlignmentTool = await page.evaluate(() =>
+    document.querySelectorAll('[data-test=alignmentTool]').length);
+  out.ovenAlignButton = await page.evaluate(() =>
+    Boolean(document.getElementById('ove-align-button')));
+
+  if (out.oveAlignmentTool) {
+    fail.push("Open Vector Editor's alignment tool is back in the toolbar");
+  }
+  // And taking it out must not have taken ours with it.
+  if (!out.ovenAlignButton) fail.push('our own Align button is gone');
+
   return { ...out, failures: fail, ok: fail.length === 0 };
 }

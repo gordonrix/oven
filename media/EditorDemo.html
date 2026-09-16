@@ -113,6 +113,14 @@
         rightClickOverrides: window.OveSearchStub || {},
         // Mirrors src/editorHtml.js.
         panelMap: window.OveNewPrimer.panelMap,
+        // Mirrors src/editorHtml.js: OVE's default toolbar without its own
+        // alignment tool, which would sit a few pixels from our Align and do
+        // something else.
+        ToolBarProps: {
+          toolList: ['saveTool', 'downloadTool', 'importTool', 'undoTool', 'redoTool',
+            'cutsiteTool', 'featureTool', 'partTool', 'oligoTool', 'orfTool',
+            'editTool', 'findTool', 'visibilityTool']
+        },
         // Mirrors src/editorHtml.js: this is what makes OVE's File > Save and
         // its mod+s hotkey available at all.
         onSave: function (opts, tidiedData, props, onSuccessfulSave) {
