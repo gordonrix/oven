@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.56.1
+
+**A timer that never stopped.** The strand-bar code polled the document three times a second
+looking for the row view, and nothing stopped it when one never appeared — a protein or oligo
+view, or a sequence opened on a map tab with the Sequence Map never shown. The timer then ran
+for the life of that tab, in every such tab, doing a document-wide query forever.
+
+It was never needed. The observer it installs on the editor's container already fires when a
+row view mounts, which is the same wake-up the poll existed to provide.
+
 ## 1.56.0
 
 **A linear sequence no longer offers a Circular Map tab at all.** 1.54.0 stopped it *opening*

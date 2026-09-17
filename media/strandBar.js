@@ -27,7 +27,6 @@
   // Pulls the bar 1px towards the letters, so it reads as belonging to that
   // strand rather than floating between the two.
   const NUDGE = 1;
-  const FIND_ROW_MS = 300;
 
   // Marks a row whose letters have been found and measured. The bar is drawn
   // only on these: an unmeasured row would otherwise take the CSS fallbacks and
@@ -39,7 +38,6 @@
   let rowView = null;   // the row view as of the last measure; React replaces it
   let mutations = null;
   let resizes = null;
-  let seeking = null;
   let queued = false;
 
   function measureRow(row) {
@@ -79,7 +77,11 @@
   function schedule() {
     if (queued) return;
     queued = true;
-    requestAnimationFrame(() => { queued = false; measure(); });
+    // attach, not measure: the first attach may have landed on document.body
+    // because the editor's container did not exist yet, and this is where it
+    // gets upgraded to the real one. attach() is a querySelector and an
+    // identity check when nothing has moved.
+    requestAnimationFrame(() => { queued = false; attach(); });
   }
 
   function attach() {
@@ -108,12 +110,23 @@
     return measure();
   }
 
+  /*
+   * Attach once. The observer does the waiting from there.
+   *
+   * This used to poll every 300ms until a row view turned up, and nothing
+   * stopped it when one never did -- a protein or oligo view, or a sequence
+   * opened on a map tab with the Sequence Map never shown. The timer then ran
+   * for the life of the tab, in every such tab, doing a document-wide
+   * querySelector three times a second forever.
+   *
+   * It was never needed: attach() installs the observer on the first call --
+   * on document.body if the editor's container is not up yet -- and a row view
+   * mounting is a childList change underneath it. The observer fires, schedule
+   * runs attach again, and that is the same wake-up the poll was there to
+   * provide.
+   */
   function refresh() {
-    if (attach() || seeking) return;
-    // The row view mounts well after the editor does; keep looking, then stop.
-    seeking = setInterval(() => {
-      if (attach()) { clearInterval(seeking); seeking = null; }
-    }, FIND_ROW_MS);
+    attach();
   }
 
   window.OveStrandBar = { init: refresh, refresh, measure };
