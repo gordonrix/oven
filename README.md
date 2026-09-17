@@ -53,7 +53,7 @@ Added here:
 - **New Primer as a side panel**, with an editable 5′ tail and mismatches marked in red
 - **Sanger alignment** against the open plasmid, with chromatograms, translated mutated
   codons, and origin-spanning reads handled
-- **`.ab1` traces** open in their own tab, chromatogram included — no alignment needed
+- **`.ab1` files open directly**, so you can look at a trace without aligning it to anything
 - **Change Amino Acid** — any codon, not just synonyms, with codon usage tables
 - **Keyboard shortcuts** for primer search, new primer and the copy variants — see
   [Keyboard shortcuts](#keyboard-shortcuts)
