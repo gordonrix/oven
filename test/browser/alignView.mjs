@@ -783,6 +783,66 @@ export default async function run(page) {
     fail.push(`the boxes should empty after adding: ${JSON.stringify(out.boxesAfterAdd)}`);
   }
 
+  /* --- dropping an open editor tab ---------------------------------------- */
+
+  /*
+   * A tab dragged from the tab bar is a different drop from a file dragged out
+   * of Finder, and VS Code describes it in formats of its own. `CodeEditors`
+   * carries editor inputs whose `resource` is a serialised URI object, not a
+   * string; `CodeFiles` carries plain paths; the Explorer sends `ResourceURLs`
+   * as JSON. Only Finder sends the newline-separated `text/uri-list` the panel
+   * originally understood.
+   *
+   * The names come back lowercased, because that is what DataTransfer does to
+   * them -- reading "CodeEditors" returns "" and looks like an empty drop.
+   */
+  const dropTypes = async (pairs) => {
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('__clearPosted')));
+    await page.evaluate((entries) => {
+      const dt = new DataTransfer();
+      for (const [type, value] of entries) dt.setData(type, value);
+      document.querySelector('.ovealign-drop').dispatchEvent(
+        new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })
+      );
+    }, pairs);
+    await page.waitForTimeout(350);
+    return page.evaluate(() => {
+      const posted = JSON.parse(document.getElementById('posted').textContent || '[]');
+      const last = posted.filter((m) => m.type === 'align/addUris').pop();
+      return {
+        uris: last ? last.uris : null,
+        status: (document.querySelector('.ovealign-status') || {}).textContent || ''
+      };
+    });
+  };
+
+  // An editor tab sets both, and must not add the file twice.
+  out.tabDrop = await dropTypes([
+    ['CodeEditors', JSON.stringify([{ resource: { $mid: 1, fsPath: '/maps/x.gb', path: '/maps/x.gb', scheme: 'file' } }])],
+    ['CodeFiles', JSON.stringify(['/maps/x.gb'])]
+  ]);
+  if (!out.tabDrop.uris || out.tabDrop.uris.length !== 1 || out.tabDrop.uris[0] !== '/maps/x.gb') {
+    fail.push(`a dropped tab gave ${JSON.stringify(out.tabDrop.uris)}`);
+  }
+
+  out.explorerDrop = await dropTypes([['ResourceURLs', JSON.stringify(['file:///maps/y.ab1'])]]);
+  if (!out.explorerDrop.uris || out.explorerDrop.uris[0] !== 'file:///maps/y.ab1') {
+    fail.push(`a dropped Explorer item gave ${JSON.stringify(out.explorerDrop.uris)}`);
+  }
+
+  out.finderDrop = await dropTypes([['text/uri-list', 'file:///maps/z.fasta']]);
+  if (!out.finderDrop.uris || out.finderDrop.uris[0] !== 'file:///maps/z.fasta') {
+    fail.push(`a dropped Finder file gave ${JSON.stringify(out.finderDrop.uris)}`);
+  }
+
+  // A tab that is not a sequence says so rather than being sent to the host to
+  // come back as a row with an unreadable-file error on it.
+  out.wrongTab = await dropTypes([['CodeFiles', JSON.stringify(['/src/extension.js'])]]);
+  if (out.wrongTab.uris) fail.push('a non-sequence tab was accepted');
+  if (!/not a sequence file/.test(out.wrongTab.status)) {
+    fail.push(`a refused tab should say why: ${JSON.stringify(out.wrongTab.status.slice(0, 60))}`);
+  }
+
   out.failures = fail;
   out.ok = fail.length === 0;
   return out;

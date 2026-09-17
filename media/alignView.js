@@ -295,6 +295,63 @@
 
   /* --------------------------------------------------------- drop target -- */
 
+  /* What the aligner can read, matching SEQUENCE_EXTENSIONS in alignTracks.js. */
+  const READ_EXTENSIONS = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'dna'];
+
+  const isSequencePath = (p) =>
+    READ_EXTENSIONS.includes(String(p).split('.').pop().toLowerCase());
+
+  /**
+   * Every path a drop is offering, whatever dropped it.
+   *
+   * Four sources, and they do not agree on a format:
+   *
+   *   text/uri-list   Finder and anything else outside the window: newlines
+   *   ResourceURLs    the Explorer: a JSON array of URI strings
+   *   CodeFiles       an editor tab: a JSON array of plain paths
+   *   CodeEditors     an editor tab: a JSON array of editor inputs, whose
+   *                   `resource` is a serialised URI object rather than a string
+   *
+   * The names are read back lowercased because that is what DataTransfer does
+   * to them -- `setData("CodeEditors", …)` is readable only as `codeeditors`,
+   * which is easy to get wrong and silently returns "".
+   */
+  function droppedPaths(dt) {
+    const out = [];
+    const add = (value) => {
+      if (!value) return;
+      const text = typeof value === 'string'
+        ? value
+        : (value.fsPath || value.external || value.path || '');
+      if (!text) return;
+      // A file: URI is what the host prefers; it takes bare paths too.
+      const clean = text.trim();
+      if (clean && !clean.startsWith('#') && !out.includes(clean)) out.push(clean);
+    };
+
+    const json = (type) => {
+      const raw = dt.getData(type);
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    for (const entry of json('codeeditors') || []) add(entry && entry.resource);
+    for (const entry of json('codefiles') || []) add(entry);
+    for (const entry of json('resourceurls') || []) add(entry);
+
+    for (const type of ['text/uri-list', 'resourceurls']) {
+      const raw = dt.getData(type);
+      if (raw && raw.trim().startsWith('[')) continue;   // already taken as JSON
+      for (const line of String(raw || '').split(/\r?\n/)) add(line);
+    }
+    return out;
+  }
+
   function wireDropZone(zone) {
     const over = (on) => (e) => {
       e.preventDefault();
@@ -318,13 +375,21 @@
         sendFiles(dt.files);
         return;
       }
-      // The Explorer sends URIs, not files. Cheaper too: the host reads from
-      // disk instead of the bytes crossing the message channel.
-      const uriList = dt.getData('text/uri-list') || dt.getData('resourceurls') || '';
-      const uris = uriList.split(/\r?\n/).map((s) => s.trim())
-        .filter((s) => s && !s.startsWith('#'));
-      if (uris.length) post('align/addUris', { uris });
-      else setStatus('Nothing usable in that drop — try Browse instead.', true);
+      // The Explorer and the tab bar send paths, not files. Cheaper too: the
+      // host reads from disk instead of the bytes crossing the message channel.
+      const paths = droppedPaths(dt);
+      const usable = paths.filter(isSequencePath);
+      if (usable.length) {
+        post('align/addUris', { uris: usable });
+        return;
+      }
+      if (paths.length) {
+        const names = paths.map((p) => p.split('/').pop()).slice(0, 3).join(', ');
+        setStatus(`${names} ${paths.length === 1 ? 'is not a sequence file' : 'are not sequence files'}`
+          + ` — reads are ${READ_EXTENSIONS.map((e) => `.${e}`).join(', ')}.`, true);
+        return;
+      }
+      setStatus('Nothing usable in that drop — try Browse instead.', true);
     });
   }
 

@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.57.0
+
+**An open editor tab can be dragged onto the alignment panel** to add it as a read. A tab
+drag is not the same as a file dragged from Finder: VS Code describes it with `CodeEditors`
+and `CodeFiles`, and the Explorer uses `ResourceURLs` — none of which the panel understood,
+so a dropped tab did nothing. All four formats are read now, including Finder's.
+
+A tab that is not a sequence file says so, rather than being sent to the host and coming back
+as a row with an unreadable-file error on it.
+
 ## 1.56.1
 
 **A timer that never stopped.** The strand-bar code polled the document three times a second

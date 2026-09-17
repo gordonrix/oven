@@ -194,6 +194,8 @@ Five ways to add reads:
 - **Right-click the files in the Explorer → Add to Alignment** (handles a multi-selection)
 - **Browse…** in the panel
 - **Paste** — copy in Finder, click the panel, `Cmd+V`
+- **Drag an open editor tab** onto the panel — a `.gb`, `.gbk`, `.ab1`, `.fasta` or `.dna`
+  file you already have open becomes a read
 - **Drag and drop** onto the panel, **holding ⇧ Shift**
 - **Type or paste a sequence** into the boxes under the drop zone — a name (optional; unnamed
   ones become `sequence1`, `sequence2`…) and the bases. Whitespace and digits are ignored, so
