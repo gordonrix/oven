@@ -168,7 +168,7 @@ const BASE_STYLE = `
  * Create menu or silently unlocks base editing.
  */
 function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing,
-  autoAddCreatedPrimers, showSelectionStats, withCart, cutSiteFilter }) {
+  autoAddCreatedPrimers, showSelectionStats, withCart, cutSiteFilter, showChromatogram }) {
   return `
       /*
        * "Melting Temp of Selection" has no ...ByDefault prop -- unlike GC
@@ -243,7 +243,9 @@ function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditi
       editor.updateEditor({
         sequenceData: ${sequenceJson},
         panelsShown: ${panelsShown(viewType, circular)},
-        readOnly: ${Boolean(readOnly)}${cutSiteFilter ? `,
+        readOnly: ${Boolean(readOnly)},${showChromatogram ? `
+        // A trace file is opened to look at the trace, so it starts shown.
+        annotationVisibility: { chromatogram: true },` : ''}${cutSiteFilter ? `
         // Restored from globalState. Applied here rather than after mounting so
         // the filter is right on the first render instead of flickering through
         // OVE's "Single cutters" default.
@@ -256,7 +258,7 @@ function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, panelLayoutUri, pickerUri,
     searchUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
-    sequenceJson, viewType, circular, readOnly,
+    sequenceJson, viewType, circular, readOnly, showChromatogram,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
     cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey } = opts;
 
@@ -320,7 +322,7 @@ function buildEditorHtml(opts) {
     <script src="${aminoAcidUri}"></script>
     <script src="${newPrimerUri}"></script>
     <script>
-${bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter })}
+${bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter, showChromatogram })}
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);
       window.OveStrandBar.init();

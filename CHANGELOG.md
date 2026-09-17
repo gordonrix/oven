@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.58.0
+
+**`.ab1` files open on their own**, with the chromatogram showing. Until now a trace could
+only be seen by adding it to an alignment, which needs a reference — so there was no way to
+just look at one. Opening it in VS Code gave you an instrument binary as mojibake.
+
+It opens read-only: there is no `.ab1` writer, and there should not be one — the file is the
+instrument's record of a run, not a document. The trace is read by the same parser the
+aligner uses, so a read looks the same here as it does as an alignment track.
+
 ## 1.57.0
 
 **An open editor tab can be dragged onto the alignment panel** to add it as a read. A tab

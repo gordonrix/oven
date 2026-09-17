@@ -9,7 +9,7 @@
   <a href="https://github.com/TeselaGen/tg-oss/tree/master/packages/ove">Open Vector Editor</a>.
 </p>
 
-Open `.gb`, `.gbk`, `.fasta`, `.fa` and `.dna` files in a tab, then design primers, collect
+Open `.gb`, `.gbk`, `.fasta`, `.fa`, `.dna` and `.ab1` files in a tab, then design primers, collect
 them into an order, search your existing primer collection, search your whole map library
 for a sequence, edit codons, and align Sanger reads against the plasmid on screen.
 
@@ -284,6 +284,9 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 
 ## Other
 
+- **`.ab1` traces open on their own**, chromatogram showing, without needing something to
+  align them to. Read-only: there is no `.ab1` writer, and the file is the instrument's
+  record of a run rather than a document
 - Select a DNA file → **Open With → OVEN**, and set it as the default if you like
 - Sequences open with a **whole-sequence map** in a tab on the right, beside the sequence:
   the **Circular Map** for a circular sequence, the **Linear Map** for a linear one. A linear

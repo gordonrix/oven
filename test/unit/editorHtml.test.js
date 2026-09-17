@@ -177,3 +177,18 @@ test('the hover label is styled, and cannot swallow a click', () => {
   assert.match(rule, /pointer-events:\s*none/, 'the label would intercept clicks');
   assert.match(rule, /content:\s*attr\(data-oven-tip\)/, 'the label does not show the attribute');
 });
+
+test('a trace file opens with its trace showing', () => {
+  /*
+   * An .ab1 is opened to look at the trace, so leaving the chromatogram off --
+   * the default for every other file -- means opening one and seeing letters,
+   * with no hint that the trace is a tickbox away.
+   */
+  const withTrace = buildEditorHtml(Object.assign({}, OPTS, { showChromatogram: true }));
+  assert.match(withTrace, /annotationVisibility: \{ chromatogram: true \}/);
+
+  // Off for everything else: a GenBank file has no trace, and the row would
+  // just be empty space under every line.
+  assert.ok(!/annotationVisibility/.test(buildEditorHtml(OPTS)),
+    'a normal file should not force the chromatogram on');
+});

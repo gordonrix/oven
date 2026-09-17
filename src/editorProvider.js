@@ -105,6 +105,29 @@ class DNAViewerProvider {
     } else if (ext === '.fa' || ext === '.fasta') {
       const doc = await vscode.workspace.openTextDocument(document.uri);
       parsed = fastaToJson(doc.getText())[0].parsedSequence;
+    } else if (ext === '.ab1') {
+      /*
+       * A trace file, opened to be looked at rather than edited.
+       *
+       * The reader is the aligner's, so a trace opens here exactly as it would
+       * as an alignment track -- same quality-smoothed, per-base chromatogram.
+       * It is required here rather than at the top of the file: everything in
+       * this tree ends up importing alignTracks, and a top-level require pulls
+       * the parser bundle into every test that loads this module.
+       *
+       * chromatogramData rides on sequenceData, which is where the editor looks
+       * for it and what it keeps in step when the sequence is edited.
+       */
+      const { parseFile } = require('./alignTracks');
+      const buffer = await vscode.workspace.fs.readFile(document.uri);
+      const tracks = await parseFile(Buffer.from(buffer), path.basename(document.uri.fsPath));
+      if (!tracks.length) throw new Error('No sequence found in this trace file.');
+      parsed = Object.assign({}, tracks[0].sequenceData, {
+        name: tracks[0].name,
+        sequence: tracks[0].sequence,
+        circular: false,
+        chromatogramData: tracks[0].chromatogramData || undefined
+      });
     } else if (ext === '.dna') {
       const buffer = await vscode.workspace.fs.readFile(document.uri);
       const out = await snapgeneToJson(buffer, { fileName: sourceName });
@@ -132,6 +155,8 @@ class DNAViewerProvider {
       }
       if (ext === '.gb' || ext === '.gbk') return Buffer.from(jsonToGenbank(newJsonData));
       if (ext === '.fa' || ext === '.fasta') return Buffer.from(jsonToFasta(newJsonData));
+      // .ab1 falls through deliberately: no writer exists, and the editor is
+      // read-only for one, so nothing should be asking.
       return null;
     }
 
@@ -335,7 +360,13 @@ class DNAViewerProvider {
       // Which map the editor opens on: a linear sequence drawn as a circle with
       // a gap is a confusing way to meet it.
       circular: Boolean(parsed && parsed.circular),
-      readOnly: config.readOnly(),
+      /*
+       * A trace is always read-only. There is no .ab1 writer and there should
+       * not be one: it is the instrument's record of a run, not a document.
+       */
+      readOnly: config.readOnly() || ext === '.ab1',
+      // Or a trace file opens with its trace switched off.
+      showChromatogram: ext === '.ab1',
       disableBpEditing: !config.allowSequenceEditing(),
       autoAddCreatedPrimers: config.autoAddCreatedPrimers(),
       showSelectionStats: config.showSelectionStatsByDefault()

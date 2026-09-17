@@ -1,8 +1,8 @@
 {
   "name": "oven",
-  "displayName": "OVEN — Open Vector Editor with New Features",
+  "displayName": "OVEN \u2014 Open Vector Editor with New Features",
   "description": "View, design, and align plasmid sequences.",
-  "version": "1.57.0",
+  "version": "1.58.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -56,6 +56,10 @@
         "viewType": "oven.editor",
         "displayName": "OVEN",
         "selector": [
+          {
+            "filenamePattern": "*.ab1",
+            "binary": true
+          },
           {
             "filenamePattern": "*.dna",
             "binary": true
@@ -199,7 +203,7 @@
         "oven.inventoryNameColumn": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `°` or `μ`; if it does not match, the error message lists the headers actually found."
+          "markdownDescription": "Header of the column holding primer names or IDs. Leave empty to use the first column. The header must match the file exactly, including any special characters such as `\u00b0` or `\u03bc`; if it does not match, the error message lists the headers actually found."
         },
         "oven.inventorySequenceColumn": {
           "type": "string",
@@ -244,7 +248,7 @@
         "oven.inventoryDescriptionColumn": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Header of an optional free-text column from your inventory, shown as the last column of the search results and labelled with the header itself. Name any column you like — `Purpose`, `Ordered by`, `Freezer box`. Leave empty to use a column named `Description` if one exists; a missing column is never an error, and the column is hidden entirely when there is nothing to put in it."
+          "markdownDescription": "Header of an optional free-text column from your inventory, shown as the last column of the search results and labelled with the header itself. Name any column you like \u2014 `Purpose`, `Ordered by`, `Freezer box`. Leave empty to use a column named `Description` if one exists; a missing column is never an error, and the column is hidden entirely when there is nothing to put in it."
         },
         "oven.showSelectionStatsByDefault": {
           "type": "boolean",
@@ -274,22 +278,22 @@
         "oven.alignHotkey": {
           "type": "string",
           "default": "mod+alt+l",
-          "markdownDescription": "Keyboard shortcut that opens **Align**, in Open Vector Editor's own notation — see `oven.newPrimerHotkey` for the notation. Shown when you hover the Align button, and listed in **View → View Editor Hotkeys**. **Reopen the file** for a change to take effect. Set to an empty string for no shortcut."
+          "markdownDescription": "Keyboard shortcut that opens **Align**, in Open Vector Editor's own notation \u2014 see `oven.newPrimerHotkey` for the notation. Shown when you hover the Align button, and listed in **View \u2192 View Editor Hotkeys**. **Reopen the file** for a change to take effect. Set to an empty string for no shortcut."
         },
         "oven.cartHotkey": {
           "type": "string",
           "default": "mod+alt+k",
-          "markdownDescription": "Keyboard shortcut that opens the **Primer Cart**, in Open Vector Editor's own notation — see `oven.newPrimerHotkey` for the notation. Shown when you hover the Primer Cart button, and listed in **View → View Editor Hotkeys**. **Reopen the file** for a change to take effect. Set to an empty string for no shortcut."
+          "markdownDescription": "Keyboard shortcut that opens the **Primer Cart**, in Open Vector Editor's own notation \u2014 see `oven.newPrimerHotkey` for the notation. Shown when you hover the Primer Cart button, and listed in **View \u2192 View Editor Hotkeys**. **Reopen the file** for a change to take effect. Set to an empty string for no shortcut."
         },
         "oven.searchPrimersHotkey": {
           "type": "string",
           "default": "mod+alt+f",
-          "markdownDescription": "Keyboard shortcut that opens **Primer Search**, in Open Vector Editor's own notation — see `oven.newPrimerHotkey` for the notation. It searches the selection when there is one and the whole plasmid otherwise, exactly like the right-click entry, and the binding is shown beside that entry. **Reopen the file for a change to take effect.** `mod+shift+f` is deliberately not the default: VS Code binds it to Search: Find in Files at the workbench level, which resolves before a webview sees the key. Set to an empty string for no shortcut."
+          "markdownDescription": "Keyboard shortcut that opens **Primer Search**, in Open Vector Editor's own notation \u2014 see `oven.newPrimerHotkey` for the notation. It searches the selection when there is one and the whole plasmid otherwise, exactly like the right-click entry, and the binding is shown beside that entry. **Reopen the file for a change to take effect.** `mod+shift+f` is deliberately not the default: VS Code binds it to Search: Find in Files at the workbench level, which resolves before a webview sees the key. Set to an empty string for no shortcut."
         },
         "oven.newPrimerHotkey": {
           "type": "string",
           "default": "mod+shift+k",
-          "markdownDescription": "Keyboard shortcut that opens the **New Primer** panel, in Open Vector Editor's own notation: `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+` — for example `mod+shift+k`, `alt+p`, `mod+alt+n`. The binding is shown next to **New Primer** in the menus, so a change here is visible where you would look for it. **Reopen the file for a change to take effect.** Avoid combinations VS Code binds at the workbench level (`mod+j`, `mod+shift+n`): those are resolved before a webview sees the key. Set to an empty string for no shortcut."
+          "markdownDescription": "Keyboard shortcut that opens the **New Primer** panel, in Open Vector Editor's own notation: `mod` is Cmd on macOS and Ctrl elsewhere, joined with `+` \u2014 for example `mod+shift+k`, `alt+p`, `mod+alt+n`. The binding is shown next to **New Primer** in the menus, so a change here is visible where you would look for it. **Reopen the file for a change to take effect.** Avoid combinations VS Code binds at the workbench level (`mod+j`, `mod+shift+n`): those are resolved before a webview sees the key. Set to an empty string for no shortcut."
         }
       }
     },
