@@ -53,6 +53,7 @@ Added here:
 - **New Primer as a side panel**, with an editable 5′ tail and mismatches marked in red
 - **Sanger alignment** against the open plasmid, with chromatograms, translated mutated
   codons, and origin-spanning reads handled
+- **`.ab1` traces open on their own**, chromatogram and all, with nothing to align them to
 - **Change Amino Acid** — any codon, not just synonyms, with codon usage tables
 - **Keyboard shortcuts** for primer search, new primer and the copy variants — see
   [Keyboard shortcuts](#keyboard-shortcuts)
@@ -284,9 +285,8 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 
 ## Other
 
-- **`.ab1` traces open on their own**, chromatogram showing, without needing something to
-  align them to. Read-only: there is no `.ab1` writer, and the file is the instrument's
-  record of a run rather than a document
+- **`.ab1` traces** open with the chromatogram showing, and are read-only: there is no `.ab1`
+  writer, and the file is the instrument's record of a run rather than a document
 - Select a DNA file → **Open With → OVEN**, and set it as the default if you like
 - Sequences open with a **whole-sequence map** in a tab on the right, beside the sequence:
   the **Circular Map** for a circular sequence, the **Linear Map** for a linear one. A linear

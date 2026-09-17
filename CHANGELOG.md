@@ -4,6 +4,11 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.58.1
+
+Documentation: `.ab1` support was listed in the file types and buried under Other, but missing
+from **What this fork adds** — the list people actually read to find out what OVEN does.
+
 ## 1.58.0
 
 **`.ab1` files open on their own**, with the chromatogram showing. Until now a trace could
