@@ -19,15 +19,20 @@
 'use strict';
 
 const crypto = require('crypto');
+const os = require('os');
 const path = require('path');
 const vscode = require('vscode');
 
 const config = require('./config');
 const mafft = require('./mafft');
 const { align, mutatedCodons } = require('./align');
+const { buildStockholm, readAlignment, rebuild } = require('./alignFile');
 const {
   parseFile, trimByQuality, followAlignment, followAlignmentAnnotations, SEQUENCE_EXTENSIONS
 } = require('./alignTracks');
+
+/* What a saved alignment is written as. Stockholm; see alignFile.js. */
+const ALIGNMENT_EXTENSION = 'sto';
 
 class AlignPanel {
   constructor(context, opts) {
@@ -37,6 +42,15 @@ class AlignPanel {
     this.reference = null;
     this.reads = [];
     this.alignment = null;
+    /*
+     * The aligner's own output, kept because the view payload cannot be turned
+     * back into it: saving needs the rows and each read's strand, rotation and
+     * coverage, and those are consumed rather than carried by toViewPayload.
+     */
+    this.result = null;
+    this.aligned = [];
+    this.file = null;      // where this alignment was saved to, or opened from
+    this.adopted = false;  // hosted by a custom editor rather than our own panel
     this.status = '';
     this.error = '';
     this.busy = false;
@@ -90,7 +104,7 @@ class AlignPanel {
       return this.panel;
     }
 
-    const panel = vscode.window.createWebviewPanel(
+    return this.wire(vscode.window.createWebviewPanel(
       'oven.alignment',
       panelTitle(this.reference),
       /*
@@ -109,8 +123,22 @@ class AlignPanel {
         retainContextWhenHidden: true,
         localResourceRoots: [vscode.Uri.file(path.join(this.context.extensionPath, 'media'))]
       }
-    );
+    ));
+  }
+
+  /**
+   * Take over a webview panel and start driving it.
+   *
+   * Called with one we made ourselves, and with one VS Code made for a custom
+   * editor -- resolveCustomEditor hands out the same WebviewPanel type, so a
+   * saved alignment can open as a tab of its own with nothing here duplicated.
+   */
+  wire(panel) {
     this.panel = panel;
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.file(path.join(this.context.extensionPath, 'media'))]
+    };
 
     panel.webview.onDidReceiveMessage(async (msg) => {
       if (!msg) return;
@@ -135,6 +163,7 @@ class AlignPanel {
           case 'align/pickReference': await this.pickReference(); break;
           case 'align/remove': this.remove(msg.id); break;
           case 'align/run': await this.run(); break;
+          case 'align/save': await this.save(); break;
           default: break;
         }
       } catch (e) {
@@ -161,9 +190,11 @@ class AlignPanel {
     if (this.reference && sameReference(this.reference, ref)) return;
     this.reference = ref;
     // The old alignment was against a different sequence, so it is now a lie.
-    this.alignment = null;
+    this.forget();
     this.reads.forEach((r) => { delete r.mismatches; });
-    if (this.panel) this.panel.title = panelTitle(ref);
+    // A custom editor's tab is named after its file, which is the truth about
+    // what is open; renaming it to the reference would hide that.
+    if (this.panel && !this.adopted) this.panel.title = panelTitle(ref);
   }
 
   /* ------------------------------------------------------------ messaging -- */
@@ -206,9 +237,27 @@ class AlignPanel {
         },
         status: this.status,
         error: this.error,
-        busy: this.busy
+        busy: this.busy,
+        // Only a completed alignment can be written out, and only the aligner's
+        // own output is enough to write it -- see this.result.
+        canSave: Boolean(this.result),
+        file: this.file ? path.basename(this.file.fsPath) : null
       }
     });
+  }
+
+  /**
+   * Drop the alignment and everything derived from it.
+   *
+   * Always together: `alignment` is what is drawn and `result` is what would be
+   * saved, so leaving one behind would offer to write a file describing reads
+   * that are no longer on screen. `file` stays -- it is where this alignment
+   * came from, and saving again should still default there.
+   */
+  forget() {
+    this.alignment = null;
+    this.result = null;
+    this.aligned = [];
   }
 
   fail(message) {
@@ -332,9 +381,16 @@ class AlignPanel {
     if (!parsed.length) throw new Error('no sequence found');
 
     const minQuality = config.alignTrimQuality();
-    return parsed.map((track) => {
+    return parsed.map((track, record) => {
       const entry = Object.assign(
-        { id: this.nextId++, path: filePath, raw: track },
+        /*
+         * `record` and `trimQuality` are only ever read when saving, and both
+         * have to be recorded here rather than worked out later: which record
+         * of a multi-record FASTA this is cannot be recovered from the read,
+         * and the trim threshold is whatever the setting said at the time,
+         * which is not necessarily what it says now.
+         */
+        { id: this.nextId++, path: filePath, raw: track, record, trimQuality: minQuality },
         trimByQuality(track, minQuality)
       );
       this.reads.push(entry);
@@ -360,7 +416,7 @@ class AlignPanel {
       dropped = this.reads.length - max;
       this.reads = this.reads.slice(0, max);
     }
-    this.alignment = null; // the read set changed
+    this.forget(); // the read set changed
     if (dropped) this.note(`Added ${count}; ignored ${dropped} over the ${max}-read limit.`);
     else if (count) this.note(`Added ${count} read${count === 1 ? '' : 's'}. Press Align.`);
     else this.push(true);
@@ -368,7 +424,7 @@ class AlignPanel {
 
   remove(id) {
     this.reads = this.reads.filter((r) => r.id !== id);
-    this.alignment = null;
+    this.forget();
     this.note(this.reads.length ? '' : 'All reads removed.');
   }
 
@@ -404,9 +460,265 @@ class AlignPanel {
       compared: t.compared, anchored: t.anchored
     }));
 
+    this.result = result;
+    this.aligned = usable;
     this.alignment = this.toViewPayload(result, usable);
     this.busy = false;
     this.note(`Aligned ${usable.length} read${usable.length === 1 ? '' : 's'} in ${Date.now() - started} ms.`);
+  }
+
+  /* --------------------------------------------------------- saving -- */
+
+  /**
+   * The folders this alignment's sequences came from.
+   *
+   * Offered instead of a save dialog because they are where the file belongs:
+   * an alignment is about a particular reference and a particular run of reads,
+   * and those already live somewhere. Deduplicated, since reads usually share
+   * one folder, and labelled with what came from each so two folders with the
+   * same name are still told apart.
+   */
+  saveFolders() {
+    const seen = new Map();
+    const add = (file, what) => {
+      if (!file) return;
+      const dir = path.dirname(file);
+      if (!seen.has(dir)) seen.set(dir, { dir, reference: false, reads: 0 });
+      const entry = seen.get(dir);
+      if (what === 'reference') entry.reference = true;
+      else if (what === 'read') entry.reads++;
+    };
+
+    // Where it already is comes first: saving again is usually updating.
+    if (this.file) add(this.file.fsPath, 'alignment');
+    add(this.reference && this.reference.path, 'reference');
+    for (const read of this.aligned) add(read.path, 'read');
+
+    return [...seen.values()].map((entry) => {
+      const parts = [];
+      if (entry.reference) parts.push('reference');
+      if (entry.reads) parts.push(`${entry.reads} read${entry.reads === 1 ? '' : 's'}`);
+      if (this.file && path.dirname(this.file.fsPath) === entry.dir) parts.push('this alignment');
+      return { dir: entry.dir, detail: parts.join(' · ') };
+    });
+  }
+
+  /** Ask where to write, starting from the folders the sequences came from. */
+  async chooseTarget() {
+    const home = os.homedir();
+    const short = (dir) => (dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir);
+
+    const folders = this.saveFolders();
+    const items = folders.map((f) => ({
+      label: path.basename(f.dir) || f.dir,
+      description: short(f.dir),
+      detail: f.detail,
+      dir: f.dir
+    }));
+    items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+    items.push({ label: 'Choose another folder…', dir: null });
+
+    const picked = await vscode.window.showQuickPick(items, {
+      title: 'Save this alignment where?',
+      matchOnDescription: true
+    });
+    if (!picked) return null;
+
+    const suggested = this.file
+      ? path.basename(this.file.fsPath)
+      : `${today()}_alignment.${ALIGNMENT_EXTENSION}`;
+
+    if (!picked.dir) {
+      const chosen = await vscode.window.showSaveDialog({
+        title: 'Save alignment',
+        saveLabel: 'Save alignment',
+        defaultUri: vscode.Uri.file(path.join(folders.length ? folders[0].dir : home, suggested)),
+        filters: { 'Stockholm alignment': [ALIGNMENT_EXTENSION, 'stk'] }
+      });
+      // The dialog does its own overwrite confirmation.
+      return chosen || null;
+    }
+
+    const name = await vscode.window.showInputBox({
+      title: 'Name for the alignment file',
+      value: suggested,
+      // The extension is the interesting part to change, so leave it selectable
+      // but put the cursor on the stem.
+      valueSelection: [0, suggested.length - (ALIGNMENT_EXTENSION.length + 1)],
+      validateInput: (v) => {
+        const trimmed = String(v || '').trim();
+        if (!trimmed) return 'Give the file a name.';
+        if (/[\\/]/.test(trimmed)) return 'The folder is already chosen; this is just the file name.';
+        return null;
+      }
+    });
+    if (name === undefined) return null;
+
+    let file = name.trim();
+    if (!/\.(sto|stk|stockholm)$/i.test(file)) file += `.${ALIGNMENT_EXTENSION}`;
+    const target = vscode.Uri.file(path.join(picked.dir, file));
+
+    // Overwriting the file this alignment already is needs no confirming; any
+    // other existing file does.
+    if (!this.file || this.file.fsPath !== target.fsPath) {
+      let exists = true;
+      try {
+        await vscode.workspace.fs.stat(target);
+      } catch {
+        exists = false;
+      }
+      if (exists) {
+        const go = await vscode.window.showWarningMessage(
+          `${file} already exists in ${path.basename(picked.dir)}.`,
+          { modal: true }, 'Replace');
+        if (go !== 'Replace') return null;
+      }
+    }
+    return target;
+  }
+
+  /**
+   * Write the alignment out.
+   *
+   * Both an absolute path and one relative to the file itself are recorded for
+   * every sequence. The relative one is tried first on reopening, so moving or
+   * copying a whole experiment folder -- which is what Dropbox does to a folder
+   * shared with someone else -- keeps the alignment whole.
+   */
+  toFileText(target) {
+    const dir = path.dirname(target.fsPath);
+    const relative = (file) => {
+      if (!file) return null;
+      const rel = path.relative(dir, file);
+      // A relative path that climbs out to the root and back down is longer
+      // than the absolute one and no more portable, so it is not worth writing.
+      return rel && !path.isAbsolute(rel) && rel.length < file.length ? rel : null;
+    };
+
+    return buildStockholm({
+      reference: {
+        name: this.reference.name,
+        path: this.reference.path || null,
+        rel: relative(this.reference.path),
+        row: this.result.msa.reference,
+        circular: Boolean(this.reference.circular)
+      },
+      reads: this.result.tracks.map((track, i) => {
+        const read = this.aligned[i] || {};
+        return {
+          name: track.name,
+          path: read.path || null,
+          rel: relative(read.path),
+          row: this.result.msa.rows[i].sequence,
+          strand: track.strand,
+          rotation: track.rotation,
+          folded: track.crossesOrigin,
+          anchored: track.anchored,
+          covered: track.covered,
+          deleted: track.deleted,
+          readIndex: track.readIndex,
+          trim: read.trimQuality || 0,
+          record: read.record || 0
+        };
+      }),
+      meta: {
+        tool: `OVEN ${this.context.extension ? this.context.extension.packageJSON.version : ''}`.trim(),
+        created: new Date().toISOString(),
+        type: (this.alignment && this.alignment.alignmentType) || 'Sanger sequencing',
+        mafftArgs: config.mafftArgs()
+      }
+    });
+  }
+
+  async save() {
+    if (!this.result || !this.alignment) {
+      return this.fail('There is no alignment to save yet — press Align first.');
+    }
+    const target = await this.chooseTarget();
+    if (!target) return;
+
+    await vscode.workspace.fs.writeFile(target, Buffer.from(this.toFileText(target), 'utf8'));
+    this.file = target;
+    this.note(`Saved ${path.basename(target.fsPath)}.`);
+  }
+
+  /* -------------------------------------------------------- reopening -- */
+
+  /**
+   * Read one sequence back off disk.
+   *
+   * The relative path is tried before the absolute one, so a folder that has
+   * moved still resolves; the absolute path is the fallback for a file that
+   * lives outside the tree the alignment was saved in. Whichever works is
+   * written back onto the entry, so the panel goes on pointing at where the
+   * file actually is.
+   */
+  async loadSource(entry, dir, trim) {
+    const candidates = [entry.rel ? path.resolve(dir, entry.rel) : null, entry.path]
+      .filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(candidate));
+        const parsed = await parseFile(Buffer.from(bytes), path.basename(candidate));
+        const track = parsed[entry.record || 0] || parsed[0];
+        if (!track) continue;
+        entry.path = candidate;
+        // Trimmed exactly as it was when the alignment was made, whatever the
+        // setting says now -- otherwise the bases would no longer match the row
+        // and a file that has not changed would be reported as changed.
+        return Object.assign({}, trim ? trimByQuality(track, trim) : track, { raw: track });
+      } catch {
+        // Try the next candidate; a source that cannot be read is reported by
+        // rebuild(), which knows what was lost with it.
+      }
+    }
+    return null;
+  }
+
+  /** Open a saved alignment: the rows from the file, everything else from the sources. */
+  async restore(uri) {
+    this.file = uri;
+    this.note('Opening the alignment…');
+
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    const spec = readAlignment(Buffer.from(bytes).toString('utf8'));
+    const dir = path.dirname(uri.fsPath);
+
+    const reference = await this.loadSource(spec.reference, dir, 0);
+    const reads = [];
+    for (const read of spec.reads) reads.push(await this.loadSource(read, dir, read.trim));
+
+    const restored = rebuild(spec, { reference, reads });
+    this.reference = restored.reference;
+    this.reads = restored.reads.map((read, i) => {
+      const track = restored.tracks[i];
+      return Object.assign({ id: this.nextId++ }, read, {
+        record: spec.reads[i].record,
+        trimQuality: spec.reads[i].trim,
+        mismatches: track.mismatches, substitutions: track.substitutions, gaps: track.gaps,
+        identity: track.identity, strand: track.strand, rotation: track.rotation,
+        compared: track.compared, anchored: track.anchored
+      });
+    });
+    this.result = restored;
+    this.aligned = this.reads;
+    this.alignment = this.toViewPayload(restored, this.reads);
+
+    const problems = restored.problems;
+    if (!problems.length) {
+      this.note(`${spec.reads.length} read${spec.reads.length === 1 ? '' : 's'} ` +
+        `against ${this.reference.name}.`);
+      return;
+    }
+    /*
+     * Named, not counted. Which file is missing is the thing to act on, and the
+     * alignment is still on screen either way -- the rows are in the file, so
+     * what is lost is the annotations, the traces and the features, not the
+     * alignment.
+     */
+    const named = problems.slice(0, 2).map((p) => `${p.name} ${p.reason}`).join('; ');
+    this.fail(`${named}${problems.length > 2 ? `, and ${problems.length - 2} more` : ''}. ` +
+      'Showing the saved sequences; their annotations and traces are unavailable.');
   }
 
   /**
@@ -569,6 +881,18 @@ function sameReference(a, b) {
   return Boolean(b) && referenceKey(a) === referenceKey(b);
 }
 
+/**
+ * Today, as YYYY-MM-DD.
+ *
+ * Local rather than UTC: the date on an alignment is the day the work was done,
+ * and an evening's saving would otherwise be filed under tomorrow.
+ */
+function today() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 function panelTitle(ref) {
   const name = ref && ref.name;
   return name ? `Alignment · ${name}` : 'Alignment';
@@ -606,6 +930,26 @@ class AlignPanels {
   /** The panel for this reference, opening one if it is not already up. */
   show(reference, column) {
     return this.panelFor(reference).show(reference, column);
+  }
+
+  /**
+   * Drive a saved alignment opened as an editor tab.
+   *
+   * Keyed by the file rather than by a reference, so opening two saved
+   * alignments of the same plasmid gives two tabs, and so pressing Align on a
+   * plasmid never lands in a tab that belongs to a file on disk. Registered
+   * with the rest all the same: that is what lets the Explorer's Add to
+   * Alignment target a saved alignment you are looking at.
+   */
+  adopt(webviewPanel, uri) {
+    const key = `file:${uri.fsPath}`;
+    const existing = this.byKey.get(key);
+    if (existing) existing.forget();
+    const panel = new AlignPanel(this.context, { onDispose: () => this.byKey.delete(key) });
+    panel.adopted = true;
+    this.byKey.set(key, panel);
+    panel.wire(webviewPanel);
+    return panel;
   }
 
   /**

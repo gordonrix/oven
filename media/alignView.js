@@ -30,7 +30,9 @@
     status: '',
     error: '',
     busy: false,
-    alignment: null
+    alignment: null,
+    canSave: false,   // an alignment has been made, so there is one to write
+    file: null        // the name of the file it was saved to or opened from
   };
   let view = null;      // the live createAlignmentView handle
 
@@ -590,6 +592,25 @@
     if (mafftMissing) run.title = 'MAFFT is required — see above';
     run.addEventListener('click', () => post('align/run'));
     actions.appendChild(run);
+
+    /*
+     * Saving writes the alignment to a Stockholm file, which reopens here with
+     * the reads' own annotations and traces because the file records where
+     * every sequence came from as well as the columns.
+     *
+     * Next to Align rather than in the top bar: it acts on the alignment as a
+     * whole, which is what this strip is about, and the top bar's controls are
+     * all about how a trace is drawn.
+     */
+    const save = el('button', 'ovealign-btn secondary', 'Save…');
+    save.disabled = !state.canSave;
+    save.title = state.canSave
+      ? (state.file
+        ? `Save this alignment — opened from ${state.file}`
+        : 'Save this alignment to a file that reopens with its annotations')
+      : 'Align some reads first';
+    save.addEventListener('click', () => post('align/save'));
+    actions.appendChild(save);
     if (state.status) {
       actions.appendChild(el('span', 'ovealign-status' + (state.error ? ' is-error' : ''), state.status));
     }

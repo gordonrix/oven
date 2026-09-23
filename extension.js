@@ -8,6 +8,7 @@ const { CartStore } = require('./src/cartStore');
 const { CartPanel } = require('./src/cartPanel');
 const { DNAViewerProvider, pickInventoryFile } = require('./src/editorProvider');
 const { AlignPanels } = require('./src/alignPanel');
+const { AlignmentEditorProvider } = require('./src/alignEditor');
 const { SeqSearchPanel } = require('./src/seqSearchPanel');
 const mafft = require('./src/mafft');
 const { buildDemoHtml } = require('./src/editorHtml');
@@ -48,6 +49,19 @@ function activate(context) {
       'oven.editor',
       new DNAViewerProvider(context, cart, cartPanel, alignPanel, seqSearchPanel),
       { webviewOptions: { retainContextWhenHidden: true } }
+    )
+  );
+
+  /*
+   * Saved alignments. Same reasoning as above for retainContextWhenHidden: an
+   * alignment is expensive to build and holds a selection and a zoom, and
+   * rebuilding it on every tab switch would throw all of that away.
+   */
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      'oven.alignment',
+      new AlignmentEditorProvider(context, alignPanel),
+      { webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: false }
     )
   );
 

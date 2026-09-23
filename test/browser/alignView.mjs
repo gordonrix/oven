@@ -65,6 +65,11 @@ export default async function run(page) {
   await page.waitForSelector('body[data-ready="true"]', { timeout: 30000 });
   await page.waitForSelector('.ovealign-drop', { timeout: 10000 });
 
+  // Nothing has been aligned, so there is nothing to write out yet.
+  out.saveDisabledBeforeAligning =
+    await page.locator('.ovealign-actions button', { hasText: 'Save' }).isDisabled();
+  if (!out.saveDisabledBeforeAligning) fail.push('Save was clickable with no alignment');
+
   /* --- MAFFT missing: say so before any work is done ---------------------- */
 
   // The harness starts with MAFFT missing, which is what a new user sees.
@@ -841,6 +846,29 @@ export default async function run(page) {
   if (out.wrongTab.uris) fail.push('a non-sequence tab was accepted');
   if (!/not a sequence file/.test(out.wrongTab.status)) {
     fail.push(`a refused tab should say why: ${JSON.stringify(out.wrongTab.status.slice(0, 60))}`);
+  }
+
+  /* --- saving the alignment ----------------------------------------------- */
+
+  await page.locator('.ovealign-actions button', { hasText: 'Align' }).click();
+  await page.waitForSelector('.alignmentHolder', { timeout: 20000 });
+  out.saveEnabledAfterAligning =
+    await page.locator('.ovealign-actions button', { hasText: 'Save' }).isEnabled();
+  if (!out.saveEnabledAfterAligning) fail.push('Save stayed disabled with an alignment on screen');
+
+  await clearPosted(page);
+  await page.locator('.ovealign-actions button', { hasText: 'Save' }).click();
+  await page.waitForTimeout(300);
+  if (!(await posted(page)).some((m) => m.type === 'align/save')) {
+    fail.push('Save did not reach the host');
+  }
+
+  // Once saved, the button says which file it would write to -- the panel is
+  // the only place that can say so, since the tab is not the file.
+  out.saveTitle = await page.locator('.ovealign-actions button', { hasText: 'Save' })
+    .getAttribute('title');
+  if (!/demo-reference\.sto/.test(out.saveTitle || '')) {
+    fail.push(`Save does not name the file it is bound to: ${JSON.stringify(out.saveTitle)}`);
   }
 
   out.failures = fail;

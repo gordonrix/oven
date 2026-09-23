@@ -13,7 +13,8 @@ const assert = require('node:assert');
 
 const pkg = require('../../package.json');
 
-const selectors = () => pkg.contributes.customEditors[0].selector;
+const editor = (viewType) => pkg.contributes.customEditors.find((e) => e.viewType === viewType);
+const selectors = () => editor('oven.editor').selector;
 
 test('the editor claims .ab1, and claims it as binary', () => {
   /*
@@ -39,4 +40,20 @@ test('.dna stays binary and the text formats stay text', () => {
     assert.ok(by[pattern], `${pattern} is no longer claimed`);
     assert.ok(!by[pattern].binary, `${pattern} should be read as text`);
   }
+});
+
+test('a saved alignment opens in OVEN rather than as text', () => {
+  /*
+   * Its own view type, not another selector on the sequence editor: the two
+   * render different things from different files, and a .sto handed to the
+   * sequence editor would be parsed as a sequence and come out as nonsense.
+   */
+  const alignment = editor('oven.alignment');
+  assert.ok(alignment, 'no alignment editor is registered');
+  const patterns = alignment.selector.map((s) => s.filenamePattern);
+  assert.deepStrictEqual(patterns, ['*.sto', '*.stk']);
+  // Stockholm is text, and must not be claimed as binary -- the provider reads
+  // it through workspace.fs either way, but `binary` changes what VS Code
+  // offers the file to elsewhere.
+  assert.ok(alignment.selector.every((s) => !s.binary));
 });

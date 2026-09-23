@@ -173,6 +173,9 @@
           { id: 4, name: 'wrong-plasmid.ab1', path: '/demo/wrong.ab1', length: 40 }
         ],
         alignment: null, status: '', error: '', busy: false,
+        // Nothing to save until there is an alignment, which is the host's rule
+        // too: it is the aligner's output that gets written, not the view.
+        canSave: false, file: null,
         // Starts missing so the banner is exercised; __mafftFound flips it.
         mafft: { ok: false, message: 'MAFFT was not found. Install it with "brew install mafft".' }
       };
@@ -188,6 +191,7 @@
             if (m.type === 'align/run') {
               state = Object.assign({}, state, {
                 alignment: ALIGNMENT,
+                canSave: true,
                 status: 'Aligned 2 reads in 12 ms',
                 reads: [
                   // compared === REF.length only for the read that spans it all.
@@ -212,9 +216,17 @@
               send();
               return;
             }
+            if (m.type === 'align/save') {
+              state = Object.assign({}, state, {
+                file: 'demo-reference.sto', status: 'Saved demo-reference.sto.'
+              });
+              send();
+              return;
+            }
             if (m.type === 'align/remove') {
               state = Object.assign({}, state, {
-                reads: state.reads.filter((r) => r.id !== m.id), alignment: null
+                reads: state.reads.filter((r) => r.id !== m.id),
+                alignment: null, canSave: false
               });
               send();
               return;

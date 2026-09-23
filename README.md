@@ -53,6 +53,8 @@ Added here:
 - **New Primer as a side panel**, with an editable 5′ tail and mismatches marked in red
 - **Sanger alignment** against the open plasmid, with chromatograms, translated mutated
   codons, and origin-spanning reads handled
+- **Alignments save and reopen** as Stockholm files, coming back with the reads' own
+  features and traces because the file records where every sequence came from
 - **`.ab1` files open directly**, so you can look at a trace without aligning it to anything
 - **Change Amino Acid** — any codon, not just synonyms, with codon usage tables
 - **Keyboard shortcuts** for primer search, new primer and the copy variants — see
@@ -230,6 +232,27 @@ coordinates hold.
 
 Trace ends below `oven.alignTrimQuality` (default 20) are trimmed before aligning; set it to
 `0` to align the full read. `oven.alignMaxReads` (default 50) caps one alignment.
+
+### Saving an alignment
+
+**Save…** writes the alignment to a `.sto` file, and double-clicking that file opens it here
+again — the same tracks, with the reads' features, their chromatograms and the reference's
+annotations. You are offered the folders the reference and the reads came from, since that is
+usually where it belongs; **Choose another folder…** opens the ordinary save dialog. The name
+it suggests is dated — `2026-09-23_alignment.sto` — so a folder of them sorts by when they
+were made; reopening one and saving again suggests its own name instead.
+
+It reopens as the alignment you saved rather than a fresh one: the columns are in the file, so
+nothing is realigned and MAFFT is not needed to look at it. What is re-read from disk is the
+sequences themselves, which is where the features and the traces live — a file that has moved
+with the alignment, or alongside it, is found either way. If a source has been edited or is
+missing, the alignment still opens on the bases held in the file and says which tracks lost
+their annotations. Pressing **Align** on a reopened alignment realigns it from scratch.
+
+The file is [Stockholm](https://en.wikipedia.org/wiki/Stockholm_format), which HMMER,
+Biopython, EMBOSS and Jalview all read, so an alignment saved here is not stuck here. What
+OVEN adds are `#=GS` lines naming each row's source file, strand and coverage — annotation
+lines the format sets aside for exactly this, and which other tools skip over.
 
 ### MAFFT
 

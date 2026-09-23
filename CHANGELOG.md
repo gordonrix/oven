@@ -4,6 +4,29 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.59.0
+
+**Alignments can be saved, and reopen as themselves.** Until now an alignment lived only in
+the panel that made it: close the tab and the reads, the strands and the origin-crossing
+folds had to be worked out again.
+
+**Save…** writes a Stockholm `.sto` file, offering the folders the reference and the reads
+came from — deduplicated, labelled with what came from each — rather than dropping you at
+your home folder. Double-clicking a `.sto` opens it as an alignment tab.
+
+Reopening is the alignment you saved, not an approximation of it. The columns come from the
+file, so nothing is realigned and MAFFT is not needed to look at one; the reads' features,
+their chromatograms and the reference's annotations come from re-reading the source files,
+which the file records by both absolute and relative path so that moving a folder does not
+break it. A source that has been edited since is reported rather than drawn — hanging its
+annotations on columns it no longer matches would put them in the wrong place — and one that
+is missing entirely leaves the alignment intact, on the bases the file itself holds.
+
+Stockholm because it is the one standard alignment format with per-sequence annotation
+lines, so the provenance rides in the file instead of a sidecar: `#=GS` lines carry each
+row's source, strand, rotation and coverage, and every other tool skips them. Biopython
+reads the result and converts it onward to FASTA or Clustal.
+
 ## 1.58.1
 
 Documentation: `.ab1` support was listed in the file types and buried under Other, but missing

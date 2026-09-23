@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN \u2014 Open Vector Editor with New Features",
   "description": "View, design, and align plasmid sequences.",
-  "version": "1.58.1",
+  "version": "1.59.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -75,6 +75,18 @@
           },
           {
             "filenamePattern": "*.gbk"
+          }
+        ]
+      },
+      {
+        "viewType": "oven.alignment",
+        "displayName": "OVEN Alignment",
+        "selector": [
+          {
+            "filenamePattern": "*.sto"
+          },
+          {
+            "filenamePattern": "*.stk"
           }
         ]
       }
