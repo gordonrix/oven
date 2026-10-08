@@ -233,7 +233,70 @@
      const nonTempSeqWithoutLeadingDashes = nonTempSeq.replace(/^-+/g, "");
      const nonTempSeqWithoutTrailingDashes = nonTempSeq.replace(/-+$/g, "");
      const startIndex = seqLength - nonTempSeqWithoutLeadingDashes.length;
-@@ -135309,31 +135433,24 @@
+@@ -133462,12 +133586,61 @@
+     };
+   }
+   __name(cutsitesSelector, "cutsitesSelector");
++  /*
++   * PATCH (oven): cut sites are cached by what they are cut from, not by which
++   * object happened to describe the enzymes.
++   *
++   * The editor hands its panels additionalEnzymes as an object; the sequence
++   * and map views, connected on their own, pass nothing. Both kinds call this
++   * selector, and reselect remembers exactly one set of inputs. With a
++   * search open in the split view, a component of each kind re-reads the cut
++   * sites on every selection change, alternately, so each evicted the other:
++   * the enzyme list was rebuilt as a new object, and every cut site in the
++   * plasmid was recut from scratch -- with a fresh random id for each, so
++   * every label re-rendered too. On an 18 kb plasmid that was ~150 ms a time,
++   * several times per mouse move: dragging a selection took 12 s.
++   *
++   * Two requests with the same sequence, topology and enzyme definitions now
++   * get the same answer. The signature reads each enzyme's site and cut
++   * offsets rather than just its name, so an edited custom enzyme is recut.
++   */
++  const ovenEnzymeSignatures = /* @__PURE__ */ new WeakMap();
++  function ovenEnzymeSignature(enzymeList) {
++    if (!enzymeList || typeof enzymeList !== "object") return String(enzymeList);
++    let signature = ovenEnzymeSignatures.get(enzymeList);
++    if (signature === void 0) {
++      signature = Object.keys(enzymeList).sort().map((name2) => {
++        const e2 = enzymeList[name2] || {};
++        return [name2, e2.site, e2.forwardRegex, e2.reverseRegex, e2.topSnipOffset,
++          e2.bottomSnipOffset, e2.usForward, e2.usReverse].join(":");
++      }).join("|");
++      ovenEnzymeSignatures.set(enzymeList, signature);
++    }
++    return signature;
++  }
++  __name(ovenEnzymeSignature, "ovenEnzymeSignature");
++  const ovenCutsitesCache = [];
++  function ovenCutsitesByContent(sequence2, circular2, enzymeList, cutsiteLabelColors) {
++    const enzymes = ovenEnzymeSignature(enzymeList);
++    const colors = JSON.stringify(cutsiteLabelColors || null);
++    for (const entry of ovenCutsitesCache) {
++      if (entry.sequence === sequence2 && entry.circular === circular2 &&
++        entry.enzymes === enzymes && entry.colors === colors) return entry.result;
++    }
++    const result = cutsitesSelector(sequence2, circular2, enzymeList, cutsiteLabelColors);
++    // A few entries, so an editor and anything else on the page sharing this
++    // module do not evict each other either.
++    ovenCutsitesCache.unshift({ sequence: sequence2, circular: circular2, enzymes, colors, result });
++    if (ovenCutsitesCache.length > 4) ovenCutsitesCache.length = 4;
++    return result;
++  }
++  __name(ovenCutsitesByContent, "ovenCutsitesByContent");
+   const cutsitesSelector$1 = createSelector(
+     sequenceSelector,
+     circularSelector,
+     restrictionEnzymesSelector,
+     cutsiteLabelColorSelector,
+-    cutsitesSelector
++    ovenCutsitesByContent
+   );
+   function divideBy3(num, shouldDivideBy3) {
+     return shouldDivideBy3 ? Math.floor(num / 3) : num;
+@@ -135309,31 +135482,24 @@
        mapDispatchToActions,
        (mapProps2, dispatchProps, ownProps) => {
          const toSpread = {};
@@ -281,7 +344,7 @@
          }
          return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, ownProps), mapProps2), dispatchProps), toSpread);
        }
-@@ -135590,7 +135707,16 @@
+@@ -135590,7 +135756,16 @@
        readOnly: readOnly2 || editorState.readOnly,
        meta,
        annotationToAdd
@@ -299,7 +362,7 @@
        selectedCutsites,
        sequenceLength,
        allCutsites,
-@@ -136098,14 +136224,30 @@
+@@ -136098,14 +136273,30 @@
    const VersionHistoryView$1 = withEditorProps(VersionHistoryView);
    function HorizontalPanelDragHandle({ onDrag }) {
      const xStart = reactExports.useRef(0);
@@ -332,7 +395,7 @@
      });
      return /* @__PURE__ */ React$2.createElement(
        "div",
-@@ -144260,6 +144402,10 @@
+@@ -144260,6 +144451,10 @@
        row.sequence = sequenceData2.noSequence ? {
          length: row.end + 1 - row.start
        } : sequenceData2.sequence.slice(row.start, row.end + 1);
@@ -343,7 +406,7 @@
        rows[rowNumber] = row;
      }
      return rows;
-@@ -145305,10 +145451,24 @@
+@@ -145305,10 +145500,24 @@
          )
        );
        if (showAxisNumbers) {
@@ -372,7 +435,7 @@
          const positionLength = position2.toString().length * 4;
          const textInner = divideBy3(position2 + (isProtein2 ? 1 : 0), isProtein2);
          let x2 = xCenter;
-@@ -146231,6 +146391,26 @@
+@@ -146231,6 +146440,26 @@
      }
      charWN = arrowPointiness * charWN;
      const widthMinusOne = width - charWN;
@@ -399,7 +462,7 @@
      let path2;
      let hasAPoint = false;
      const endLine = annotation.overlapsSelf ? `L 0,${height2 / 2}
-@@ -146263,10 +146443,10 @@
+@@ -146263,10 +146492,10 @@
        hasAPoint = true;
        path2 = `
          ${startLines}
@@ -413,7 +476,7 @@
          ${bottomLine}
          ${endLine}
          z`;
-@@ -146274,10 +146454,10 @@
+@@ -146274,10 +146503,10 @@
        hasAPoint = true;
        path2 = `
        ${startLines}
@@ -427,7 +490,7 @@
        ${bottomLine}
        Q ${pointiness},${height2 / 2} ${0},${0}
        z`;
-@@ -146289,7 +146469,19 @@
+@@ -146289,7 +146518,19 @@
          const fractionToDisplay = width / (name2.length * ANNOTATION_LABEL_FONT_WIDTH);
          const numLetters = Math.floor(fractionToDisplay * name2.length);
          nameToDisplay = name2.slice(0, numLetters);
@@ -448,7 +511,7 @@
            if (nameToDisplay.length !== name2.length) {
              nameToDisplay += "..";
            }
-@@ -146418,6 +146610,45 @@
+@@ -146418,6 +146659,45 @@
    }
    __name(getYOffset, "getYOffset");
    const { ambiguous_dna_values } = bioData;
@@ -494,7 +557,7 @@
    function getStructuredBases({
      annotationRange,
      forward,
-@@ -146443,10 +146674,15 @@
+@@ -146443,10 +146723,15 @@
          }
        }
      }
@@ -513,7 +576,7 @@
      };
      const r2 = {
        aRange,
-@@ -146477,7 +146713,18 @@
+@@ -146477,7 +146762,18 @@
      );
      r2.basesNoInsertsWithMetaData = basesForRange.split("").map((b3, i2) => {
        var _a2, _b2;
@@ -533,7 +596,7 @@
        let seqForBase = fullSequence && fullSequence[indexOfBase] || "";
        if (!forward) {
          seqForBase = getComplementSequenceString(seqForBase);
-@@ -146563,9 +146810,18 @@
+@@ -146563,9 +146859,18 @@
            iTree.insert(xStart, xEnd, __spreadProps(__spreadValues({}, annotationRange), {
              yOffset
            }));
@@ -553,7 +616,7 @@
            );
            const insertStart = (indexToUse - (forward ? aRange.start : aRange.end)) * (!forward && primerBindsOn === "5prime" ? -1 : 1);
            basesToShow.insertPaths += getInsertPath({
-@@ -146597,7 +146853,21 @@
+@@ -146597,7 +146902,21 @@
                  transform: forward ? "" : `translate(${aRangeLen * charWidth2},-5) scale(-1,-1) `,
                  key: n2,
                  x: forward ? (xStart - 1) * charWidth2 + fudge : xStart * charWidth2 - fudge / 2,
@@ -576,7 +639,7 @@
                },
                i2.bases.split("").map((b3, i22) => /* @__PURE__ */ React$2.createElement(
                  "tspan",
-@@ -146613,7 +146883,7 @@
+@@ -146613,7 +146932,7 @@
            );
          }
        });
@@ -585,7 +648,7 @@
        basesToShow.baseEl = /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(
          "text",
          __spreadProps(__spreadValues({}, {
-@@ -146807,7 +147077,18 @@
+@@ -146807,7 +147126,18 @@
                  annotation,
                  annotation.forward
                )
@@ -605,7 +668,7 @@
                height: annotationRange.containsLocations && !disregardLocations ? anotationHeightNoSpace / 8 : anotationHeightNoSpace,
                hideName: type2 === "primer" && annotation.bases || annotationRange.containsLocations && !disregardLocations,
                name: annotation.name
-@@ -147871,6 +148152,125 @@
+@@ -147871,6 +148201,125 @@
      component: ShowChromQualScoresMenu(),
      shouldDismissPopover: false
    };
@@ -731,7 +794,7 @@
    function Chromatogram(props) {
      const { isRowView, chromatogramData, row, getGaps, charWidth: charWidth2 } = props;
      const [showChromQualScores] = useShowChromQualScores();
-@@ -147881,24 +148281,43 @@
+@@ -147881,24 +148330,43 @@
      if (props.setScalePct)
        setScalePct = props.setScalePct;
      const canvasRef = reactExports.useRef();
@@ -788,7 +851,7 @@
        setHasDrawnOnce(true);
      }, [
        setHasDrawnOnce,
-@@ -147911,7 +148330,8 @@
+@@ -147911,7 +148379,8 @@
        isRowView,
        scalePct,
        getGaps,
@@ -798,7 +861,7 @@
      ]);
      const marginLeft2 = gapsBeforeRow * charWidth2;
      if (chromatogramData.basePos && !chromatogramData.baseTraces) {
-@@ -147981,14 +148401,61 @@
+@@ -147981,14 +148450,61 @@
              position: "relative",
              left: 0,
              // left: posOfSeqRead,
@@ -862,7 +925,7 @@
    function drawTrace({
      traceData,
      charWidth: charWidth2,
-@@ -147999,7 +148466,11 @@
+@@ -147999,7 +148515,11 @@
      gapsBeforeRow,
      showChromQualScores,
      // isRowView,
@@ -875,7 +938,7 @@
    }) {
      const colors = {
        adenine: "green",
-@@ -148013,7 +148484,31 @@
+@@ -148013,7 +148533,31 @@
      const maxHeight = peakCanvas.height;
      const seqLengthWithGaps = endBp - startBp + 1 + getGaps(endBp).gapsBefore - gapsBeforeRow;
      const maxWidth = seqLengthWithGaps * charWidth2;
@@ -908,7 +971,7 @@
      const scaledHeight = maxHeight - bottomBuffer;
      this.drawPeaks = function(traceType, lineColor) {
        ctx.beginPath();
-@@ -148022,6 +148517,8 @@
+@@ -148022,6 +148566,8 @@
          const gapsBefore = getGaps(baseIndex - 1).gapsBefore || 0;
          const gapsAt = getGaps(baseIndex).gapsBefore;
          const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;
@@ -917,7 +980,7 @@
          const hasGaps = gapsBefore !== gapsAt;
          const traceLength = traceForIndex.length;
          const tracePointSpacing = charWidth2 / traceLength;
-@@ -148047,6 +148544,8 @@
+@@ -148047,6 +148593,8 @@
        for (let baseIndex = startBp; baseIndex <= endBp; baseIndex++) {
          const gapsAt = getGaps(baseIndex).gapsBefore;
          const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;
@@ -926,7 +989,7 @@
          ctx.rect(
            startXPosition,
            scaledHeight - traceData.qualNums[baseIndex] * scalePctQual,
-@@ -148076,7 +148575,11 @@
+@@ -148076,7 +148624,11 @@
      translations: { spaceBetweenAnnotations: 2, marginTop: 5, height: 17 },
      chromatogram: { height: 134 },
      parts: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
@@ -939,7 +1002,7 @@
      features: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
      warnings: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
      assemblyPieces: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
-@@ -148442,7 +148945,9 @@
+@@ -148442,7 +148994,9 @@
        readOnly: readOnly2,
        sequenceLength,
        isRowView,
@@ -950,7 +1013,7 @@
      };
      const drawLabels = /* @__PURE__ */ __name((type2, noDraw, _a2 = {}) => {
        var _b2 = _a2, { filterOpts } = _b2, extraProps = __objRest(_b2, ["filterOpts"]);
-@@ -150557,6 +151062,71 @@
+@@ -150557,6 +151111,71 @@
    const readOnlyDisabledTooltip = "Sorry this function is not allowed in Read-Only Mode";
    const bpEditingDisabledTooltip = "Sequence Editing Disabled";
    const noSelection = /* @__PURE__ */ __name(({ selectionLayer: selectionLayer2 = {} }) => !(selectionLayer2.start > -1 && selectionLayer2.end > -1) && "Selection Required", "noSelection");
@@ -1022,11 +1085,10 @@
    const triggerClipboardCommand = /* @__PURE__ */ __name((type2, props) => {
      const wrapper = document.querySelector(
        `.${props.editorName} .veVectorInteractionWrapper`
-@@ -150612,6 +151182,35 @@
-       isDisabled: (props) => props.sequenceLength === 0,
+@@ -150613,6 +151232,35 @@
        handler: (props) => triggerClipboardCommand("copy", props),
        hotkey: "mod+c"
-+    },
+     },
 +    /*
 +     * PATCH (oven): the copy variants the right-click menu already offers,
 +     * as commands -- which is what gives them hotkeys and an entry in View
@@ -1055,10 +1117,11 @@
 +      handler: (props) => ovenCopyVariant("reverseComplementTranslation", props),
 +      hotkey: OVEN_COPY_HOTKEYS.reverseComplementTranslation,
 +      hotkeyProps: { preventDefault: true }
-     },
++    },
      paste: {
        isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip,
-@@ -151077,10 +151676,94 @@
+       isHidden: (props) => props.readOnly || props.disableBpEditing,
+@@ -151077,10 +151725,94 @@
        hotkeyProps: { preventDefault: true }
      },
      newPrimer: {
@@ -1155,7 +1218,7 @@
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
        isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.caretPosition === -1 && "You must first place cursor" || !props.sequenceData.circular && "Disabled for Linear Sequences" || props.sequenceLength === 0,
-@@ -151354,7 +152037,14 @@
+@@ -151354,7 +152086,14 @@
      },
      simulatePCR: {
        handler: (props) => props.createNewPCR(),
@@ -1171,7 +1234,7 @@
        hotkeyProps: { preventDefault: true },
        isHidden: (props) => isProtein(props)
      },
-@@ -152668,6 +153358,33 @@
+@@ -152668,6 +153407,33 @@
              readOnly: readOnly2
            } = this.props;
            const onCut = this.props.onCut || this.props.onCopy || noop$8;
@@ -1205,7 +1268,7 @@
            const seqData = tidyUpSequenceData(
              this.sequenceDataToCopy || getSequenceDataBetweenRange(
                sequenceData2,
-@@ -152698,7 +153415,53 @@
+@@ -152698,7 +153464,53 @@
              );
            const textToCopy = (this.sequenceDataToCopy || {}).textToCopy !== void 0 ? this.sequenceDataToCopy.textToCopy : seqData.isProtein ? seqData.proteinSequence : seqData.sequence;
            seqData.textToCopy = textToCopy;
@@ -1260,7 +1323,7 @@
            if (isCut && !(readOnly2 || disableBpEditing) && !disableBpEditing) {
              this.handleDnaDelete(false);
              onCut(
-@@ -152965,6 +153728,7 @@
+@@ -152965,6 +153777,7 @@
            }, "makeTextCopyable");
            const aaCopy = {
              text: "Copy AA Sequence",
@@ -1268,7 +1331,7 @@
              className: "openVeCopyAA",
              onClick: makeTextCopyable((selectedSeqData) => __spreadProps(__spreadValues({}, selectedSeqData), {
                textToCopy: isProtein2 ? selectedSeqData.proteinSequence.toUpperCase() : getAminoAcidStringFromSequenceString(selectedSeqData.sequence)
-@@ -152987,6 +153751,8 @@
+@@ -152987,6 +153800,8 @@
                  ...isProtein2 ? [aaCopy] : [],
                  {
                    text: isProtein2 ? "Copy DNA Bps" : "Copy",
@@ -1277,7 +1340,7 @@
                    className: "openVeCopy2",
                    onClick: makeTextCopyable((s2) => __spreadProps(__spreadValues({}, s2), {
                      textToCopy: s2.sequence
-@@ -152999,6 +153765,7 @@
+@@ -152999,6 +153814,7 @@
                  },
                  {
                    text: isProtein2 ? "Copy Reverse Complement DNA Bps" : "Copy Reverse Complement",
@@ -1285,7 +1348,7 @@
                    className: "openVeCopyReverse",
                    onClick: makeTextCopyable(
                      getReverseComplementSequenceAndAnnoations
-@@ -153007,6 +153774,7 @@
+@@ -153007,6 +153823,7 @@
                  ...isProtein2 ? [] : [aaCopy],
                  {
                    text: "Copy Reverse Complement AA Sequence",
@@ -1293,7 +1356,7 @@
                    className: "openVeCopyAAReverse",
                    onClick: makeTextCopyable((selectedSeqData) => {
                      const revSeqData = getReverseComplementSequenceAndAnnoations(selectedSeqData);
-@@ -155763,23 +156531,39 @@
+@@ -155763,23 +156580,39 @@
          let bluePath = "";
          const height2 = laneHeight - laneSpacing;
          const y2 = 0;
@@ -1330,9 +1393,8 @@
              charWidth2
            );
 -          const toAdd = `M${xStart},${y2} L${xStart + width2},${y2} L${xStart + width2},${y2 + height2} L${xStart},${y2 + height2}`;
--          if (!range2.isMatch) {
+           if (!range2.isMatch) {
 -            redPath += toAdd;
-+          if (!range2.isMatch) {
 +            // ove-vscode patch: a one-base difference is a fraction of a pixel
 +            // wide at minimap scale, so widen the mark -- horizontally only,
 +            // and centred on the position it actually marks. Stroking the path
@@ -1345,7 +1407,7 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -156117,7 +156901,9 @@
+@@ -156117,7 +156950,9 @@
      // alignmentAnnotationLabelVisibility = {},
      // alignmentAnnotationLabelVisibilityToggle
      annotationsWithCounts,
@@ -1356,7 +1418,7 @@
    }) {
      let annotationCountToUse = {};
      if (currentPairwiseAlignmentIndex) {
-@@ -156132,12 +156918,21 @@
+@@ -156132,12 +156967,21 @@
          className: "alignmentAnnotationVisibilityToolInner"
        },
        map$5(togglableAlignmentAnnotationSettings, (visible, annotationName) => {
@@ -1378,7 +1440,7 @@
                if (annotationName === "axis") {
                  return alignmentAnnotationVisibilityToggle({
                    axisNumbers: !visible,
-@@ -169481,6 +170276,24 @@
+@@ -169481,6 +170325,24 @@
          ));
        }, "renderLocations"));
      }
@@ -1403,7 +1465,7 @@
      componentDidMount() {
        const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
        this.notes = store$1(
-@@ -169668,7 +170481,7 @@
+@@ -169668,7 +170530,7 @@
            {
              style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
            },
@@ -1412,7 +1474,7 @@
            " "
          ), /* @__PURE__ */ React$2.createElement(
            NumericInputField,
-@@ -169724,6 +170537,8 @@
+@@ -169724,6 +170586,8 @@
              sequenceLength,
              primerBindsOn,
              forward,
@@ -1421,7 +1483,7 @@
              linkedOligo: initialValues2.linkedOligo,
              useLinkedOligo,
              change: change2
-@@ -170224,9 +171039,14 @@
+@@ -170224,9 +171088,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -1437,7 +1499,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +171063,25 @@
+@@ -170243,7 +171112,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -1464,7 +1526,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +171093,13 @@
+@@ -170255,21 +171142,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -1489,7 +1551,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +171113,7 @@
+@@ -170283,7 +171162,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -1498,7 +1560,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170377,6 +171207,36 @@
+@@ -170377,6 +171256,36 @@
            className: classNames$1("bp3-input tg-custom-sequence-editable", {
              hasTempError
            }),
@@ -1535,7 +1597,7 @@
            onInput: emitChange,
            dangerouslySetInnerHTML: { __html: html2 }
          }
-@@ -170410,6 +171270,9 @@
+@@ -170410,6 +171319,9 @@
        bases,
        forward,
        defaultLinkedOligoMessage,
@@ -1545,7 +1607,7 @@
        change: change2
      } = props;
      let defaultValue2;
-@@ -170488,46 +171351,29 @@
+@@ -170488,46 +171400,29 @@
            defaultValue: bases != null ? bases : defaultValue2,
            name: "bases",
            label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
@@ -1611,7 +1673,7 @@
              },
              "Set From Selection"
            )))
-@@ -170563,6 +171409,75 @@
+@@ -170563,6 +171458,75 @@
        RenderBases
      })
    });
@@ -1687,7 +1749,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -170937,8 +171852,31 @@
+@@ -170937,8 +171901,31 @@
          verticalVisibleRange: { start: 0, end: 0 }
        })
      );
@@ -1720,7 +1782,7 @@
        const seqDataOfAllTracksToCopy = [];
        alignmentTracks.forEach((track) => {
          const seqDataToCopy = getSequenceDataBetweenRange(
-@@ -170952,17 +171890,45 @@
+@@ -170952,17 +171939,45 @@
          );
        });
        return seqDataOfAllTracksToCopy.join("");
@@ -1770,7 +1832,7 @@
              window.toastr.error("Selection Not Copied");
            } else {
              window.toastr.success("Selection Copied");
-@@ -170975,7 +171941,7 @@
+@@ -170975,7 +171990,7 @@
        return () => {
          document.removeEventListener("keydown", handleAlignmentCopy);
        };
@@ -1779,7 +1841,7 @@
      const scrollAlignmentToPercent = /* @__PURE__ */ __name((scrollPercentage) => {
        const scrollPercentageToUse = Math.min(Math.max(scrollPercentage, 0), 1);
        easyStore2.current.percentScrolled = scrollPercentageToUse;
-@@ -171371,7 +172337,16 @@
+@@ -171371,7 +172386,16 @@
                  minWidth: nameDivWidth - 3,
                  overflow: "hidden",
                  scrollbarWidth: "none",
@@ -1797,7 +1859,27 @@
                },
                "data-title": name2,
                key: i2
-@@ -171479,7 +172454,9 @@
+@@ -171473,13 +172497,28 @@
+                   "data-tip": "This sequence was trimmed and resubmitted for alignment"
+                 },
+                 "TRIMMED"
+-              ), sequenceData22.sequence.length, " bps")
++              ), sequenceData22.sequence.length,
++              /*
++               * PATCH (oven): a protein track is counted in residues.
++               *
++               * OVEN hands a protein to the alignment view as plain letters, one
++               * column per residue, rather than with isProtein -- which would make
++               * OVE back-translate every row to three times its length and then
++               * reject it for not matching its own alignment row. The count here
++               * is therefore already in residues; only the unit was wrong, and
++               * every protein track was labelled "bps". The track says which it is
++               * with ovenUnit, the same way ovenCoverage and ovenReadIndex ride on
++               * a track.
++               */
++              sequenceData22.ovenUnit === "aa" ? " aa" : " bps")
+             ),
+             /* @__PURE__ */ React$2.createElement(
                HorizontalPanelDragHandle,
                {
                  onDrag: ({ dx }) => {
@@ -1808,7 +1890,7 @@
                  }
                }
              )
-@@ -171512,7 +172489,10 @@
+@@ -171512,7 +172551,10 @@
                caretPosition: tempTrimmingCaret[i2] || -1,
                selectionLayer: selectionLayer22,
                isInAlignment: true,
@@ -1820,7 +1902,7 @@
                linearViewAnnotationLabelVisibilityOverrides: alignmentVisibilityToolOptions.alignmentAnnotationLabelVisibility,
                marginWith: 0,
                orfClicked: annotationClicked,
-@@ -171866,69 +172846,92 @@
+@@ -171866,69 +172908,92 @@
                      selectionLayerRightClicked: selectionLayerRightClicked ? (...args) => {
                        selectionLayerRightClicked(...args, props);
                      } : (...args) => {
@@ -1969,7 +2051,7 @@
                          ],
                          void 0,
                          event
-@@ -172352,7 +173355,9 @@
+@@ -172352,7 +173417,9 @@
            "cdsFeatureTranslations",
            "chromatogram",
            "dnaColors",
@@ -1980,7 +2062,7 @@
          ];
          const togglableAlignmentAnnotationSettings = {};
          map$5(alignmentAnnotationsToToggle, (annotation) => {
-@@ -172360,6 +173365,21 @@
+@@ -172360,6 +173427,21 @@
              togglableAlignmentAnnotationSettings[annotation] = alignmentAnnotationVisibility[annotation];
            }
          });
@@ -2002,7 +2084,7 @@
          const annotationsWithCounts = [];
          if (alignmentTracks) {
            let totalNumOfFeatures = 0;
-@@ -172433,7 +173453,9 @@
+@@ -172433,7 +173515,9 @@
                }));
              },
              togglableAlignmentAnnotationSettings,
@@ -2013,7 +2095,7 @@
            }
          });
        },
-@@ -175562,7 +176584,15 @@
+@@ -175562,7 +176646,15 @@
        {
          minimal: true,
          disabled: sequenceLength <= 0,
@@ -2030,7 +2112,7 @@
          style: { marginLeft: 5, color: "#48AFF0" },
          small: true
        },
-@@ -180303,6 +181333,18 @@
+@@ -180303,6 +181395,18 @@
      editor.getState = () => {
        return store.getState().VectorEditor[editorName];
      };
@@ -2049,7 +2131,7 @@
      return editor;
    }
    __name(createVectorEditor, "createVectorEditor");
-@@ -180348,6 +181390,8 @@
+@@ -180348,6 +181452,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

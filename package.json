@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN \u2014 Open Vector Editor with New Features",
   "description": "View, design, and align plasmid sequences.",
-  "version": "1.59.0",
+  "version": "1.60.0",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -42,6 +42,7 @@
           ".dna",
           ".fasta",
           ".fa",
+          ".faa",
           ".gbk",
           ".gb"
         ],
@@ -69,6 +70,9 @@
           },
           {
             "filenamePattern": "*.fa"
+          },
+          {
+            "filenamePattern": "*.faa"
           },
           {
             "filenamePattern": "*.gb"
@@ -275,7 +279,7 @@
         "oven.mafftArgs": {
           "type": "string",
           "default": "--auto",
-          "markdownDescription": "Extra arguments passed to MAFFT. `--auto` lets MAFFT pick a strategy; use `--localpair --maxiterate 1000` for L-INS-i accuracy, or `--retree 1` for speed on large read sets. `--adjustdirection`, `--preservecase` and `--quiet` are always added."
+          "markdownDescription": "Extra arguments passed to MAFFT. `--auto` lets MAFFT pick a strategy; use `--localpair --maxiterate 1000` for L-INS-i accuracy, or `--retree 1` for speed on large read sets. `--preservecase` and `--quiet` are always added, with `--adjustdirection` for DNA. A protein alignment adds `--amino` and `--anysymbol` instead, and drops any `--nuc` or `--adjustdirection` given here."
         },
         "oven.alignTrimQuality": {
           "type": "number",
@@ -313,7 +317,7 @@
       "explorer/context": [
         {
           "command": "oven.addToAlignment",
-          "when": "resourceExtname =~ /\\.(ab1|gb|gbk|fa|fasta|dna)$/i",
+          "when": "resourceExtname =~ /\\.(ab1|gb|gbk|fa|fasta|faa|dna)$/i",
           "group": "navigation@50"
         }
       ],

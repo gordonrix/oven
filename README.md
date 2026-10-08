@@ -9,9 +9,10 @@
   <a href="https://github.com/TeselaGen/tg-oss/tree/master/packages/ove">Open Vector Editor</a>.
 </p>
 
-Open `.gb`, `.gbk`, `.fasta`, `.fa`, `.dna` and `.ab1` files in a tab, then design primers, collect
-them into an order, search your existing primer collection, search your whole map library
-for a sequence, edit codons, and align Sanger reads against the plasmid on screen.
+Open `.gb`, `.gbk`, `.fasta`, `.fa`, `.faa`, `.dna` and `.ab1` files in a tab, then design primers,
+collect them into an order, search your existing primer collection, search your whole map
+library for a sequence, edit codons, and align Sanger reads against the plasmid on screen — or
+proteins against a protein.
 
 ![A plasmid open in OVEN: the sequence map on the left, the circular map and primer search
 results on the right, and the right-click menu showing Search primers in
@@ -55,6 +56,8 @@ Added here:
   codons, and origin-spanning reads handled
 - **Alignments save and reopen** as Stockholm files, coming back with the reads' own
   features and traces because the file records where every sequence came from
+- **Protein alignment** — open a protein FASTA and align other proteins to it, with each
+  difference marked residue by residue
 - **`.ab1` files open directly**, so you can look at a trace without aligning it to anything
 - **Change Amino Acid** — any codon, not just synonyms, with codon usage tables
 - **Keyboard shortcuts** for primer search, new primer and the copy variants — see
@@ -185,14 +188,15 @@ Indels are not spanned: a match containing one comes back as two adjacent hits.
 
 ## Alignment
 
-Click **Align** in an open plasmid to check clones against it. `.ab1`, `.gb`, `.gbk` and
+Click **Align** in an open plasmid to check clones against it. It aligns against the plasmid as
+last saved: save your edits first, or the panel will remind you they are not included. `.ab1`, `.gb`, `.gbk` and
 `.fasta` reads are all accepted; a multi-record FASTA becomes one track per record.
 
 ![Three Sanger reads aligned to a plasmid, each with its chromatogram, labelled match or
 mismatch, with a single disagreeing base highlighted in
 red](images/Screenshot_alignment.png)
 
-Five ways to add reads:
+Five ways to add reads (`.faa` counts too, for proteins):
 
 - **Right-click the files in the Explorer → Add to Alignment** (handles a multi-selection)
 - **Browse…** in the panel
@@ -200,9 +204,13 @@ Five ways to add reads:
 - **Drag an open editor tab** onto the panel — a `.gb`, `.gbk`, `.ab1`, `.fasta` or `.dna`
   file you already have open becomes a read
 - **Drag and drop** onto the panel, **holding ⇧ Shift**
-- **Type or paste a sequence** into the boxes under the drop zone — a name (optional; unnamed
-  ones become `sequence1`, `sequence2`…) and the bases. Whitespace and digits are ignored, so
-  a numbered block pastes straight in
+- **Type or paste sequences** into the table under the drop zone: a name (optional;
+  unnamed ones become `sequence1`, `sequence2`…) and the bases. Paste a block of rows
+  copied from Excel or Google Sheets and it fills the table, a row per sequence; the
+  sequence column is found whichever side it is on, and a header row is skipped. FASTA, or
+  one sequence per line, works too. **Add** takes them all at once. Any row that cannot be
+  added stays in the table with the reason, and the rest go in. Whitespace and digits are
+  ignored, so a numbered block pastes straight in
 
 > Shift matters: without it VS Code opens what you drop as a new tab instead.
 
@@ -233,6 +241,39 @@ coordinates hold.
 Trace ends below `oven.alignTrimQuality` (default 20) are trimmed before aligning; set it to
 `0` to align the full read. `oven.alignMaxReads` (default 50) caps one alignment.
 
+**Settings** under the Align button changes the main ones without leaving the panel: the
+MAFFT strategy (Auto, Accurate L-INS-i, Fast FFT-NS-1, or your own arguments), the gap
+opening and extension penalties, and the trace trim quality. They are the same
+`oven.mafftArgs` and `oven.alignTrimQuality` settings, so every open alignment uses them, and
+they take effect the next time you press **Align**. Changing the trim quality re-trims reads
+already in the panel, too. A saved alignment records the arguments it was actually made
+with.
+
+### Protein alignment
+
+Open a protein FASTA (`.fa`, `.fasta` or `.faa`) and it opens as a protein: Open Vector
+Editor's protein view, with residues, numbering and a length in AAs. Press **Align** and add
+other proteins the same ways as reads. Whether a file holds DNA or protein is read from its
+letters, so a protein saved as `.fasta` is recognised; `.faa` is always a protein.
+
+Proteins align to proteins only. A DNA read added against a protein reference stays in the
+list with a red note saying so and is left out of the alignment, and the same goes the other
+way round. Change the reference and the notes are worked out again.
+
+Residues are drawn as letters, and every residue that differs from the reference is marked
+in red, as bases are. A protein that differs shows **how** identical it is — `98.3%
+identical` — rather than a bare *mismatch*: two related proteins are never the same, and how
+far apart they are is the thing to read. A gap counts against that figure, so a protein
+missing three residues is not shown as 100%. **match** and **partial match** mean what they
+do for DNA, and a partial match needs at least 24 residues. That is the same odds of a chance
+match as the 50 bases asked of DNA, since each residue is one letter of twenty rather than
+four.
+
+Nothing DNA-specific applies to a protein — no traces, strands, rotations or origin. The
+DNA-only tools are left out of a protein's editor too: primers, the cart, cut sites, codon
+edits and Sequence Search. A protein's own features are not drawn on its alignment track
+yet. A saved protein alignment reopens as one.
+
 ### Saving an alignment
 
 **Save…** writes the alignment to a `.sto` file, and double-clicking that file opens it here
@@ -243,7 +284,9 @@ it suggests is dated — `2026-09-23_alignment.sto` — so a folder of them sort
 were made; reopening one and saving again suggests its own name instead.
 
 It reopens as the alignment you saved rather than a fresh one: the columns are in the file, so
-nothing is realigned and MAFFT is not needed to look at it. What is re-read from disk is the
+nothing is realigned and MAFFT is not needed to look at it. A sequence you typed or pasted in, or
+dropped from Finder, has no file to be re-read from, so the alignment file carries its bases
+itself. What is re-read from disk is the
 sequences themselves, which is where the features and the traces live — a file that has moved
 with the alignment, or alongside it, is found either way. If a source has been edited or is
 missing, the alignment still opens on the bases held in the file and says which tracks lost
@@ -273,7 +316,8 @@ reload.
 
 Run **OVEN: Check MAFFT Installation** to see which binary was found. `oven.mafftPath` sets
 one explicitly; `oven.mafftArgs` (default `--auto`) passes your own strategy.
-`--adjustdirection` is always added.
+`--adjustdirection` is added for DNA. A protein gets `--amino` instead, placed after your own
+arguments so it wins.
 
 ## Editing
 
@@ -316,7 +360,10 @@ open a sequence; toggling them yourself in the **View** menu always wins.
   you off it. A circular sequence keeps both. `oven.viewType` changes the layout:
   `sequence` or `circular` for a single pane with the rest as tabs you switch to.
   **Reopen the file** for a change to take effect
-- Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`
+- Save with **File → Save** or `cmd/ctrl+S`, in every format including `.dna`. Unsaved edits
+  put the usual dot on the tab, and VS Code asks before closing the file or quitting, as it
+  does for any other file. **Save All**, **Revert File** and VS Code's hot exit, which keeps
+  unsaved changes across a restart, work too
 - **Copy carries annotations.** Copy a stretch of sequence and paste it into another plasmid
   and its features, parts and primers come with it. **Edit → Copy Options** chooses whether
   partial ones are included. Pasting into anything else still gives plain bases
@@ -372,6 +419,14 @@ Most take effect immediately; the ones that change how the editor is built —
 need the file reopened.
 
 ## Known issues
+
+In protein alignments:
+
+- Dragging a selection across residues still reads `Selecting N bps` in the status line.
+- The eye menu still offers **DNA Colors**. Ticking it shades the residues A, C, G and T as
+  if they were bases; leave it off.
+- A protein GenBank whose `LOCUS` line does not say `aa` stores its features in residues
+  rather than OVE's expected units, so they can be drawn in the wrong place in the editor.
 
 Inherited from upstream:
 

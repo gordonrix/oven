@@ -302,6 +302,60 @@ alone *and* not reported as copied, and a drag followed straight away by `cmd+C`
 exactly as many bases as are selected. Unpatched it fails with `copied "" with nothing
 selected` and `an empty selection reported "Selection Copied"`.
 
+## 3f. Every protein track was labelled in base pairs (`alignmentTrackName`)
+
+**Symptom.** In a protein alignment the length under each track name read `186 bps`.
+
+**Cause.** OVE's alignment view has no protein mode. It does know `isProtein`, but a track
+carrying it is back-translated to three times its length as degenerate DNA. Its alignment
+row then no longer matches, and `checkForIssues` rejects the whole alignment. So OVEN hands
+proteins over as plain letters, one column per residue, with no `isProtein`. Columns
+compare as characters, so residues align, number and highlight their mismatches exactly as
+bases do. The count beside the name was therefore already in residues — only the unit was
+hard-coded.
+
+**Fix.** The label reads `sequenceData.ovenUnit` and says `aa` when it is `"aa"`, and
+`bps` otherwise. `src/alignPanel.js` (`toProteinPayload`) sets it on every protein track. It
+is a custom field on the track like `ovenCoverage` and `ovenReadIndex`, and survives
+`tidyUpSequenceData`, which deep-clones.
+
+`test/browser/alignProtein.mjs` covers it: every track label in `AlignDemo.html?protein`
+must end in `aa`, and none may say `bps`. Unpatched it fails with `a protein track is
+labelled in bps`.
+
+Not patched, and documented in the README instead: the selection readout while dragging
+still says `Selecting N bps`, and the eye menu's **DNA Colors** can still be ticked by hand
+on a protein alignment.
+
+## 3g. Selecting with a long search open recut every restriction site (`cutsitesSelector`)
+
+**Symptom.** Search an 18 kb plasmid for a 2 kb stretch, then select somewhere else: the
+editor lags behind the mouse by a quarter of a second per move. A 40-step drag took 12 s.
+
+**Cause.** The editor hands its panels `additionalEnzymes` as an object — empty, normally —
+while the sequence and map views, connected on their own, pass nothing. Both call
+`cutsitesSelector`, and reselect keeps exactly one set of inputs. In the split view with a
+search open, a component of each kind re-reads the cut sites on every selection change,
+taking turns. Each turn evicts the other: `restrictionEnzymesSelector` builds a new enzyme
+list, and with it every cut site in the plasmid is recut. Each one also gets a fresh random
+id, so every label re-renders too. Profiled, `getRandomValues` alone was 40% of the time.
+
+**Fix.** The selector's result function caches by content rather than by object identity:
+the sequence, its topology, the cut-site colours, and a signature of the enzymes. The
+signature takes each enzyme's site, regexes and cut offsets, so an edited custom enzyme is
+still recut. The last four results are kept.
+
+`test/browser/selectionLag.mjs` covers it on a synthetic 18 kb plasmid in the split view.
+Unpatched, the drag spends ~10.7 s in long tasks and the test fails with `dragging a
+selection spent … ms in 39 long tasks`. Patched it spends none. The same 35 cut sites are
+drawn either way.
+
+One test had been leaning on the lag. `newPrimer.mjs` dragged with twelve instant synthetic
+moves, and Open Vector Editor treats a release under 200 ms after a drag began as a click
+(`editorClicked`). Each move used to cost ~150 ms of recutting, so the drag always ran long
+enough. Fixed, it finished in milliseconds and was rightly taken for a click. The test now
+drags at a hand's pace.
+
 ---
 
 ## Deliberately NOT patched

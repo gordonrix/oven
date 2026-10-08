@@ -149,6 +149,15 @@ const BASE_STYLE = `
         transition: opacity .12s ease-in .35s;
       }
       .ove-toolbtns button[data-oven-tip]:hover::after { opacity: 1; }
+      /*
+       * A protein has no melting temperature. OVE's protein mode drops the GC
+       * readout but keeps this one, which would compute a Tm for the degenerate
+       * DNA it holds behind the residues -- a number about nothing.
+       */
+      body.oven-protein [data-test="veStatusBar-selection-tm"],
+      body.oven-protein [data-test="veStatusBar-selection-tm"] + .veStatusBarSpacer {
+        display: none;
+      }
 `;
 
 /**
@@ -256,11 +265,28 @@ function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditi
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, panelLayoutUri, pickerUri,
-    searchUri, strandUri, toolBtnsUri, cutSitesUri, codonUsageUri, codonEditUri,
+    searchUri, strandUri, toolBtnsUri, docSyncUri, cutSitesUri, codonUsageUri, codonEditUri,
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
     sequenceJson, viewType, circular, readOnly, showChromatogram,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
-    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey } = opts;
+    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey, protein } = opts;
+
+  /*
+   * A protein gets the editor and Align, and none of the tools that only mean
+   * anything for DNA: primers, the cart, cut sites, codon edits, and Sequence
+   * Search, which looks through DNA maps. OVE goes into its own protein mode
+   * from the sequence data. Leaving the scripts out rather than hiding their
+   * buttons also takes their menu entries and hotkeys with them -- the bundle's
+   * commands for them hide themselves when the script is not there.
+   */
+  const dna = !protein;
+  const script = (uri) => `<script src="${uri}"></script>`;
+  const dnaScripts = dna
+    ? [pickerUri, searchUri].map(script).join('\n    ')
+    : '';
+  const dnaToolScripts = dna
+    ? [cutSitesUri, codonUsageUri, codonEditUri, aminoAcidUri, newPrimerUri].map(script).join('\n    ')
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -274,7 +300,7 @@ function buildEditorHtml(opts) {
     <link rel="stylesheet" href="${rowViewCssUri}" />
     <style>${BASE_STYLE}</style>
   </head>
-  <body>
+  <body${protein ? ' class="oven-protein"' : ''}>
     <script>
       const vscode = acquireVsCodeApi();
       function postSave() {
@@ -289,13 +315,13 @@ function buildEditorHtml(opts) {
     </script>
     <div class="ove-toolbtns">
       <button id="ove-align-button" class="ove-align-btn"
-              onclick="vscode.postMessage({type:'align/open'})">Align</button>
+              onclick="vscode.postMessage({type:'align/open'})">Align</button>${dna ? `
       <button id="ove-seqsearch-button" class="ove-seqsearch-btn"
               onclick="vscode.postMessage({type:'seqsearch/open'})">Sequence Search</button>
       <button id="ove-search-button" class="ove-search-btn"
               onclick="window.OveSearch.open()">Primer Search</button>
       <button id="ove-cart-button" class="ove-cart-btn"
-              onclick="window.OveCart.openCart()">Primer Cart</button>
+              onclick="window.OveCart.openCart()">Primer Cart</button>` : ''}
     </div>
     <!--
       Must precede the bundle: OVE builds its command definitions when the
@@ -312,23 +338,28 @@ function buildEditorHtml(opts) {
     <script src="${scriptUri}"></script>
     <script src="${sharedUri}"></script>
     <script src="${panelLayoutUri}"></script>
-    <script src="${pickerUri}"></script>
-    <script src="${searchUri}"></script>
+    ${dnaScripts}
     <script src="${strandUri}"></script>
     <script src="${toolBtnsUri}"></script>
-    <script src="${cutSitesUri}"></script>
-    <script src="${codonUsageUri}"></script>
-    <script src="${codonEditUri}"></script>
-    <script src="${aminoAcidUri}"></script>
-    <script src="${newPrimerUri}"></script>
+    <script src="${docSyncUri}"></script>
+    ${dnaToolScripts}
     <script>
-${bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing, autoAddCreatedPrimers, showSelectionStats, withCart: true, cutSiteFilter, showChromatogram })}
+${bootScript({
+    sequenceJson, viewType, circular, readOnly, disableBpEditing, autoAddCreatedPrimers,
+    // Seeds the Tm readout, which a protein does not have.
+    showSelectionStats: dna && showSelectionStats,
+    withCart: dna,
+    cutSiteFilter: dna ? cutSiteFilter : null,
+    showChromatogram
+  })}${dna ? `
       window.OveCart.init(vscode, editor);
-      window.OveSearch.init(vscode, editor);
+      window.OveSearch.init(vscode, editor);` : ''}
       window.OveStrandBar.init();
+      // Tells VS Code about unsaved changes, so the tab shows them and closing asks.
+      window.OveDocSync.init(vscode, editor);${dna ? `
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
-      window.OveNewPrimer.init(editor);
+      window.OveNewPrimer.init(editor);` : ''}
       vscode.postMessage({ type: "editor/ready" });
 
       /*

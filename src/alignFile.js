@@ -10,7 +10,7 @@
  * `#=GS` lines every other tool is required to skip over.
  *
  * So a saved alignment is two things at once. To HMMER, Biopython or Jalview it
- * is an ordinary alignment of DNA. To OVEN it is also a recipe: reopen it and
+ * is an ordinary alignment of DNA or protein. To OVEN it is also a recipe: reopen it and
  * the sources are read again from disk, which is what brings the annotations
  * back. The columns are never recomputed -- they are in the file, so reopening
  * needs no MAFFT and cannot drift from what was saved.
@@ -21,7 +21,7 @@
 'use strict';
 
 const { countDifferences, rotateString } = require('./align');
-const { revComp } = require('../media/cartShared');
+const { revComp, guessMolecule } = require('../media/cartShared');
 
 /* Bumped only for a change that an older OVEN would read wrongly. */
 const FORMAT_VERSION = 1;
@@ -144,7 +144,8 @@ function safeIds(names) {
  *   {reference: {name, path, rel, row, circular},
  *    reads: [{name, path, rel, row, strand, rotation, folded, anchored,
  *             covered, deleted, readIndex, trim, record}],
- *    meta: {tool, created, mafftArgs, type}}
+ *    meta: {tool, created, mafftArgs, type, alphabet}}
+ *   `mafftArgs` is the full argument list MAFFT was run with, as one string.
  */
 function buildStockholm(spec) {
   const reference = spec.reference;
@@ -165,8 +166,18 @@ function buildStockholm(spec) {
   gf('SQ', String(rows.length));
   gf('OVEN', encodeFields({
     format: FORMAT_VERSION,
-    mafftArgs: meta.mafftArgs
+    // Additive, so FORMAT_VERSION stays put: a file without it was written
+    // before proteins could be aligned, and is DNA.
+    alphabet: meta.alphabet || 'dna'
   }));
+  /*
+   * The MAFFT arguments get a line of their own. The OVEN line is space-
+   * separated key=value pairs, so a value holding spaces had them turned into
+   * underscores -- "--localpair_--maxiterate_1000" -- and the arguments are the
+   * one value that always has them. A #=GF line's text runs to the end of the
+   * line, so here they are written exactly as they were passed.
+   */
+  if (meta.mafftArgs) gf('MAFFT', String(meta.mafftArgs).trim());
   lines.push('');
 
   const gs = (id, tag, text) => lines.push(`#=GS ${id} ${tag} ${text}`);
@@ -197,6 +208,14 @@ function buildStockholm(spec) {
     if (read.covered && read.covered.length) gs(id, 'COV', encodeRanges(read.covered));
     if (read.deleted && read.deleted.length) gs(id, 'DEL', encodeRanges(read.deleted));
     if (read.readIndex && read.readIndex.length) gs(id, 'IDX', encodeRuns(read.readIndex));
+    /*
+     * A read with no file behind it -- typed or pasted in, or dropped from
+     * Finder, which gives bytes but no path -- has nowhere else to come back
+     * from. The row is not enough: folding drops a read's insertions, so a
+     * folded read rebuilt from its row is missing bases, and before this was
+     * written those came back as Ns that the next Align then aligned.
+     */
+    if (read.seq) gs(id, 'SEQ', read.seq);
   });
 
   lines.push('');
@@ -265,14 +284,29 @@ function readAlignment(text) {
   if (!rows.length) throw new Error('No alignment rows in this file.');
 
   const header = decodeFields(gf.OVEN || '');
+  const oven = Boolean(gf.OVEN);
   const meta = {
     format: num(header.format, 0),
-    mafftArgs: header.mafftArgs || '',
+    /*
+     * What the file says, when it says. One we wrote before this field existed
+     * is DNA, since that is all there was. One from somewhere else says
+     * nothing, and is classified from its first row by the same rule as any
+     * sequence -- a Pfam-style file is far more often protein than not.
+     */
+    alphabet: header.alphabet === 'protein' || header.alphabet === 'dna'
+      ? header.alphabet
+      : (oven ? 'dna' : guessMolecule(degap(rows[0].sequence))),
+    /*
+     * From its own line; or, in a file written before it had one, from the
+     * OVEN line, with the underscores that stood in for spaces put back. MAFFT
+     * options never contain an underscore, so nothing is lost doing that.
+     */
+    mafftArgs: gf.MAFFT || String(header.mafftArgs || '').replace(/_/g, ' '),
     tool: gf.AU || '',
     created: gf.DT || '',
     type: gf.TP || '',
     // What tells a file we wrote from one that merely parses.
-    oven: Boolean(gf.OVEN)
+    oven
   };
 
   const info = (id) => gs[id] || {};
@@ -308,7 +342,8 @@ function readAlignment(text) {
       record: num(f.record, 0),
       covered: decodeRanges(info(row.id).COV || ''),
       deleted: decodeRanges(info(row.id).DEL || ''),
-      readIndex: readIndex.length ? readIndex : null
+      readIndex: readIndex.length ? readIndex : null,
+      seq: String(info(row.id).SEQ || '').replace(/\s/g, '').toUpperCase() || null
     };
   });
 
@@ -340,8 +375,9 @@ function pairRows(referenceRow, readRow) {
 }
 
 /** The read as it was handed to the aligner: flipped if it was, rotated if it was. */
-function orientRead(sequence, read) {
-  const oriented = read.strand === -1 ? revComp(String(sequence).toUpperCase())
+function orientRead(sequence, read, molecule) {
+  const flip = read.strand === -1 && molecule !== 'protein';
+  const oriented = flip ? revComp(String(sequence).toUpperCase())
     : String(sequence).toUpperCase();
   return {
     oriented,
@@ -352,17 +388,35 @@ function orientRead(sequence, read) {
 }
 
 /**
- * Put the read back in read order when its file is gone.
+ * Put the read back in read order when there is nothing else to go on.
  *
  * A folded read is stored in column order, and the letters alone cannot say
  * where the origin fell -- but `IDX` can, so the read is laid back out from it.
- * Any base folding dropped (an insertion) has nowhere to come from and is an N.
+ *
+ * Any base folding dropped -- an insertion -- has nowhere to come from, and is
+ * left out rather than made up. It used to come back as an N, and pressing
+ * Align then aligned the Ns: a 120-base read with four of them came back with
+ * nearly eighteen thousand gaps, and dragged the reads aligned alongside it
+ * out of place with it. `lost` says how many there were, so it can be said.
  */
 function readOrderFrom(columnOrder, readIndex) {
-  if (!readIndex || !readIndex.length) return columnOrder;
-  const out = new Array(Math.max(...readIndex) + 1).fill('N');
-  readIndex.forEach((at, col) => { out[at] = columnOrder[col] || 'N'; });
-  return out.join('');
+  if (!readIndex || !readIndex.length) return { sequence: columnOrder, lost: 0, readIndex };
+  const out = new Array(Math.max(...readIndex) + 1).fill(null);
+  readIndex.forEach((at, col) => { out[at] = columnOrder[col] || null; });
+  /*
+   * With the lost bases left out, the read is shorter than IDX counts, so IDX
+   * is renumbered to match it. Otherwise saving again would write the shorter
+   * read beside the old numbering, and the next reopen would find the two
+   * disagreeing and call the read changed.
+   */
+  const renumber = [];
+  let next = 0;
+  for (const base of out) renumber.push(base === null ? -1 : next++);
+  return {
+    sequence: out.filter((b) => b !== null).join(''),
+    lost: out.length - next,
+    readIndex: readIndex.map((at) => renumber[at])
+  };
 }
 
 /**
@@ -378,40 +432,48 @@ function readOrderFrom(columnOrder, readIndex) {
  */
 function rebuild(spec, sources = {}) {
   const problems = [];
+  const molecule = spec.meta && spec.meta.alphabet === 'protein' ? 'protein' : 'dna';
   const refRow = spec.reference.row;
   const refBases = degap(refRow);
+  // A source that now parses as the other kind of molecule is not the file
+  // this alignment was made from, whatever its letters.
+  const changed = (src) => Boolean(src && src.molecule && src.molecule !== molecule);
 
   let reference = sources.reference || null;
-  if (reference && String(reference.sequence || '').toUpperCase() !== refBases) {
+  if (reference && (changed(reference) || String(reference.sequence || '').toUpperCase() !== refBases)) {
     problems.push({ name: spec.reference.name, reason: 'has changed since the alignment was saved' });
     reference = null;
   } else if (!reference && spec.reference.path) {
     problems.push({ name: spec.reference.name, reason: 'could not be read' });
   }
   if (!reference) {
+    const circular = molecule === 'protein' ? false : spec.reference.circular;
     reference = {
       name: spec.reference.name,
       sequence: refBases,
-      circular: spec.reference.circular,
+      circular,
       sequenceData: {
         name: spec.reference.name,
         sequence: refBases,
-        circular: spec.reference.circular,
+        circular,
         features: []
       },
       chromatogramData: null
     };
   }
-  reference = Object.assign({}, reference, { path: spec.reference.path || null });
+  reference = Object.assign({}, reference, { path: spec.reference.path || null, molecule });
 
   const reads = [];
   const tracks = spec.reads.map((read, at) => {
     const want = degap(read.row);
     let source = (sources.reads || [])[at] || null;
+    // A read the file carries itself is its own source, and is held to the
+    // same check as a file read back from disk.
+    if (!source && read.seq) source = { name: read.name, sequence: read.seq, molecule };
 
     if (source) {
-      const { columnOrder } = orientRead(source.sequence, read);
-      if (columnOrder !== want) {
+      const { columnOrder } = orientRead(source.sequence, read, molecule);
+      if (changed(source) || columnOrder !== want) {
         problems.push({ name: read.name, reason: 'has changed since the alignment was saved' });
         source = null;
       }
@@ -419,9 +481,24 @@ function rebuild(spec, sources = {}) {
       problems.push({ name: read.name, reason: 'could not be read' });
     }
 
-    const oriented = source
-      ? orientRead(source.sequence, read).oriented
-      : readOrderFrom(want, read.readIndex);
+    let oriented;
+    let readIndex = read.readIndex;
+    if (source) {
+      oriented = orientRead(source.sequence, read, molecule).oriented;
+    } else {
+      const rebuilt = readOrderFrom(want, read.readIndex);
+      oriented = rebuilt.sequence;
+      readIndex = rebuilt.readIndex;
+      // Only a read with no file and no SEQ gets here unflagged: one saved by
+      // 1.59, or typed in before SEQ existed.
+      if (rebuilt.lost && !read.path) {
+        problems.push({
+          name: read.name,
+          reason: `was saved without its own sequence, and ${rebuilt.lost} of its bases ` +
+            `(insertions) could not be recovered -- add it again to restore them`
+        });
+      }
+    }
 
     reads.push(Object.assign({}, source || {}, {
       name: read.name,
@@ -430,7 +507,8 @@ function rebuild(spec, sources = {}) {
       // restored alignment realigns the same sequence -- on its own strand,
       // which is the one the file holds.
       sequence: source ? String(source.sequence).toUpperCase()
-        : (read.strand === -1 ? revComp(oriented) : oriented),
+        : (read.strand === -1 && molecule !== 'protein' ? revComp(oriented) : oriented),
+      molecule,
       raw: source ? source.raw || source : null,
       chromatogramData: source ? source.chromatogramData || null : null,
       restored: true,
@@ -458,7 +536,7 @@ function rebuild(spec, sources = {}) {
       covered,
       crossesOrigin: folded,
       columnOrderSequence: folded ? want : null,
-      readIndex: read.readIndex,
+      readIndex,
       deleted
     }, countDifferences(referenceRow, readRow, {
       wraps: Boolean(read.rotation),
@@ -469,6 +547,7 @@ function rebuild(spec, sources = {}) {
 
   return {
     reference,
+    molecule,
     reads,
     msa: {
       reference: refRow,

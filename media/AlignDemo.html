@@ -49,6 +49,13 @@
        * must say so rather than sitting there doing nothing.
        */
       const NOCHROM = new URLSearchParams(location.search).has('nochrom');
+      /*
+       * ?protein swaps in a protein alignment, shaped exactly as the host sends
+       * one: plain letters, one column per residue, every track marked with
+       * ovenUnit "aa" and none carrying isProtein. Plus a DNA read the host has
+       * refused against the protein reference, which must show as an error chip.
+       */
+      const PROTEIN = new URLSearchParams(location.search).has('protein');
       const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(WIDE ? 200 : 10);
       const CLEAN = REF;
       // A Sanger-sized window: comfortably over the 50 bp floor below which a
@@ -164,6 +171,43 @@
         ]
       };
 
+      /* Synthetic, all twenty residues, E F I L P Q W in every repeat. */
+      const PREF = 'MKEFILPQWYHRDNSTVGACEQLPWFIKYMSTRPEELFKQIGNWDHLAVPRSEYTQCMFIKL'.repeat(3);
+      // A 70-residue window: comfortably over the 24-residue floor.
+      const P_WINDOW = PREF.slice(40, 110);
+      const P_WINDOW_ROW = '-'.repeat(40) + P_WINDOW + '-'.repeat(PREF.length - 110);
+      // Two substitutions, at residues chosen to differ from what is there.
+      const swap = (seq, at) => seq.slice(0, at) + (seq[at] === 'A' ? 'G' : 'A') + seq.slice(at + 1);
+      const P_SUB = swap(swap(PREF, 50), 120);
+      // Three residues deleted.
+      const P_DEL = PREF.slice(0, 90) + PREF.slice(93);
+      const P_DEL_ROW = PREF.slice(0, 90) + '---' + PREF.slice(93);
+      const ptrack = (name, sequence, row) => ({
+        sequenceData: { name, sequence, circular: false, ovenUnit: 'aa' },
+        alignmentData: { name, sequence: row }
+      });
+      const PROTEIN_ALIGNMENT = {
+        alignmentType: 'Protein alignment',
+        molecule: 'protein',
+        tracks: [
+          ptrack('demo-protein', PREF, PREF),
+          ptrack('clean-protein', PREF, PREF),
+          ptrack('window-protein', P_WINDOW, P_WINDOW_ROW),
+          ptrack('substituted-protein', P_SUB, P_SUB),
+          ptrack('deleted-protein', P_DEL, P_DEL_ROW)
+        ]
+      };
+      // What the aligner reports for each read, in chip order.
+      const PROTEIN_STATS = [
+        { mismatches: 0, substitutions: 0, gaps: 0, compared: PREF.length },
+        { mismatches: 0, substitutions: 0, gaps: 0, compared: P_WINDOW.length },
+        { mismatches: 2, substitutions: 2, gaps: 0, compared: PREF.length },
+        { mismatches: 3, substitutions: 0, gaps: 3, compared: PREF.length - 3 }
+      ].map((s) => Object.assign({
+        identity: s.compared ? (s.compared - s.substitutions) / s.compared : 0,
+        strand: 1, rotation: 0, anchored: true
+      }, s));
+
       let state = {
         reference: { name: 'demo-reference', length: REF.length, circular: true },
         reads: [
@@ -176,9 +220,33 @@
         // Nothing to save until there is an alignment, which is the host's rule
         // too: it is the aligner's output that gets written, not the view.
         canSave: false, file: null,
+        // What the host's settingsState() sends: the MAFFT string as choices.
+        settings: {
+          strategy: 'auto', custom: '', gapOpen: null, gapExtend: null, trimQuality: 20,
+          presets: [
+            { id: 'auto', label: 'Auto', args: '--auto', note: 'MAFFT picks by the size of the data' },
+            { id: 'accurate', label: 'Accurate (L-INS-i)', args: '--localpair --maxiterate 1000',
+              note: 'most accurate; slow with many reads' },
+            { id: 'fast', label: 'Fast (FFT-NS-1)', args: '--retree 1', note: 'quickest, for large read sets' }
+          ],
+          defaults: { gapOpen: 1.53, gapExtend: 0 }
+        },
         // Starts missing so the banner is exercised; __mafftFound flips it.
         mafft: { ok: false, message: 'MAFFT was not found. Install it with "brew install mafft".' }
       };
+      if (PROTEIN) {
+        state = Object.assign({}, state, {
+          reference: { name: 'demo-protein', length: PREF.length, circular: false, molecule: 'protein' },
+          reads: [
+            { id: 1, name: 'clean-protein.fasta', molecule: 'protein', length: PREF.length },
+            { id: 2, name: 'window-protein.fasta', molecule: 'protein', length: P_WINDOW.length },
+            { id: 3, name: 'substituted-protein.fasta', molecule: 'protein', length: P_SUB.length },
+            { id: 4, name: 'deleted-protein.fasta', molecule: 'protein', length: P_DEL.length },
+            { id: 5, name: 'clone-read.ab1', molecule: 'dna', length: 900,
+              error: 'DNA — this reference is a protein' }
+          ]
+        });
+      }
 
       const send = () => window.postMessage({ type: 'align/state', state }, '*');
 
@@ -188,6 +256,17 @@
             window.__posted.push(m);
             syncPosted();
             if (m.type === 'align/ready') { send(); return; }
+            if (m.type === 'align/run' && PROTEIN) {
+              state = Object.assign({}, state, {
+                alignment: PROTEIN_ALIGNMENT,
+                canSave: true,
+                status: 'Aligned 4 sequences in 9 ms',
+                // The refused DNA read keeps its chip and gets no numbers.
+                reads: state.reads.map((r, i) => (r.error ? r : Object.assign({}, r, PROTEIN_STATS[i])))
+              });
+              send();
+              return;
+            }
             if (m.type === 'align/run') {
               state = Object.assign({}, state, {
                 alignment: ALIGNMENT,
@@ -216,6 +295,28 @@
               send();
               return;
             }
+            if (m.type === 'align/updateSettings') {
+              // Stands in for the host: refuse what it would refuse, save the rest.
+              const c = m.settings || {};
+              if (c.gapOpen !== '' && c.gapOpen !== null && Number(c.gapOpen) < 0) {
+                state = Object.assign({}, state, {
+                  status: 'Gap opening penalty must be a number, 0 or more.',
+                  error: 'Gap opening penalty must be a number, 0 or more.'
+                });
+              } else {
+                const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+                state = Object.assign({}, state, {
+                  status: 'Settings saved.', error: '',
+                  settings: Object.assign({}, state.settings, {
+                    strategy: c.strategy, custom: c.strategy === 'custom' ? c.custom : '',
+                    gapOpen: num(c.gapOpen), gapExtend: num(c.gapExtend),
+                    trimQuality: num(c.trimQuality) === null ? state.settings.trimQuality : num(c.trimQuality)
+                  })
+                });
+              }
+              send();
+              return;
+            }
             if (m.type === 'align/save') {
               state = Object.assign({}, state, {
                 file: 'demo-reference.sto', status: 'Saved demo-reference.sto.'
@@ -229,6 +330,36 @@
                 alignment: null, canSave: false
               });
               send();
+              return;
+            }
+            if (m.type === 'align/addSequences') {
+              // Stands in for the host: what is not letters is refused, row by
+              // row, and handed back; the rest become reads.
+              const failed = [];
+              const fresh = [];
+              (m.rows || []).forEach((r, index) => {
+                const bases = String(r.sequence || '').replace(/[\s\d]/g, '').toUpperCase();
+                const bad = bases.replace(/[A-Z*]/g, '');
+                if (!bases || bad) {
+                  failed.push({ index, name: r.name || '', sequence: r.sequence || '',
+                    error: bases ? `That is not DNA: "${bad[0]}"` : 'Enter a DNA or protein sequence to add.' });
+                  return;
+                }
+                let label = String(r.name || '').trim();
+                if (!label) {
+                  let n = 1;
+                  while (state.reads.concat(fresh).some((x) => x.name === 'sequence' + n)) n++;
+                  label = 'sequence' + n;
+                }
+                fresh.push({ id: 300 + state.reads.length + fresh.length, name: label, length: bases.length });
+              });
+              state = Object.assign({}, state, {
+                reads: state.reads.concat(fresh),
+                status: failed.length ? `Added ${fresh.length}; ${failed.length} refused — see the table.` : '',
+                error: failed.length ? 'refused' : ''
+              });
+              send();
+              window.postMessage({ type: 'align/addSequencesResult', failed }, '*');
               return;
             }
             if (m.type === 'align/addSequence') {

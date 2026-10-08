@@ -409,3 +409,176 @@ test('a wrapping read still reports its real differences', () => {
   assert.strictEqual(substituted.substitutions, 1);
   assert.strictEqual(substituted.gaps, 0);
 });
+
+/* ------------------------------------------------------------- proteins -- */
+
+const { mafftArgsFor } = require('../../src/align');
+
+/** Deterministic protein, mulberry32 over the twenty residues. */
+function makeProtein(len, seed) {
+  let a = seed >>> 0;
+  const residues = 'ACDEFGHIKLMNPQRSTVWY';
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    out += residues[((t ^ (t >>> 14)) >>> 0) % 20];
+  }
+  return out;
+}
+
+const PREF = makeProtein(300, 20261002);
+const protein = (name, sequence) => ({ name, sequence });
+const proteinRef = { name: 'enzyme', sequence: PREF, molecule: 'protein' };
+const swap = (seq, at) => seq.slice(0, at) + (seq[at] === 'A' ? 'G' : 'A') + seq.slice(at + 1);
+
+test('MAFFT is told a protein is a protein, after anything the user said', () => {
+  // MAFFT obeys whichever of --nuc and --amino it reads last.
+  const args = mafftArgsFor({ mafftArgs: '--nuc --localpair --maxiterate 1000', molecule: 'protein' });
+  assert.ok(!args.includes('--nuc'));
+  assert.ok(!args.includes('--adjustdirection'), 'a protein has no direction to adjust');
+  assert.ok(args.indexOf('--amino') > args.indexOf('1000'));
+  assert.ok(args.includes('--anysymbol'));
+  assert.deepStrictEqual(args.slice(0, 3), ['--localpair', '--maxiterate', '1000']);
+});
+
+test('DNA keeps its MAFFT arguments exactly', () => {
+  assert.deepStrictEqual(mafftArgsFor({ mafftArgs: '--auto' }),
+    ['--auto', '--adjustdirection', '--preservecase', '--quiet', '-']);
+});
+
+test('an identical protein has no differences', needsMafft, async () => {
+  const { tracks, molecule } = await align(proteinRef, [protein('same', PREF)]);
+  assert.strictEqual(molecule, 'protein');
+  assert.strictEqual(tracks[0].mismatches, 0);
+  assert.strictEqual(tracks[0].compared, PREF.length);
+});
+
+test('one substituted residue is one difference', needsMafft, async () => {
+  const { tracks } = await align(proteinRef, [protein('sub', swap(PREF, 150))]);
+  assert.strictEqual(tracks[0].substitutions, 1);
+  assert.strictEqual(tracks[0].gaps, 0);
+});
+
+test('a deletion is counted as gaps and every residue survives', needsMafft, async () => {
+  const del = PREF.slice(0, 120) + PREF.slice(123);
+  const { tracks, msa } = await align(proteinRef, [protein('del', del)]);
+  assert.strictEqual(tracks[0].gaps, 3);
+  assert.strictEqual(tracks[0].substitutions, 0);
+  // Nothing lost or reordered on the way through MAFFT.
+  assert.strictEqual(ungap(msa.rows[0].sequence), del);
+  assert.strictEqual(ungap(msa.reference), PREF);
+});
+
+test('a protein running past the end is not folded onto its start', needsMafft, async () => {
+  /*
+   * For a plasmid, a read past the end has crossed the origin and belongs at
+   * the start. A protein has two ends, and a C-terminal tag is just extra
+   * residues -- folding it would put the tag on the N-terminus.
+   */
+  const tagged = PREF.slice(200) + 'GGGSGGGSHHHHHH';
+  const { tracks } = await align(proteinRef, [protein('tagged', tagged)]);
+  const t = tracks[0];
+  assert.strictEqual(t.crossesOrigin, false);
+  assert.strictEqual(t.covered, null);
+  assert.strictEqual(t.sequence, tagged);
+  assert.strictEqual(ungap(t.readRow), tagged);
+});
+
+test('every protein track is forward and unrotated', needsMafft, async () => {
+  // Including one whose reverse would have seeded: a protein is never flipped.
+  const reversed = PREF.split('').reverse().join('');
+  const { tracks } = await align(proteinRef, [
+    protein('a', PREF.slice(0, 200)), protein('b', reversed.slice(0, 120))
+  ]);
+  for (const t of tracks) {
+    assert.strictEqual(t.strand, 1);
+    assert.strictEqual(t.rotation, 0);
+    assert.strictEqual(t.readIndex, null);
+  }
+});
+
+/* ------------------------------------------------- short and badly placed -- */
+
+const SREF = makeSeq(6000, 20261005);
+const mutate = (seq, positions) => positions.reduce(
+  (s, at) => s.slice(0, at) + (s[at] === 'A' ? 'C' : 'A') + s.slice(at + 1), seq);
+
+/** The reference positions a track's bases landed on, as [first, last]. */
+const span = (refRow, row) => {
+  let at = -1, first = -1, last = -1;
+  for (let c = 0; c < refRow.length; c++) {
+    if (refRow[c] !== '-') at++;
+    if (row[c] !== '-' && refRow[c] !== '-') { if (first < 0) first = at; last = at; }
+  }
+  return [first, last];
+};
+
+test('a short read with two differences still anchors, on the right strand', () => {
+  /*
+   * Exact 20-mer seeds need a perfect match, so this used to return null and
+   * leave the strand to MAFFT's guess. Shorter seeds find it -- when the two
+   * differences leave a clean stretch at least half the read long. Spaced to
+   * cut every such stretch, as in the next test, anchoring cannot help, and
+   * the pairwise second look is what places the read.
+   */
+  const primer = revComp(mutate(SREF.slice(4000, 4020), [2, 17]));
+  const hit = anchor(SREF, primer);
+  assert.ok(hit, 'a near-exact 20-mer should anchor');
+  assert.strictEqual(hit.strand, -1);
+  assert.strictEqual(hit.offset, 4000);
+});
+
+test('a short read lands where it belongs, whatever it is aligned alongside', needsMafft, async () => {
+  /*
+   * The bug: a 20-mer that lands exactly right on its own was split across two
+   * places with fourteen substitutions once long reads were aligned with it.
+   * Placement now matches the read aligned alone. The differences are spaced so
+   * that no seed of half the read survives them: anchoring cannot orient this
+   * one, so it is the pairwise look, and the flip it records, doing the work.
+   */
+  const primer = revComp(mutate(SREF.slice(4000, 4020), [5, 15]));
+  const reference = { name: 'ref', sequence: SREF, circular: true };
+
+  const alone = await align(reference, [{ name: 'primer', sequence: primer }]);
+  const withOthers = await align(reference, [
+    { name: 'long-a', sequence: SREF.slice(500, 1700) },
+    { name: 'long-b', sequence: revComp(SREF.slice(3000, 4200)) },
+    { name: 'primer', sequence: primer }
+  ]);
+  const a = alone.tracks[0];
+  const w = withOthers.tracks[2];
+  assert.deepStrictEqual(span(alone.msa.reference, alone.msa.rows[0].sequence), [4000, 4019]);
+  assert.deepStrictEqual(
+    span(withOthers.msa.reference, withOthers.msa.rows[2].sequence), [4000, 4019]);
+  assert.strictEqual(w.strand, -1);
+  assert.strictEqual(w.substitutions, a.substitutions);
+  assert.strictEqual(w.substitutions, 2);
+});
+
+test('a clone with a real insertion keeps it in view', needsMafft, async () => {
+  /*
+   * A read placed badly gets a second, pairwise look, and the pairwise result
+   * drops insertions. So it must win only when strictly better: on a tie the
+   * insertion the clone really has would vanish from the row.
+   */
+  const insert = makeSeq(30, 77);
+  const clone = SREF.slice(1000, 1600) + insert + SREF.slice(1600, 2200);
+  const { tracks, msa } = await align({ name: 'ref', sequence: SREF, circular: true },
+    [{ name: 'clone', sequence: clone }]);
+  assert.strictEqual(tracks[0].crossesOrigin, false, 'an ordinary clone should not be folded');
+  assert.strictEqual(ungap(msa.rows[0].sequence), clone, 'every inserted base still in the row');
+});
+
+test('a read MAFFT turns round is drawn with the bases it was aligned as', needsMafft, async () => {
+  // Too short and too different to anchor, so MAFFT is left to orient it.
+  const fragment = revComp(mutate(SREF.slice(2500, 2516), [3, 8, 12]));
+  const { tracks, msa } = await align({ name: 'ref', sequence: SREF, circular: true },
+    [{ name: 'fragment', sequence: fragment }]);
+  const t = tracks[0];
+  const shown = t.columnOrderSequence || t.sequence;
+  assert.strictEqual(ungap(t.crossesOrigin ? t.readRow : msa.rows[0].sequence).length, shown.length);
+  if (!t.crossesOrigin) assert.strictEqual(ungap(msa.rows[0].sequence), shown);
+});

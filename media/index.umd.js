@@ -133586,12 +133586,61 @@ ${seq.sequence}
     };
   }
   __name(cutsitesSelector, "cutsitesSelector");
+  /*
+   * PATCH (oven): cut sites are cached by what they are cut from, not by which
+   * object happened to describe the enzymes.
+   *
+   * The editor hands its panels additionalEnzymes as an object; the sequence
+   * and map views, connected on their own, pass nothing. Both kinds call this
+   * selector, and reselect remembers exactly one set of inputs. With a
+   * search open in the split view, a component of each kind re-reads the cut
+   * sites on every selection change, alternately, so each evicted the other:
+   * the enzyme list was rebuilt as a new object, and every cut site in the
+   * plasmid was recut from scratch -- with a fresh random id for each, so
+   * every label re-rendered too. On an 18 kb plasmid that was ~150 ms a time,
+   * several times per mouse move: dragging a selection took 12 s.
+   *
+   * Two requests with the same sequence, topology and enzyme definitions now
+   * get the same answer. The signature reads each enzyme's site and cut
+   * offsets rather than just its name, so an edited custom enzyme is recut.
+   */
+  const ovenEnzymeSignatures = /* @__PURE__ */ new WeakMap();
+  function ovenEnzymeSignature(enzymeList) {
+    if (!enzymeList || typeof enzymeList !== "object") return String(enzymeList);
+    let signature = ovenEnzymeSignatures.get(enzymeList);
+    if (signature === void 0) {
+      signature = Object.keys(enzymeList).sort().map((name2) => {
+        const e2 = enzymeList[name2] || {};
+        return [name2, e2.site, e2.forwardRegex, e2.reverseRegex, e2.topSnipOffset,
+          e2.bottomSnipOffset, e2.usForward, e2.usReverse].join(":");
+      }).join("|");
+      ovenEnzymeSignatures.set(enzymeList, signature);
+    }
+    return signature;
+  }
+  __name(ovenEnzymeSignature, "ovenEnzymeSignature");
+  const ovenCutsitesCache = [];
+  function ovenCutsitesByContent(sequence2, circular2, enzymeList, cutsiteLabelColors) {
+    const enzymes = ovenEnzymeSignature(enzymeList);
+    const colors = JSON.stringify(cutsiteLabelColors || null);
+    for (const entry of ovenCutsitesCache) {
+      if (entry.sequence === sequence2 && entry.circular === circular2 &&
+        entry.enzymes === enzymes && entry.colors === colors) return entry.result;
+    }
+    const result = cutsitesSelector(sequence2, circular2, enzymeList, cutsiteLabelColors);
+    // A few entries, so an editor and anything else on the page sharing this
+    // module do not evict each other either.
+    ovenCutsitesCache.unshift({ sequence: sequence2, circular: circular2, enzymes, colors, result });
+    if (ovenCutsitesCache.length > 4) ovenCutsitesCache.length = 4;
+    return result;
+  }
+  __name(ovenCutsitesByContent, "ovenCutsitesByContent");
   const cutsitesSelector$1 = createSelector(
     sequenceSelector,
     circularSelector,
     restrictionEnzymesSelector,
     cutsiteLabelColorSelector,
-    cutsitesSelector
+    ovenCutsitesByContent
   );
   function divideBy3(num, shouldDivideBy3) {
     return shouldDivideBy3 ? Math.floor(num / 3) : num;
@@ -172448,7 +172497,20 @@ ${seqDataToCopy}\r
                   "data-tip": "This sequence was trimmed and resubmitted for alignment"
                 },
                 "TRIMMED"
-              ), sequenceData22.sequence.length, " bps")
+              ), sequenceData22.sequence.length,
+              /*
+               * PATCH (oven): a protein track is counted in residues.
+               *
+               * OVEN hands a protein to the alignment view as plain letters, one
+               * column per residue, rather than with isProtein -- which would make
+               * OVE back-translate every row to three times its length and then
+               * reject it for not matching its own alignment row. The count here
+               * is therefore already in residues; only the unit was wrong, and
+               * every protein track was labelled "bps". The track says which it is
+               * with ovenUnit, the same way ovenCoverage and ovenReadIndex ride on
+               * a track.
+               */
+              sequenceData22.ovenUnit === "aa" ? " aa" : " bps")
             ),
             /* @__PURE__ */ React$2.createElement(
               HorizontalPanelDragHandle,

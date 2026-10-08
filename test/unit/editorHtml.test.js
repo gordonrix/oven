@@ -192,3 +192,60 @@ test('a trace file opens with its trace showing', () => {
   assert.ok(!/annotationVisibility/.test(buildEditorHtml(OPTS)),
     'a normal file should not force the chromatogram on');
 });
+
+/* ------------------------------------------------------------- proteins -- */
+
+const PROTEIN_OPTS = Object.assign({}, OPTS, {
+  codonUsageUri: 'codonUsage.js', codonEditUri: 'codonEdit.js', aminoAcidUri: 'aminoAcid.js',
+  newPrimerUri: 'newPrimer.js', cutSiteFilter: FILTER
+});
+
+test('a protein gets Align and none of the DNA tools', () => {
+  /*
+   * Primers, the cart, cut sites, codon edits and Sequence Search mean nothing
+   * for a protein. Leaving their scripts out, rather than hiding buttons, is
+   * what takes their menu entries and hotkeys away too.
+   */
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, { protein: true }));
+  assert.match(html, /id="ove-align-button"/);
+  for (const id of ['ove-seqsearch-button', 'ove-search-button', 'ove-cart-button']) {
+    assert.ok(!html.includes(`id="${id}"`), `${id} is offered for a protein`);
+  }
+  for (const src of ['picker.js', 'search.js', 'cutSites.js', 'codonUsage.js',
+    'codonEdit.js', 'aminoAcid.js', 'newPrimer.js']) {
+    assert.ok(!html.includes(`src="${src}"`), `${src} is loaded for a protein`);
+  }
+  const boot = html.slice(html.indexOf('editor.updateEditor({'));
+  assert.ok(!/rightClickOverrides/.test(html));
+  assert.ok(!/restrictionEnzymes/.test(boot), 'a saved cut-site filter was applied to a protein');
+  assert.ok(!/showMeltingTemp", "true"/.test(html), 'Tm was seeded for a protein');
+});
+
+test('a protein page is marked, and hides the melting temperature', () => {
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, { protein: true }));
+  assert.match(html, /<body class="oven-protein">/);
+  assert.match(html, /body\.oven-protein \[data-test="veStatusBar-selection-tm"\]/);
+  // Still needed: the strand bar and the tool-button placement serve any sequence.
+  assert.match(html, /src="strand\.js"/);
+  assert.match(html, /src="toolButtons\.js"/);
+});
+
+test('DNA keeps every tool', () => {
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, { protein: false }));
+  assert.ok(!/class="oven-protein"/.test(html));
+  for (const id of ['ove-align-button', 'ove-seqsearch-button', 'ove-search-button', 'ove-cart-button']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(html, /src="newPrimer\.js"/);
+  assert.match(html, /rightClickOverrides/);
+});
+
+test('every editor page tells VS Code about unsaved changes, protein or not', () => {
+  // Without it VS Code never knows the file changed: no dirty mark, and
+  // closing an edited file loses the edits without asking.
+  for (const protein of [false, true]) {
+    const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, { protein, docSyncUri: 'docSync.js' }));
+    assert.match(html, /<script src="docSync\.js"><\/script>/, `docSync.js not loaded (protein: ${protein})`);
+    assert.match(html, /window\.OveDocSync\.init\(vscode, editor\)/, `docSync not started (protein: ${protein})`);
+  }
+});

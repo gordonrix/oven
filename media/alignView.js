@@ -22,7 +22,7 @@
 
   const vscode = acquireVsCodeApi();
 
-  const ACCEPT = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'dna'];
+  const ACCEPT = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'faa', 'dna'];
 
   let state = {
     reference: null,
@@ -40,6 +40,22 @@
   let lastPayload = null;
   let dropOpen = true;  // the picker IS the empty state until there is an alignment
   let readsOpen = true; // the chips are useful until there are twenty of them
+  let settingsOpen = false;
+  /*
+   * The rows of the paste table. Kept here rather than in its inputs for the
+   * same reason as the settings draft: the strip is rebuilt on every message
+   * from the host. `focus` remembers which cell had the caret, so a rebuild
+   * mid-typing puts it back.
+   */
+  let pasteRows = [{ name: '', sequence: '' }];
+  let pasteFocus = null;
+  /*
+   * What is in the settings form while it is being edited. The whole strip is
+   * redrawn on every message from the host, so the form cannot keep its values
+   * in its own inputs: they would be reset by any status update arriving
+   * mid-edit. Null means "show what is saved".
+   */
+  let settingsDraft = null;
 
   /*
    * The rule itself lives in cartShared so it can be unit-tested; this only
@@ -54,9 +70,28 @@
   };
 
   function verdict(read, referenceLength) {
-    const label = window.CartShared.alignmentVerdict(read, referenceLength);
-    return label ? { label, cls: VERDICT_CLASS[label] } : null;
+    const shared = window.CartShared;
+    if (!isProtein()) {
+      const label = shared.alignmentVerdict(read, referenceLength);
+      return label ? { label, cls: VERDICT_CLASS[label] } : null;
+    }
+    /*
+     * A protein is held to the same odds as DNA rather than the same length --
+     * see MIN_COVERED_AA. And where it differs, how much is the useful answer:
+     * two homologues are never identical, so "mismatch" alone would paint every
+     * one the same red. Green and gold mean exactly what they mean for DNA.
+     */
+    const label = shared.alignmentVerdict(read, referenceLength, shared.MIN_COVERED_AA);
+    if (!label) return null;
+    if (label === 'mismatch' && read.mismatches > 0) {
+      return { label: shared.identityLabel(read), cls: VERDICT_CLASS.mismatch };
+    }
+    return { label, cls: VERDICT_CLASS[label] };
   }
+
+  /* Is the alignment being built of proteins? The reference decides. */
+  const isProtein = () => Boolean(state.reference && state.reference.molecule === 'protein');
+  const unitOf = (molecule) => (molecule === 'protein' ? 'aa' : 'bp');
 
   /*
    * The quality-score bars behind a trace are not wanted here: they say little
@@ -189,7 +224,7 @@
      */
     const live = hasChromatogram();
     topBarRoot.classList.toggle('is-off', !live);
-    const why = 'No .ab1 read in this alignment';
+    const why = isProtein() ? 'Protein alignment — no traces' : 'No .ab1 read in this alignment';
 
     /*
      * Track height: how tall each chromatogram window is. Shaped like OVE's
@@ -298,7 +333,7 @@
   /* --------------------------------------------------------- drop target -- */
 
   /* What the aligner can read, matching SEQUENCE_EXTENSIONS in alignTracks.js. */
-  const READ_EXTENSIONS = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'dna'];
+  const READ_EXTENSIONS = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'faa', 'dna'];
 
   const isSequencePath = (p) =>
     READ_EXTENSIONS.includes(String(p).split('.').pop().toLowerCase());
@@ -402,8 +437,10 @@
     row.appendChild(el('span', 'ovealign-reflabel', 'Reference:'));
     if (state.reference) {
       row.appendChild(el('span', 'ovealign-refname', state.reference.name));
-      row.appendChild(el('span', 'ovealign-refmeta',
-        `${state.reference.length} bp · ${state.reference.circular ? 'circular' : 'linear'}`));
+      // A protein has no topology to speak of, so it gets a length and nothing else.
+      row.appendChild(el('span', 'ovealign-refmeta', isProtein()
+        ? `${state.reference.length} aa`
+        : `${state.reference.length} bp · ${state.reference.circular ? 'circular' : 'linear'}`));
     } else {
       row.appendChild(el('span', 'ovealign-refmeta', 'none chosen'));
     }
@@ -426,19 +463,29 @@
     } else if (v) {
       const stat = el('span', `ovealign-readstat ${v.cls}`, v.label);
       const covered = read.compared || 0;
-      stat.title = [
-        refLen
-          ? `covers ${covered} of ${refLen} bp (${((covered / refLen) * 100).toFixed(1)}%)`
-          : `covers ${covered} bp`,
-        `${read.substitutions} substitution(s), ${read.gaps} gapped column(s)`,
-        read.identity !== undefined ? `identity ${(read.identity * 100).toFixed(3)}%` : null,
+      const unit = unitOf(isProtein() ? 'protein' : 'dna');
+      // Strand, rotation and anchoring are all about where a read sits on a
+      // circular plasmid; a protein has none of them, so none are listed.
+      const dnaOnly = isProtein() ? [] : [
         read.strand === -1 ? 'aligned reverse-complemented' : 'forward strand',
         read.rotation ? `rotated ${read.rotation} bp to cross the origin` : null,
         read.anchored === false ? 'no anchor found on the reference' : null
+      ];
+      stat.title = [
+        refLen
+          ? `covers ${covered} of ${refLen} ${unit} (${((covered / refLen) * 100).toFixed(1)}%)`
+          : `covers ${covered} ${unit}`,
+        `${read.substitutions} substitution(s), ${read.gaps} gapped column(s)`,
+        read.identity === undefined ? null : (isProtein()
+          // The chip's figure counts gaps against it; this one does not, and
+          // without saying so the two would look like a contradiction.
+          ? `${(read.identity * 100).toFixed(3)}% identical where both have a residue`
+          : `identity ${(read.identity * 100).toFixed(3)}%`),
+        ...dnaOnly
       ].filter(Boolean).join('\n');
       chip.appendChild(stat);
     } else if (read.length) {
-      chip.appendChild(el('span', 'ovealign-readstat', `${read.length} bp`));
+      chip.appendChild(el('span', 'ovealign-readstat', `${read.length} ${unitOf(read.molecule)}`));
     }
 
     const x = el('button', 'ovealign-x', '×');
@@ -487,8 +534,136 @@
     into.appendChild(box);
   }
 
+  /* ------------------------------------------------------- paste table -- */
+
+  const rowFilled = (r) => Boolean(String(r.name || '').trim() || String(r.sequence || '').trim());
+
+  /** Always one empty row at the bottom, to type the next one into. */
+  function ensureTrailingRow() {
+    if (!pasteRows.length || rowFilled(pasteRows[pasteRows.length - 1])) {
+      pasteRows.push({ name: '', sequence: '' });
+    }
+  }
+
+  function submitPasteTable() {
+    const rows = pasteRows.filter(rowFilled).map((r) => ({ name: r.name, sequence: r.sequence }));
+    if (!rows.length) return;
+    post('align/addSequences', { rows });
+    // Cleared now; any row the host refuses comes back with its reason.
+    pasteRows = [{ name: '', sequence: '' }];
+    pasteFocus = { row: 0, col: 'sequence', start: 0, end: 0 };
+    renderSetup();
+  }
+
+  /** Put pasted text into the table, starting at the row it was pasted into. */
+  function pasteIntoTable(event, rowIndex) {
+    const text = event.clipboardData && event.clipboardData.getData('text/plain');
+    // One line with no tab is an ordinary paste into the box.
+    if (!text || !/[\t\n]/.test(text.trim())) return;
+    const parsed = window.CartShared.parseSequenceTable(text);
+    if (!parsed.length) return;
+    event.preventDefault();
+    if (parsed.length === 1 && !parsed[0].name) {
+      // One sequence that happened to span lines: it fills this row's box.
+      pasteRows[rowIndex].sequence = parsed[0].sequence;
+      pasteRows[rowIndex].error = null;
+    } else {
+      // Over the rows from here down, as a spreadsheet would.
+      pasteRows.splice(rowIndex, parsed.length, ...parsed.map((r) => ({ name: r.name, sequence: r.sequence })));
+    }
+    ensureTrailingRow();
+    const last = rowIndex + Math.max(parsed.length, 1) - 1;
+    pasteFocus = { row: last, col: 'sequence', start: 0, end: 0 };
+    renderSetup();
+  }
+
+  function renderPasteTable() {
+    ensureTrailingRow();
+    const table = el('div', 'ovealign-pastetable');
+    const head = el('div', 'ovealign-pastehead');
+    head.appendChild(el('span', 'ovealign-pastename-h', 'Name'));
+    head.appendChild(el('span', 'ovealign-pastebases-h', 'Sequence'));
+    table.appendChild(head);
+
+    const body = el('div', 'ovealign-pasterows');
+    const addButton = el('button', 'ovealign-btn secondary ovealign-pasteadd');
+    const label = () => {
+      const n = pasteRows.filter(rowFilled).length;
+      addButton.textContent = n > 1 ? `Add ${n}` : 'Add';
+      addButton.disabled = n === 0;
+    };
+
+    const seqPlaceholder = !state.reference
+      ? 'Paste or type a DNA or protein sequence'
+      : (isProtein() ? 'Paste or type a protein sequence' : 'Paste or type a DNA sequence');
+
+    pasteRows.forEach((row, i) => {
+      const line = el('div', 'ovealign-pasterow' + (row.error ? ' has-error' : ''));
+      const cell = (col, cls, placeholder) => {
+        const input = el('input', cls);
+        input.type = 'text';
+        input.placeholder = placeholder;
+        input.value = row[col] || '';
+        input.dataset.row = String(i);
+        input.dataset.col = col;
+        input.addEventListener('input', () => {
+          row[col] = input.value;
+          pasteFocus = { row: i, col, start: input.selectionStart, end: input.selectionEnd };
+          if (row.error) { row.error = null; line.classList.remove('has-error'); }
+          // Typing into the last row grows the table by one.
+          if (i === pasteRows.length - 1 && rowFilled(row)) { ensureTrailingRow(); renderSetup(); return; }
+          label();
+        });
+        input.addEventListener('focus', () => {
+          pasteFocus = { row: i, col, start: input.selectionStart, end: input.selectionEnd };
+        });
+        input.addEventListener('paste', (e) => pasteIntoTable(e, i));
+        // Enter from any box adds the lot, since the name is optional.
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submitPasteTable(); }
+        });
+        return input;
+      };
+      line.appendChild(cell('name', 'ovealign-pastename', i === 0 ? 'Name (optional)' : ''));
+      line.appendChild(cell('sequence', 'ovealign-pastebases', i === 0 ? seqPlaceholder : ''));
+      if (rowFilled(row)) {
+        const x = el('button', 'ovealign-x', '×');
+        x.title = 'Remove this row';
+        x.addEventListener('click', () => { pasteRows.splice(i, 1); renderSetup(); });
+        line.appendChild(x);
+      } else {
+        line.appendChild(el('span', 'ovealign-pastespacer'));
+      }
+      body.appendChild(line);
+      if (row.error) body.appendChild(el('div', 'ovealign-pasteerr', row.error));
+    });
+    table.appendChild(body);
+
+    const foot = el('div', 'ovealign-pastefoot');
+    addButton.addEventListener('click', submitPasteTable);
+    label();
+    foot.appendChild(addButton);
+    foot.appendChild(el('span', 'ovealign-drophint',
+      'Paste rows from a spreadsheet (a name and a sequence column), FASTA, or one sequence per line'));
+    table.appendChild(foot);
+    return table;
+  }
+
+  /** Put the caret back in the cell it was in before the strip was rebuilt. */
+  function restorePasteFocus() {
+    if (!pasteFocus) return;
+    const input = document.querySelector(
+      `.ovealign-pastetable input[data-row="${pasteFocus.row}"][data-col="${pasteFocus.col}"]`);
+    if (!input) return;
+    input.focus();
+    try { input.setSelectionRange(pasteFocus.start, pasteFocus.end); } catch (e) { /* not a text box */ }
+  }
+
   function renderSetup() {
     const setup = $('setup');
+    // Only a cell of the table that had the caret gets it back.
+    const active = document.activeElement;
+    if (!(active && active.closest && active.closest('.ovealign-pastetable'))) pasteFocus = null;
     setup.textContent = '';
     renderMafft(setup);
     renderReference(setup);
@@ -512,7 +687,9 @@
 
     if (dropOpen || !state.alignment) {
       const zone = el('div', 'ovealign-drop');
-      zone.appendChild(el('div', null, `Drop .${ACCEPT.slice(0, 4).join(', .')} or .fasta files here`));
+      zone.appendChild(el('div', null, isProtein()
+        ? 'Drop .fa, .fasta, .faa or .gb protein files here'
+        : `Drop .${ACCEPT.slice(0, 4).join(', .')} or .fasta files here`));
       const browse = el('button', 'ovealign-btn secondary', 'Browse…');
       browse.addEventListener('click', () => post('align/browse'));
       zone.appendChild(browse);
@@ -523,41 +700,14 @@
       setup.appendChild(zone);
 
       /*
-       * Typing a sequence in, for when there is no file to point at -- a
-       * synthesised oligo, something out of a supplier's mail, a stretch off
-       * another map. It goes through the same route a dropped file does: the
-       * host wraps it as FASTA and ingests it, so the entry that comes back is
-       * shaped like every other read rather than a special case.
+       * Typing or pasting sequences in, for when there is no file to point at
+       * -- synthesised oligos, something out of a supplier's mail, a stretch off
+       * another map. A table, so a block copied from a spreadsheet goes in
+       * whole. Each row goes through the same route a dropped file does: the
+       * host wraps it as FASTA and ingests it, so what comes back is shaped like
+       * every other read rather than a special case.
        */
-      const paste = el('div', 'ovealign-pasteseq');
-      const nameBox = el('input', 'ovealign-pastename');
-      nameBox.type = 'text';
-      nameBox.placeholder = 'Name (optional)';
-      const seqBox = el('input', 'ovealign-pastebases');
-      seqBox.type = 'text';
-      seqBox.placeholder = 'Paste or type a DNA sequence';
-      const add = el('button', 'ovealign-btn secondary ovealign-pasteadd', 'Add');
-
-      const submit = () => {
-        const sequence = seqBox.value.trim();
-        if (!sequence) { seqBox.focus(); return; }
-        post('align/addSequence', { name: nameBox.value.trim(), sequence });
-        nameBox.value = '';
-        seqBox.value = '';
-        seqBox.focus();
-      };
-      add.addEventListener('click', submit);
-      // Enter from either box, since the name is optional and often skipped.
-      for (const box of [nameBox, seqBox]) {
-        box.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') { e.preventDefault(); submit(); }
-        });
-      }
-
-      paste.appendChild(nameBox);
-      paste.appendChild(seqBox);
-      paste.appendChild(add);
-      setup.appendChild(paste);
+      setup.appendChild(renderPasteTable());
     }
 
     if (state.reads.length) {
@@ -611,11 +761,132 @@
       : 'Align some reads first';
     save.addEventListener('click', () => post('align/save'));
     actions.appendChild(save);
+
+    const gear = el('button', 'ovealign-link', settingsOpen ? 'Hide settings' : 'Settings');
+    gear.title = 'MAFFT strategy, gap penalties and trace trimming';
+    gear.addEventListener('click', () => {
+      settingsOpen = !settingsOpen;
+      settingsDraft = null;
+      renderSetup();
+    });
+    actions.appendChild(gear);
     if (state.status) {
       actions.appendChild(el('span', 'ovealign-status' + (state.error ? ' is-error' : ''), state.status));
     }
     setup.appendChild(actions);
+    if (settingsOpen && state.settings) setup.appendChild(renderSettings());
+    restorePasteFocus();
   }
+
+  /**
+   * The alignment settings: a MAFFT strategy, the two gap penalties, and how
+   * hard to trim trace ends.
+   *
+   * These are oven.mafftArgs and oven.alignTrimQuality, edited in a friendlier
+   * shape -- the host turns the choices into the one argument string and saves
+   * them where they already live. They take effect on the next Align, which is
+   * the only moment they are read.
+   */
+  function renderSettings() {
+    const saved = state.settings;
+    if (!settingsDraft) {
+      settingsDraft = {
+        strategy: saved.strategy, custom: saved.custom,
+        gapOpen: saved.gapOpen === null ? '' : String(saved.gapOpen),
+        gapExtend: saved.gapExtend === null ? '' : String(saved.gapExtend),
+        trimQuality: String(saved.trimQuality)
+      };
+    }
+    const d = settingsDraft;
+    const box = el('div', 'ovealign-settings');
+    const row = el('div', 'ovealign-settingsrow');
+
+    const field = (label, control, title) => {
+      const f = el('label', 'ovealign-field');
+      f.appendChild(el('span', null, label));
+      f.appendChild(control);
+      if (title) f.title = title;
+      return f;
+    };
+    const numberBox = (key, placeholder, step) => {
+      const input = el('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = step;
+      input.placeholder = placeholder;
+      input.value = d[key];
+      input.addEventListener('input', () => { d[key] = input.value; });
+      return input;
+    };
+
+    const strategy = el('select', 'ovealign-strategy');
+    for (const p of saved.presets) {
+      const o = el('option', null, p.label);
+      o.value = p.id;
+      strategy.appendChild(o);
+    }
+    const custom = el('option', null, 'Custom…');
+    custom.value = 'custom';
+    strategy.appendChild(custom);
+    strategy.value = d.strategy;
+    strategy.addEventListener('change', () => { d.strategy = strategy.value; renderSetup(); });
+    const preset = saved.presets.find((p) => p.id === d.strategy);
+    row.appendChild(field('Strategy', strategy, preset ? `${preset.args} — ${preset.note}` : null));
+
+    if (d.strategy === 'custom') {
+      const args = el('input', 'ovealign-customargs');
+      args.type = 'text';
+      args.placeholder = '--localpair --maxiterate 1000';
+      args.value = d.custom;
+      args.addEventListener('input', () => { d.custom = args.value; });
+      row.appendChild(field('MAFFT arguments', args));
+    }
+
+    row.appendChild(field('Gap opening', numberBox('gapOpen', String(saved.defaults.gapOpen), '0.01'),
+      `MAFFT --op. Higher means fewer, longer gaps. Empty uses MAFFT's ${saved.defaults.gapOpen}.`));
+    row.appendChild(field('Gap extension', numberBox('gapExtend', String(saved.defaults.gapExtend), '0.01'),
+      `MAFFT --ep. Empty uses MAFFT's ${saved.defaults.gapExtend}.`));
+
+    // A protein has no trace to trim.
+    if (!isProtein()) {
+      row.appendChild(field('Trim trace ends below Q', numberBox('trimQuality', '20', '1'),
+        'Phred quality below which .ab1 ends are trimmed before aligning. 0 aligns the full read.'));
+    }
+    box.appendChild(row);
+
+    box.appendChild(el('div', 'ovealign-settingsnote', preset
+      ? `${preset.label}: ${preset.note}. Used the next time you press Align.`
+      : 'Used the next time you press Align.'));
+
+    const btns = el('div', 'ovealign-settingsbtns');
+    const apply = el('button', 'ovealign-btn', 'Save settings');
+    apply.addEventListener('click', () => {
+      // The draft stays until the host reports the settings saved, so a value
+      // it refuses is left in the box to correct rather than snapped back.
+      post('align/updateSettings', { settings: Object.assign({}, d) });
+    });
+    btns.appendChild(apply);
+    const all = el('button', 'ovealign-link', 'All OVEN settings…');
+    all.addEventListener('click', () => post('align/openSettings', { query: '@ext:gordonrix.oven' }));
+    btns.appendChild(all);
+    box.appendChild(btns);
+    return box;
+  }
+
+  /*
+   * What a protein alignment shows: the residues, numbered, and nothing that
+   * only means anything for DNA.
+   *
+   * DNA Colors and Reverse Sequence are set off explicitly rather than left to
+   * their defaults, because the eye menu saves them to localStorage: someone who
+   * once switched either on for a DNA alignment would otherwise get coloured
+   * nucleotide boxes behind every A, C, G and T residue, or a row of
+   * "complemented" residues under each protein.
+   */
+  const PROTEIN_VISIBILITY = {
+    chromatogram: false, features: false, axis: true, axisNumbers: true, sequence: true,
+    translations: false, cdsFeatureTranslations: false, dnaColors: false, reverseSequence: false
+  };
 
   /**
    * (Re)build the OVE alignment view.
@@ -629,8 +900,10 @@
       if (!host.querySelector('.ovealign-empty')) {
         host.textContent = '';
         host.appendChild(el('div', 'ovealign-empty',
-          'Add one or more reads, then press Align. Trace files show their chromatogram; ' +
-          'GenBank and FASTA reads align without one.'));
+          isProtein()
+            ? 'Add one or more protein sequences, then press Align.'
+            : 'Add one or more reads, then press Align. Trace files show their chromatogram; ' +
+              'GenBank and FASTA reads align without one.'));
       }
       return;
     }
@@ -650,7 +923,7 @@
       // chromatogram and features are both off by default, and the setting is
       // persisted to localStorage -- so a stale value there can mask a change
       // while debugging.
-      alignmentAnnotationVisibility: {
+      alignmentAnnotationVisibility: a.molecule === 'protein' ? PROTEIN_VISIBILITY : {
         chromatogram: true, features: true, axis: true, axisNumbers: true, sequence: true,
         // `translations` only shows translations that exist as their own
         // annotations; the amino-acid track under a CDS is a separate toggle,
@@ -749,8 +1022,21 @@
 
   window.addEventListener('message', (event) => {
     const msg = event.data || {};
+    if (msg.type === 'align/addSequencesResult') {
+      // Refused rows come back into the table, each with its reason.
+      const failed = msg.failed || [];
+      if (failed.length) {
+        pasteRows = failed.map((f) => ({ name: f.name, sequence: f.sequence, error: f.error }));
+        pasteFocus = null;
+        renderSetup();
+      }
+      return;
+    }
     if (msg.type !== 'align/state') return;
     const hadAlignment = state.alignment;
+    // Settings saved -- here, or in settings.json -- replace whatever was being
+    // edited; anything else leaves the edit alone.
+    if (JSON.stringify(msg.state.settings) !== JSON.stringify(state.settings)) settingsDraft = null;
     state = Object.assign({}, state, msg.state);
     // The first alignment folds the picker away; losing one (a read removed, a
     // new reference) brings it back, since choosing files is the job again.

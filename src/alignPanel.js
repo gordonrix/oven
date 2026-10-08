@@ -25,8 +25,10 @@ const vscode = require('vscode');
 
 const config = require('./config');
 const mafft = require('./mafft');
-const { align, mutatedCodons } = require('./align');
+const { align, mutatedCodons, mafftArgsFor } = require('./align');
 const { buildStockholm, readAlignment, rebuild } = require('./alignFile');
+const { guessMolecule, PROTEIN_LETTERS } = require('../media/cartShared');
+const alignSettings = require('./alignSettings');
 const {
   parseFile, trimByQuality, followAlignment, followAlignmentAnnotations, SEQUENCE_EXTENSIONS
 } = require('./alignTracks');
@@ -97,6 +99,10 @@ class AlignPanel {
   /** Open the panel, optionally adopting a plasmid as the reference. */
   async show(reference, column) {
     if (reference) this.setReference(reference);
+    if (reference && reference.unsavedEdits) {
+      this.note(`${reference.name} has unsaved changes; this aligns against the saved file. ` +
+        'Save it to align against your edits.');
+    }
 
     if (this.panel) {
       this.panel.reveal(column || this.panel.viewColumn, false);
@@ -154,12 +160,14 @@ class AlignPanel {
               : 'Still cannot find MAFFT.');
             break;
           case 'align/openSettings':
-            vscode.commands.executeCommand('workbench.action.openSettings', 'oven.mafftPath');
+            vscode.commands.executeCommand('workbench.action.openSettings', msg.query || 'oven.mafftPath');
             break;
+          case 'align/updateSettings': await this.updateSettings(msg.settings || {}); break;
           case 'align/browse': await this.browse(); break;
           case 'align/addUris': await this.addUris(msg.uris || []); break;
           case 'align/addBytes': await this.addBytes(msg.files || []); break;
           case 'align/addSequence': await this.addSequence(msg.name, msg.sequence); break;
+          case 'align/addSequences': await this.addSequences(msg.rows || []); break;
           case 'align/pickReference': await this.pickReference(); break;
           case 'align/remove': this.remove(msg.id); break;
           case 'align/run': await this.run(); break;
@@ -187,14 +195,44 @@ class AlignPanel {
   setReference(ref) {
     // Pressing Align again on the same plasmid must not throw away the results
     // already on screen -- only a genuinely different reference invalidates them.
-    if (this.reference && sameReference(this.reference, ref)) return;
-    this.reference = ref;
+    if (this.reference && sameReference(this.reference, ref)) {
+      this.refreshReference(withMolecule(ref));
+      return;
+    }
+    this.reference = withMolecule(ref);
     // The old alignment was against a different sequence, so it is now a lie.
     this.forget();
     this.reads.forEach((r) => { delete r.mismatches; });
     // A custom editor's tab is named after its file, which is the truth about
     // what is open; renaming it to the reference would hide that.
     if (this.panel && !this.adopted) this.panel.title = panelTitle(ref);
+  }
+
+  /**
+   * The same file, offered again: keep what is on screen unless the file has
+   * changed underneath it.
+   *
+   * Same path used to mean same reference, so a plasmid edited and saved since
+   * it was aligned kept being aligned against the old one until the panel was
+   * closed. Now the content decides. A changed sequence leaves the old columns
+   * meaning nothing, so the alignment goes and Align is needed again. Changed
+   * annotations only are redrawn on the alignment as it stands. The same
+   * content does nothing at all -- pressing Align on the plasmid again must not
+   * reset the view.
+   */
+  refreshReference(next) {
+    const before = this.reference;
+    if (JSON.stringify(before.sequenceData || null) === JSON.stringify(next.sequenceData || null) &&
+        before.sequence === next.sequence) return;
+    this.reference = next;
+    if (before.sequence !== next.sequence || before.molecule !== next.molecule) {
+      this.forget();
+      this.reads.forEach((r) => { delete r.mismatches; });
+      this.note(`${next.name} has changed since it was aligned. Press Align to align against it as saved.`);
+      return;
+    }
+    if (this.result) this.alignment = this.toViewPayload(this.result, this.aligned);
+    this.push(true);
   }
 
   /* ------------------------------------------------------------ messaging -- */
@@ -212,11 +250,13 @@ class AlignPanel {
         reference: this.reference && {
           name: this.reference.name,
           length: this.reference.sequence.length,
-          circular: Boolean(this.reference.circular)
+          circular: Boolean(this.reference.circular),
+          molecule: this.reference.molecule
         },
         reads: this.reads.map((r) => ({
           id: r.id, name: r.name, path: r.path, length: r.sequence ? r.sequence.length : 0,
-          error: r.error || null,
+          molecule: r.molecule || null,
+          error: this.refusal(r),
           mismatches: r.mismatches, substitutions: r.substitutions, gaps: r.gaps,
           identity: r.identity, strand: r.strand, rotation: r.rotation,
           /*
@@ -241,9 +281,66 @@ class AlignPanel {
         // Only a completed alignment can be written out, and only the aligner's
         // own output is enough to write it -- see this.result.
         canSave: Boolean(this.result),
-        file: this.file ? path.basename(this.file.fsPath) : null
+        file: this.file ? path.basename(this.file.fsPath) : null,
+        settings: this.settingsState()
       }
     });
+  }
+
+  /* --------------------------------------------------------- settings -- */
+
+  /** The alignment settings as the form shows them. */
+  settingsState() {
+    return Object.assign(alignSettings.parseMafftArgs(config.mafftArgs()), {
+      trimQuality: config.alignTrimQuality(),
+      presets: alignSettings.PRESETS,
+      defaults: { gapOpen: alignSettings.DEFAULT_GAP_OPEN, gapExtend: alignSettings.DEFAULT_GAP_EXTEND }
+    });
+  }
+
+  /**
+   * Save the form back to settings.
+   *
+   * Into the ordinary oven.mafftArgs and oven.alignTrimQuality, so the form is
+   * a way of editing them and not a second place they live: settings.json,
+   * the Settings UI and this all agree, and every open alignment uses the same
+   * values on its next Align. Written where the value is already set, so a
+   * workspace that overrides it is changed rather than silently outranked.
+   */
+  async updateSettings(choices) {
+    const problem = alignSettings.validate(choices);
+    if (problem) return this.fail(problem);
+
+    const args = alignSettings.composeMafftArgs(choices);
+    await writeSetting('mafftArgs', args);
+    if (choices.trimQuality !== undefined && choices.trimQuality !== null && choices.trimQuality !== '') {
+      await writeSetting('alignTrimQuality', Number(choices.trimQuality));
+    }
+    this.note(this.result
+      ? 'Settings saved. Press Align to realign with them.'
+      : 'Settings saved.');
+  }
+
+  /**
+   * Why a read cannot be aligned here, or null when it can.
+   *
+   * Besides a file that could not be read, a read can be the wrong kind of
+   * molecule: DNA against a protein reference, or the other way round. Neither
+   * can be aligned to the other -- there is no frame to translate in that could
+   * be trusted -- so the read is shown and refused, the same way an unreadable
+   * file is, rather than dropped without a word.
+   *
+   * Worked out each time rather than stored, so changing the reference to the
+   * other kind of molecule frees the reads it had refused and refuses the ones
+   * it had accepted, with nothing to re-read.
+   */
+  refusal(read) {
+    if (read.error) return read.error;
+    const ref = this.reference && this.reference.molecule;
+    if (!ref || !read.molecule || read.molecule === ref) return null;
+    return read.molecule === 'dna'
+      ? 'DNA — this reference is a protein'
+      : 'protein — this reference is DNA';
   }
 
   /**
@@ -292,7 +389,7 @@ class AlignPanel {
       title: 'Choose a reference sequence',
       openLabel: 'Use as reference',
       canSelectMany: false,
-      filters: { 'Sequence files': ['gb', 'gbk', 'fa', 'fasta', 'dna'] }
+      filters: { 'Sequence files': ['gb', 'gbk', 'fa', 'fasta', 'faa', 'dna'] }
     });
     if (!picked || !picked.length) return;
 
@@ -348,18 +445,85 @@ class AlignPanel {
    * keep in step with the first.
    */
   async addSequence(name, sequence) {
+    await this.addOne(name, sequence);
+    this.afterAdd(1);
+  }
+
+  /**
+   * Add a pasted table of sequences, all at once.
+   *
+   * Each row is held to exactly the rules a single typed sequence is, and one
+   * bad row does not stop the rest: the good ones are added, and the ones
+   * refused are handed back to the panel with their reasons, so they stay in
+   * the table to be corrected rather than vanishing with the others.
+   */
+  async addSequences(rows) {
+    const failed = [];
+    let added = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      if (!String(row.name || '').trim() && !String(row.sequence || '').trim()) continue;
+      try {
+        await this.addOne(row.name, row.sequence);
+        added++;
+      } catch (e) {
+        failed.push({
+          index: i,
+          name: String(row.name || ''),
+          sequence: String(row.sequence || ''),
+          error: e && e.message ? e.message : String(e)
+        });
+      }
+    }
+    this.afterAdd(added);
+    if (failed.length) {
+      // Red in the status line, but no notification: the rows themselves say
+      // what is wrong, and a pop-up per paste would be noise.
+      const message = `${added ? `Added ${added}; ` : ''}${failed.length} ` +
+        `${failed.length === 1 ? 'row was' : 'rows were'} refused — see the table.`;
+      this.status = message;
+      this.error = message;
+      this.push(true);
+    }
+    if (this.panel) this.panel.webview.postMessage({ type: 'align/addSequencesResult', failed });
+    return { added, failed };
+  }
+
+  /** Validate one typed or pasted sequence and add it. Throws when it cannot be. */
+  async addOne(name, sequence) {
     /*
      * Whitespace and digits go: sequence is pasted out of all sorts of places
-     * and often arrives in numbered blocks. Anything left that is not a base is
-     * an error rather than something to strip silently, since quietly dropping
-     * characters would change what is being aligned.
+     * and often arrives in numbered blocks. Anything left that is not a base or
+     * a residue is an error rather than something to strip silently, since
+     * quietly dropping characters would change what is being aligned.
+     *
+     * One trailing * goes too -- it is how a protein is often written out with
+     * its stop -- but a * anywhere else is a stop in the middle of the sequence,
+     * which nothing should be aligned past without someone deciding to.
      */
-    const bases = String(sequence || '').replace(/[\s\d]/g, '').toUpperCase();
-    if (!bases) throw new Error('Enter a DNA sequence to add.');
+    let bases = String(sequence || '').replace(/[\s\d]/g, '').toUpperCase();
+    if (!bases) throw new Error('Enter a DNA or protein sequence to add.');
+    bases = bases.replace(/\*$/, '');
+    if (bases.includes('*')) throw new Error('There is a stop (*) inside that sequence.');
+    if (!bases) throw new Error('Enter a DNA or protein sequence to add.');
 
-    const bad = [...new Set(bases.replace(/[ACGTURYSWKMBDHVN]/g, ''))];
+    /*
+     * Which alphabet to hold it to: the reference's, since that is what it has
+     * to align against, or -- with no reference yet -- whichever it looks
+     * like, by the same rule a file is classified by.
+     */
+    const looks = guessMolecule(bases);
+    const molecule = (this.reference && this.reference.molecule) || looks;
+    const alphabet = molecule === 'protein' ? PROTEIN_LETTERS : 'ACGTURYSWKMBDHVN';
+    const bad = [...new Set(bases.split('').filter((c) => !alphabet.includes(c)))];
     if (bad.length) {
-      throw new Error(`That is not DNA: ${bad.slice(0, 6).map((c) => `"${c}"`).join(', ')}`);
+      const what = molecule === 'protein' ? 'a protein sequence' : 'DNA';
+      throw new Error(`That is not ${what}: ${bad.slice(0, 6).map((c) => `"${c}"`).join(', ')}`);
+    }
+    // Every DNA letter is also a residue code, so the alphabet alone cannot
+    // catch DNA pasted against a protein.
+    if (molecule === 'protein' && looks === 'dna') {
+      throw new Error('That looks like DNA; this reference is a protein.');
     }
 
     // sequence1, sequence2... counting only the ones added this way, and
@@ -371,13 +535,14 @@ class AlignPanel {
       label = `sequence${n}`;
     }
 
-    await this.ingest(Buffer.from(`>${label}\n${bases}\n`, 'utf8'), `${label}.fasta`, null);
-    this.afterAdd(1);
+    // Parsed as what it was validated as, so the two cannot disagree.
+    await this.ingest(Buffer.from(`>${label}\n${bases}\n`, 'utf8'), `${label}.fasta`, null,
+      { molecule });
   }
 
   /** Parse one file into read entries, trimming trace ends as configured. */
-  async ingest(buffer, fileName, filePath) {
-    const parsed = await parseFile(buffer, fileName);
+  async ingest(buffer, fileName, filePath, opts = {}) {
+    const parsed = await parseFile(buffer, fileName, opts);
     if (!parsed.length) throw new Error('no sequence found');
 
     const minQuality = config.alignTrimQuality();
@@ -417,8 +582,12 @@ class AlignPanel {
       this.reads = this.reads.slice(0, max);
     }
     this.forget(); // the read set changed
-    if (dropped) this.note(`Added ${count}; ignored ${dropped} over the ${max}-read limit.`);
-    else if (count) this.note(`Added ${count} read${count === 1 ? '' : 's'}. Press Align.`);
+    const refused = this.reads.filter((r) => !r.error && this.refusal(r)).length;
+    const why = refused
+      ? ` ${refused} ${refused === 1 ? 'is' : 'are'} the wrong kind of molecule for this reference.`
+      : '';
+    if (dropped) this.note(`Added ${count}; ignored ${dropped} over the ${max}-read limit.${why}`);
+    else if (count) this.note(`Added ${count} read${count === 1 ? '' : 's'}.${why || ' Press Align.'}`);
     else this.push(true);
   }
 
@@ -430,10 +599,39 @@ class AlignPanel {
 
   /* ---------------------------------------------------------------- align -- */
 
+  /**
+   * Trim every trace again if the trim setting has changed since it was added.
+   *
+   * Trimming happens when a read is added, so without this a new threshold
+   * would reach only the reads added after it -- an alignment of some reads
+   * trimmed one way and some another, with nothing to show which. Each read
+   * keeps its untrimmed parse, so this is a re-slice, not a re-read. A read
+   * with no quality scores passes through unchanged, as it did the first time.
+   */
+  retrim() {
+    const minQuality = config.alignTrimQuality();
+    for (const read of this.reads) {
+      if (!read.raw || read.trimQuality === minQuality) continue;
+      const trimmed = trimByQuality(read.raw, minQuality);
+      Object.assign(read, {
+        sequence: trimmed.sequence,
+        chromatogramData: trimmed.chromatogramData,
+        sequenceData: trimmed.sequenceData,
+        trimQuality: minQuality
+      });
+    }
+  }
+
   async run() {
-    const usable = this.reads.filter((r) => !r.error && r.sequence);
+    this.retrim();
+    const usable = this.reads.filter((r) => !this.refusal(r) && r.sequence);
     if (!this.reference) return this.fail('Choose a reference first.');
-    if (!usable.length) return this.fail('Add at least one readable sequence.');
+    if (!usable.length) {
+      return this.fail(this.reads.some((r) => !r.error && this.refusal(r))
+        ? `Add at least one ${this.reference.molecule === 'protein' ? 'protein' : 'DNA'} sequence ` +
+          '— the ones here are the wrong kind for this reference.'
+        : 'Add at least one readable sequence.');
+    }
 
     this.busy = true;
     this.note(`Aligning ${usable.length} read${usable.length === 1 ? '' : 's'}…`);
@@ -447,11 +645,15 @@ class AlignPanel {
       return this.fail(found.message);
     }
 
+    const mafftArgs = config.mafftArgs();
     const result = await align(
       this.reference,
       usable.map((r) => ({ name: r.name, sequence: r.sequence })),
-      { mafftPath: found.path, mafftArgs: config.mafftArgs() }
+      { mafftPath: found.path, mafftArgs }
     );
+    // What this alignment was made with, which is what Save must record --
+    // the setting may well have changed by the time it is saved.
+    result.mafftArgs = mafftArgs;
 
     // Carry each read's own numbers back onto its chip.
     result.tracks.forEach((t, i) => Object.assign(usable[i], {
@@ -601,7 +803,7 @@ class AlignPanel {
         path: this.reference.path || null,
         rel: relative(this.reference.path),
         row: this.result.msa.reference,
-        circular: Boolean(this.reference.circular)
+        circular: this.reference.molecule === 'protein' ? false : Boolean(this.reference.circular)
       },
       reads: this.result.tracks.map((track, i) => {
         const read = this.aligned[i] || {};
@@ -618,14 +820,24 @@ class AlignPanel {
           deleted: track.deleted,
           readIndex: track.readIndex,
           trim: read.trimQuality || 0,
-          record: read.record || 0
+          record: read.record || 0,
+          // No file to re-read it from, so the file carries it -- see SEQ.
+          seq: read.path ? null : (read.sequence || null)
         };
       }),
       meta: {
         tool: `OVEN ${this.context.extension ? this.context.extension.packageJSON.version : ''}`.trim(),
         created: new Date().toISOString(),
         type: (this.alignment && this.alignment.alignmentType) || 'Sanger sequencing',
-        mafftArgs: config.mafftArgs()
+        alphabet: this.reference.molecule === 'protein' ? 'protein' : 'dna',
+        // The whole argument list MAFFT was given -- the strategy chosen and the
+        // flags OVEN adds to it -- so the file says how to repeat the alignment,
+        // not only the half of it that was a setting. "-" (read from stdin) is
+        // plumbing, and left off.
+        mafftArgs: mafftArgsFor({
+          mafftArgs: this.result.mafftArgs || config.mafftArgs(),
+          molecule: this.reference.molecule
+        }).filter((a) => a !== '-').join(' ')
       }
     });
   }
@@ -689,7 +901,7 @@ class AlignPanel {
     for (const read of spec.reads) reads.push(await this.loadSource(read, dir, read.trim));
 
     const restored = rebuild(spec, { reference, reads });
-    this.reference = restored.reference;
+    this.reference = withMolecule(restored.reference);
     this.reads = restored.reads.map((read, i) => {
       const track = restored.tracks[i];
       return Object.assign({ id: this.nextId++ }, read, {
@@ -731,6 +943,7 @@ class AlignPanel {
    * sequence, or the peaks stop lining up with the letters below them.
    */
   toViewPayload(result, usable) {
+    if (this.reference.molecule === 'protein') return this.toProteinPayload(result, usable);
     const refTrack = {
       sequenceData: Object.assign({}, this.reference.sequenceData, {
         name: this.reference.name,
@@ -827,7 +1040,45 @@ class AlignPanel {
 
     return {
       alignmentType: 'Sanger sequencing',
+      molecule: 'dna',
       tracks: [refTrack, ...readTracks]
+    };
+  }
+
+  /**
+   * The view payload for proteins: plain letters, one column per residue.
+   *
+   * OVE's alignment view has no protein mode, but it does not need one to show
+   * a protein: it compares columns as characters, so residues align, number and
+   * highlight their mismatches exactly as bases do. What it must not be given is
+   * isProtein -- see PROTEIN_ONLY_FIELDS. `ovenUnit` is what the track label
+   * reads to say "aa" rather than "bps".
+   *
+   * Nothing DNA-shaped comes along: no codon translations, no chromatogram, no
+   * coverage folding. Neither do features. A protein GenBank stores feature
+   * positions in DNA units when its LOCUS line says "aa" and in residues when
+   * it does not, and the two cannot be told apart once parsed -- drawn wrongly
+   * scaled they would be worse than absent.
+   */
+  toProteinPayload(result, usable) {
+    const plain = (name, sequence) => ({ name, sequence, circular: false, ovenUnit: 'aa' });
+
+    const refData = Object.assign({}, this.reference.sequenceData || {},
+      plain(this.reference.name, this.reference.sequence));
+    for (const field of PROTEIN_ONLY_FIELDS) delete refData[field];
+
+    const readTracks = result.msa.rows.map((row, i) => ({
+      sequenceData: plain(usable[i].name, result.tracks[i].sequence),
+      alignmentData: { name: usable[i].name, sequence: row.sequence }
+    }));
+
+    return {
+      alignmentType: 'Protein alignment',
+      molecule: 'protein',
+      tracks: [
+        { sequenceData: refData, alignmentData: { name: this.reference.name, sequence: result.msa.reference } },
+        ...readTracks
+      ]
     };
   }
 
@@ -857,6 +1108,49 @@ class AlignPanel {
 </html>`;
   }
 }
+
+/**
+ * Write an oven.* setting where it is currently set.
+ *
+ * A value set for the workspace outranks the user's, so writing to the user
+ * settings regardless would look like it worked and change nothing.
+ */
+async function writeSetting(key, value) {
+  const cfg = vscode.workspace.getConfiguration('oven');
+  const where = cfg.inspect ? cfg.inspect(key) : null;
+  const target = where && where.workspaceFolderValue !== undefined
+    ? vscode.ConfigurationTarget.WorkspaceFolder
+    : where && where.workspaceValue !== undefined
+      ? vscode.ConfigurationTarget.Workspace
+      : vscode.ConfigurationTarget.Global;
+  await cfg.update(key, value, target);
+}
+
+/**
+ * A reference that says which molecule it is.
+ *
+ * The editor and pickReference both say so; anything else -- a reference made
+ * before this existed, or restored from a file -- is read off the parser's own
+ * flag, and DNA when there is none, which is what every reference was before
+ * proteins could be aligned at all.
+ */
+function withMolecule(ref) {
+  if (!ref || ref.molecule) return ref;
+  const protein = Boolean(ref.sequenceData && ref.sequenceData.isProtein);
+  return Object.assign({}, ref, { molecule: protein ? 'protein' : 'dna' });
+}
+
+/*
+ * What OVE must not see on a protein track. With isProtein it back-translates
+ * the residues to three times as much degenerate DNA, and then rejects every
+ * row for no longer matching its own alignment row; the rest are that
+ * translation's by-products, or annotations whose coordinates cannot be
+ * trusted to be in residues -- see toProteinPayload.
+ */
+const PROTEIN_ONLY_FIELDS = [
+  'isProtein', 'proteinSequence', 'proteinSize', 'size', 'type',
+  'aminoAcidDataForEachBaseOfDNA', 'translations', 'features', 'parts', 'primers'
+];
 
 function shortError(e) {
   const m = (e && e.message ? e.message : String(e)).trim();
@@ -909,6 +1203,11 @@ class AlignPanels {
     // all share the one MAFFT.
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
+        // The settings form shows these, in every open panel; changed from
+        // one panel, or from settings.json, all of them should say so.
+        if (e.affectsConfiguration('oven.mafftArgs') || e.affectsConfiguration('oven.alignTrimQuality')) {
+          for (const panel of this.byKey.values()) panel.push();
+        }
         if (!e.affectsConfiguration('oven.mafftPath')) return;
         mafft.invalidate();
         for (const panel of this.byKey.values()) panel.checkMafft();

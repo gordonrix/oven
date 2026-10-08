@@ -249,3 +249,184 @@ test('a missing source still opens, without annotations', needsMafft, async () =
   // order, so the sequence still reads as the read did.
   assert.strictEqual(degap(restored.tracks[0].sequence).length >= 1, true);
 });
+
+/* ------------------------------------------------------------- proteins -- */
+
+function makeProtein(len, seed) {
+  let a = seed >>> 0;
+  const residues = 'ACDEFGHIKLMNPQRSTVWY';
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    out += residues[((t ^ (t >>> 14)) >>> 0) % 20];
+  }
+  return out;
+}
+
+test('a protein alignment comes back as a protein, exactly', needsMafft, async () => {
+  const PREF = makeProtein(240, 1002);
+  const reads = [
+    { name: 'variant', sequence: PREF.slice(0, 100) + 'W' + PREF.slice(101) },
+    { name: 'truncated', sequence: PREF.slice(30, 200) }
+  ];
+  const reference = { name: 'enzyme', sequence: PREF, molecule: 'protein' };
+  const result = await align(reference, reads);
+  const text = buildStockholm({
+    reference: { name: 'enzyme', path: '/p/enzyme.faa', row: result.msa.reference, circular: false },
+    reads: result.tracks.map((t, i) => ({
+      name: t.name, path: `/p/${i}.faa`, row: result.msa.rows[i].sequence,
+      strand: t.strand, rotation: t.rotation, folded: t.crossesOrigin, anchored: t.anchored
+    })),
+    meta: { alphabet: 'protein', mafftArgs: '--auto' }
+  });
+  assert.match(text, /#=GF OVEN\s+format=1 alphabet=protein/);
+
+  const spec = readAlignment(text);
+  assert.strictEqual(spec.meta.alphabet, 'protein');
+  const restored = rebuild(spec, {
+    reference: { name: 'enzyme', sequence: PREF, molecule: 'protein', sequenceData: {} },
+    reads: reads.map((r) => ({ name: r.name, sequence: r.sequence, molecule: 'protein' }))
+  });
+  assert.deepStrictEqual(restored.problems, []);
+  assert.strictEqual(restored.molecule, 'protein');
+  assert.strictEqual(restored.reference.molecule, 'protein');
+  result.tracks.forEach((t, i) => assert.deepStrictEqual(pick(restored.tracks[i]), pick(t)));
+});
+
+test('a file written before the alphabet field is DNA', () => {
+  const text = ['# STOCKHOLM 1.0', '#=GF OVEN   format=1 mafftArgs=--auto',
+    'ref  ACGTACGT', 'read ACGT----', '//', ''].join('\n');
+  assert.strictEqual(readAlignment(text).meta.alphabet, 'dna');
+});
+
+test('someone else\'s protein Stockholm is read as protein', () => {
+  const text = ['# STOCKHOLM 1.0',
+    'P1  MKEFILPQWYHRDNSTVGAC', 'P2  MKEFILPQ--HRDNSTVGAC', '//', ''].join('\n');
+  assert.strictEqual(readAlignment(text).meta.alphabet, 'protein');
+});
+
+test('a source that now parses as DNA is not the protein it replaced', () => {
+  const PREF = makeProtein(60, 7);
+  const text = buildStockholm({
+    reference: { name: 'enzyme', row: PREF },
+    reads: [{ name: 'same', path: '/p/same.faa', row: PREF }],
+    meta: { alphabet: 'protein' }
+  });
+  const restored = rebuild(readAlignment(text), {
+    reference: null,
+    // Same letters, wrong molecule: the file at that path is something else now.
+    reads: [{ name: 'same', sequence: PREF, molecule: 'dna' }]
+  });
+  assert.match(restored.problems[0].reason, /changed/);
+  assert.strictEqual(restored.reads[0].missing, true);
+});
+
+test('a protein read is never reverse-complemented on reopening', () => {
+  // A strand of -1 can only come from a hand-edited or foreign file; a protein
+  // has no other strand, so it is ignored rather than obeyed.
+  const PREF = makeProtein(60, 9);
+  const text = buildStockholm({
+    reference: { name: 'enzyme', row: PREF },
+    reads: [{ name: 'r', path: '/p/r.faa', row: PREF, strand: -1 }],
+    meta: { alphabet: 'protein' }
+  });
+  const restored = rebuild(readAlignment(text), {
+    reference: { name: 'enzyme', sequence: PREF, molecule: 'protein' },
+    reads: [{ name: 'r', sequence: PREF, molecule: 'protein' }]
+  });
+  assert.deepStrictEqual(restored.problems, []);
+  assert.strictEqual(restored.reads[0].sequence, PREF);
+});
+
+/* ------------------------------------------------- reads with no file -- */
+
+/*
+ * A read typed or pasted in, folded across the origin, with an insertion the
+ * fold drops: exactly the read a row cannot give back.
+ */
+async function pastedFoldedAlignment() {
+  const ref = makeSeq(900, 31337);
+  const read = ref.slice(780) + 'GATC' + ref.slice(0, 300);   // wraps, with 4 inserted bases
+  const result = await align({ name: 'ref', sequence: ref, circular: true }, [{ name: 'pasted', sequence: read }]);
+  const t = result.tracks[0];
+  const fields = (seq) => ({
+    reference: { name: 'ref', row: result.msa.reference, circular: true },
+    reads: [{
+      name: 'pasted', row: result.msa.rows[0].sequence, strand: t.strand, rotation: t.rotation,
+      folded: t.crossesOrigin, anchored: t.anchored, covered: t.covered, deleted: t.deleted,
+      readIndex: t.readIndex, seq
+    }],
+    meta: { alphabet: 'dna' }
+  });
+  return { ref, read, result, fields };
+}
+
+test('a pasted read comes back whole, insertions and all', needsMafft, async () => {
+  const { ref, read, result, fields } = await pastedFoldedAlignment();
+  assert.ok(result.tracks[0].crossesOrigin, 'fixture must fold, or this proves nothing');
+  assert.ok(degap(result.msa.rows[0].sequence).length < read.length, 'and the fold must drop the insertion');
+
+  const text = buildStockholm(fields(read));
+  assert.match(text, /^#=GS pasted SEQ /m);
+  const restored = rebuild(readAlignment(text), { reference: { name: 'ref', sequence: ref }, reads: [null] });
+  assert.deepStrictEqual(restored.problems, []);
+  assert.strictEqual(restored.reads[0].sequence, read, 'every base, the four the row lost included');
+  assert.ok(!/N/.test(restored.reads[0].sequence));
+  assert.deepStrictEqual(pick(restored.tracks[0]), pick(result.tracks[0]));
+});
+
+test('a pasted read saved before SEQ comes back without invented Ns, and says what it lost', needsMafft, async () => {
+  /*
+   * The bug: the bases a fold dropped came back as Ns, and the next Align
+   * aligned them -- a 120-base read returned with nearly eighteen thousand
+   * gaps, and dragged the reads beside it out of place.
+   */
+  const { ref, read, result, fields } = await pastedFoldedAlignment();
+  const old = rebuild(readAlignment(buildStockholm(fields(null))),
+    { reference: { name: 'ref', sequence: ref }, reads: [null] });
+
+  const got = old.reads[0].sequence;
+  assert.ok(!/N/.test(got), 'no invented bases');
+  assert.strictEqual(got.length, read.length - 4);
+  assert.strictEqual(old.problems.length, 1);
+  assert.match(old.problems[0].reason, /4 of its bases/);
+  // What is drawn is unaffected: the row was always right.
+  assert.strictEqual(old.tracks[0].columnOrderSequence, result.tracks[0].columnOrderSequence);
+
+  // Saved again, it now carries what it has, and reopens without complaint.
+  const t = old.tracks[0];
+  const again = rebuild(readAlignment(buildStockholm({
+    reference: { name: 'ref', row: old.msa.reference, circular: true },
+    reads: [{ name: 'pasted', row: old.msa.rows[0].sequence, strand: t.strand, rotation: t.rotation,
+      folded: t.crossesOrigin, anchored: t.anchored, covered: t.covered, deleted: t.deleted,
+      readIndex: t.readIndex, seq: got }],
+    meta: { alphabet: 'dna' }
+  })), { reference: { name: 'ref', sequence: ref }, reads: [null] });
+  assert.deepStrictEqual(again.problems, []);
+  assert.strictEqual(again.reads[0].sequence, got);
+});
+
+/* ---------------------------------------------------- MAFFT arguments -- */
+
+test('MAFFT arguments are written on their own line, spaces and all', () => {
+  const args = '--localpair --maxiterate 1000 --op 2 --adjustdirection --preservecase --quiet';
+  const text = buildStockholm({
+    reference: { name: 'ref', row: 'ACGT' },
+    reads: [{ name: 'r', row: 'ACGT' }],
+    meta: { mafftArgs: args, alphabet: 'dna' }
+  });
+  assert.ok(text.includes(`#=GF MAFFT   ${args}\n`), 'written as passed');
+  assert.ok(!/_--/.test(text), 'no underscores standing in for spaces');
+  assert.ok(!/mafftArgs=/.test(text), 'and no longer squeezed into the OVEN line');
+  assert.strictEqual(readAlignment(text).meta.mafftArgs, args);
+});
+
+test('a file from before the MAFFT line reads back with its spaces restored', () => {
+  const text = ['# STOCKHOLM 1.0',
+    '#=GF OVEN   format=1 alphabet=dna mafftArgs=--localpair_--maxiterate_1000',
+    'ref  ACGT', 'r    ACGT', '//', ''].join('\n');
+  assert.strictEqual(readAlignment(text).meta.mafftArgs, '--localpair --maxiterate 1000');
+});

@@ -115,6 +115,182 @@
     return 'partial match';
   }
 
+  /*
+   * The same floor for a protein, at the same odds.
+   *
+   * Fifty bases is fifty draws from four letters: a chance perfect match that
+   * long is about one in 2^100. A residue is one draw from twenty, worth log2 20
+   * = 4.3 bits rather than 2, so the same 2^100 takes 100 / 4.3 = 23.1 residues
+   * -- 24, rounded up. Weighting by how often each residue actually occurs gives
+   * the same answer. A third of 50, the codon equivalent, would be a floor some
+   * hundred million times easier to clear by luck.
+   */
+  const MIN_COVERED_AA = 24;
+
+  /**
+   * How much of an aligned protein is identical, as a label.
+   *
+   * For a protein, "mismatch" on its own says almost nothing: two homologues are
+   * never identical, and it is how far apart they are that you are reading for.
+   * Gapped columns count against identity -- a read that dropped residues is
+   * not 100% identical to anything -- and the figure is rounded down, so a
+   * protein that differs at all can never be shown as 100.0%.
+   */
+  function identityLabel(read) {
+    if (!read) return '';
+    const aligned = (read.compared || 0) + (read.gaps || 0);
+    if (!aligned) return '';
+    const same = (read.compared || 0) - (read.substitutions || 0);
+    const pct = Math.floor((1000 * same) / aligned) / 10;
+    return `${pct.toFixed(1)}% identical`;
+  }
+
+  /* ------------------------------------------------------- molecule type -- */
+
+  /* The residues the sequence parser keeps for a protein. */
+  const PROTEIN_LETTERS = 'ACDEFGHIKLMNPQRSTVWYBXZJUO';
+  /* IUPAC nucleotide codes, ambiguity codes included. */
+  const DNA_LETTERS = 'ACGTURYSWKMBDHVN';
+
+  /**
+   * DNA or protein, by the parser's own rule.
+   *
+   * The sequence parser calls a sequence DNA when more than 90% of it is
+   * nucleotide letters -- ambiguity codes included, its "loose" mode -- and
+   * this is that rule, so a sequence pasted into the panel is classified exactly
+   * as the same sequence read from a file would be. Loose matters: counting only
+   * G A T C U, a read that is one-tenth N would be taken for a protein.
+   */
+  function guessMolecule(seq) {
+    const s = String(seq || '').toUpperCase();
+    if (!s.length) return 'dna';
+    let dna = 0;
+    for (let i = 0; i < s.length; i++) if (DNA_LETTERS.includes(s[i])) dna++;
+    return dna / s.length > 0.9 ? 'dna' : 'protein';
+  }
+
+  /* ------------------------------------------------ pasted sequence tables -- */
+
+  /* Every letter a sequence can hold -- residues include all the IUPAC bases. */
+  const SEQUENCE_CHARS = /^[ACDEFGHIKLMNPQRSTVWYBXZJUO*]+$/;
+  const HEADER_SEQUENCE = /^(seq|sequence|sequences|bases|dna|protein|aa|residues)$/i;
+  const HEADER_NAME = /^(name|names|id|label|primer|oligo)$/i;
+
+  /** The letters of a cell, with the spacing and numbering pasted sequence carries. */
+  const letters = (cell) => String(cell || '').replace(/[\s\d]/g, '').toUpperCase();
+  const looksLikeSequence = (cell) => {
+    const l = letters(cell);
+    return l.length >= 5 && SEQUENCE_CHARS.test(l);
+  };
+
+  /** Split a line into cells: tabs first (a spreadsheet), then commas (a CSV). */
+  function cellsOf(line, sep) {
+    if (sep === '\t') return line.split('\t').map((c) => c.trim());
+    // A quoted CSV cell may hold the separator; nothing in a name/sequence
+    // table needs more CSV than that.
+    const out = [];
+    let cur = '';
+    let quoted = false;
+    for (const ch of line) {
+      if (ch === '"') { quoted = !quoted; continue; }
+      if (ch === ',' && !quoted) { out.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  }
+
+  /**
+   * Read pasted text as name/sequence pairs.
+   *
+   * What gets pasted, in the order it is recognised:
+   *
+   *   FASTA                  ">name" lines, each followed by its sequence
+   *   a spreadsheet's rows   tab-separated, which is what Excel and Sheets copy;
+   *                          or comma-separated, as from a CSV
+   *   "name sequence" lines  two words to a line, the second a sequence
+   *   one sequence, wrapped  a GenBank ORIGIN block, numbered, or lines all
+   *                          the same length but the last
+   *   a column of sequences  one to a line, no names
+   *
+   * In a table the sequence is whichever column looks most like one, so the
+   * columns can come in either order and a spreadsheet's extra columns -- a
+   * length, a note -- are ignored; the name is the first other column with
+   * anything in it. A header row ("Name", "Sequence") is dropped. Sequences
+   * come back as pasted: checking their letters is the host's job, against the
+   * reference they have to align to.
+   *
+   * @returns {Array<{name: string, sequence: string}>}
+   */
+  function parseSequenceTable(text) {
+    const raw = String(text || '').replace(/\r\n?/g, '\n');
+    const lines = raw.split('\n').filter((l) => l.trim());
+    if (!lines.length) return [];
+
+    if (lines[0].trim().startsWith('>')) {
+      const out = [];
+      for (const line of lines) {
+        if (line.trim().startsWith('>')) out.push({ name: line.trim().slice(1).trim(), sequence: '' });
+        else if (out.length) out[out.length - 1].sequence += line.trim();
+      }
+      return out;
+    }
+
+    const sep = lines.some((l) => l.includes('\t')) ? '\t'
+      : (lines.every((l) => l.includes(',')) ? ',' : null);
+    if (sep) {
+      const rows = lines.map((l) => cellsOf(l, sep));
+      const width = Math.max(...rows.map((r) => r.length));
+      // The sequence column: the most sequence-like cells, then the longest.
+      let seqCol = 0;
+      let best = [-1, -1];
+      for (let c = 0; c < width; c++) {
+        const cells = rows.map((r) => r[c] || '');
+        const score = [cells.filter(looksLikeSequence).length,
+          cells.reduce((a, cell) => a + letters(cell).length, 0)];
+        if (score[0] > best[0] || (score[0] === best[0] && score[1] > best[1])) { best = score; seqCol = c; }
+      }
+      /*
+       * The name: the first other column holding words rather than only
+       * numbers -- a row number or a length is not a name -- or failing that,
+       * the first other column with anything in it.
+       */
+      const nameCol = (() => {
+        const others = [...Array(width).keys()].filter((c) => c !== seqCol &&
+          rows.some((r) => (r[c] || '').trim()));
+        const wordy = others.find((c) => rows.slice(1).some((r) => /[^\d\s.,-]/.test(r[c] || '')) ||
+          (rows.length === 1 && /[^\d\s.,-]/.test(rows[0][c] || '')));
+        return wordy !== undefined ? wordy : (others.length ? others[0] : -1);
+      })();
+      const pairs = rows.map((r) => ({
+        name: nameCol >= 0 ? (r[nameCol] || '').trim() : '',
+        sequence: (r[seqCol] || '').trim()
+      }));
+      const first = pairs[0];
+      if (first && (HEADER_SEQUENCE.test(first.sequence) || HEADER_NAME.test(first.name) ||
+          (!looksLikeSequence(first.sequence) && pairs.length > 1))) {
+        pairs.shift();
+      }
+      return pairs.filter((p) => p.name || p.sequence);
+    }
+
+    // Two words to a line, the second a sequence: "T7 TAATACGACTCACTATAGGG".
+    const words = lines.map((l) => l.trim().split(/\s+/));
+    if (words.every((w) => w.length === 2 && looksLikeSequence(w[1]) && !/^\d+$/.test(w[0]))) {
+      return words.map(([name, sequence]) => ({ name, sequence }));
+    }
+
+    // One sequence, wrapped: numbered like a GenBank ORIGIN block, or every
+    // line but the last the same length.
+    const numbered = lines.every((l) => /^\s*\d+\s/.test(l));
+    const widths = lines.map((l) => letters(l).length);
+    const wrapped = lines.length > 1 && widths[0] >= 40 &&
+      widths.slice(0, -1).every((w) => w === widths[0]) && widths[widths.length - 1] <= widths[0];
+    if (numbered || wrapped) return [{ name: '', sequence: lines.map((l) => l.trim()).join(' ') }];
+
+    return lines.map((l) => ({ name: '', sequence: l.trim() }));
+  }
+
   /* ---------------------------------------------- origin-spanning joins -- */
 
   /**
@@ -294,6 +470,7 @@
   return {
     revComp, deriveBases, wrapsOrigin, normalizeSeqKey, nebTm, gcFraction,
     locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations,
-    alignmentVerdict, MIN_COVERED_BP
+    alignmentVerdict, MIN_COVERED_BP, MIN_COVERED_AA, identityLabel,
+    guessMolecule, PROTEIN_LETTERS, DNA_LETTERS, parseSequenceTable
   };
 });

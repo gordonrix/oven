@@ -98,9 +98,22 @@ const START_SAMPLE = 9;
  *   `offset` is the reference position of the (possibly reverse-complemented)
  *   read's first base. null when nothing seeds at all.
  */
-function anchor(reference, read, { k = DEFAULT_K, circular = true } = {}) {
+function anchor(reference, read, { k: kGiven, circular = true } = {}) {
   const ref = String(reference || '').toUpperCase();
   const fwd = String(read || '').toUpperCase();
+  /*
+   * A short read gets short seeds, laid at every position.
+   *
+   * A 20-mer seeds at all only if it matches the reference exactly, so a primer
+   * or a short insert with a single difference never anchored: nothing then
+   * decided its strand before MAFFT, and MAFFT's own direction guess is a
+   * coin-toss on twenty bases. Half the read's length, but never under 8, is
+   * long enough that chance hits on a plasmid are rare and voting outweighs
+   * them, and short enough that two differences cannot cover every window.
+   */
+  const short = fwd.length < 2 * DEFAULT_K;
+  const k = kGiven || (short ? Math.max(8, Math.floor(fwd.length / 2)) : DEFAULT_K);
+  const stride = short ? 1 : SEED_STRIDE;
   if (ref.length < k || fwd.length < k) return null;
 
   const idx = buildIndex(ref, k);
@@ -110,7 +123,7 @@ function anchor(reference, read, { k = DEFAULT_K, circular = true } = {}) {
   for (const [strand, seq] of [[1, fwd], [-1, revComp(fwd)]]) {
     const votes = new Map();
     const seeds = [];
-    for (let i = 0; i + k <= seq.length && seeds.length < MAX_SEEDS; i += SEED_STRIDE) {
+    for (let i = 0; i + k <= seq.length && seeds.length < MAX_SEEDS; i += stride) {
       const at = idx.get(seq.substr(i, k));
       if (at === undefined) continue;
       const d = at - i;
@@ -186,6 +199,30 @@ function parseFasta(text) {
 }
 
 /**
+ * The arguments MAFFT is run with.
+ *
+ * The user's oven.mafftArgs come first and ours after them, so ours win where
+ * they overlap. For DNA that adds `--adjustdirection`, which lets MAFFT
+ * reverse-complement a read anchoring could not orient.
+ *
+ * A protein has no reverse complement, and `--adjustdirection` on one is at
+ * best meaningless. So it goes, along with any `--nuc` the user set for their
+ * DNA work, and `--amino` is added after their arguments, because MAFFT obeys
+ * whichever of `--nuc` and `--amino` it reads last. `--anysymbol` keeps the
+ * rarer residue codes -- U, O, B, Z, J, X -- as themselves rather than letting
+ * MAFFT refuse or rewrite them; newer builds already imply it with
+ * `--preservecase`, older ones do not.
+ */
+function mafftArgsFor(opts = {}) {
+  const extra = (opts.mafftArgs || '--auto').split(/\s+/).filter(Boolean);
+  if (opts.molecule === 'protein') {
+    const kept = extra.filter((a) => !/^--(nuc|amino|adjustdirection)/.test(a));
+    return [...kept, '--amino', '--anysymbol', '--preservecase', '--quiet', '-'];
+  }
+  return [...extra, '--adjustdirection', '--preservecase', '--quiet', '-'];
+}
+
+/**
  * Run MAFFT over stdin and return the aligned records in input order.
  *
  * `--adjustdirection` is belt and braces: anchoring has already oriented every
@@ -195,8 +232,7 @@ function parseFasta(text) {
  */
 function runMafft(records, opts = {}) {
   const bin = opts.mafftPath || 'mafft';
-  const extra = (opts.mafftArgs || '--auto').split(/\s+/).filter(Boolean);
-  const args = [...extra, '--adjustdirection', '--preservecase', '--quiet', '-'];
+  const args = mafftArgsFor(opts);
 
   return new Promise((resolve, reject) => {
     const child = execFile(
@@ -605,6 +641,7 @@ function mutatedCodons(referenceRow, readRow, features, referenceLength) {
  * @returns {Promise<{reference: object, tracks: Array}>}
  */
 async function align(reference, reads, opts = {}) {
+  if (reference.molecule === 'protein') return alignProtein(reference, reads, opts);
   const refSeq = String(reference.sequence || '').toUpperCase();
   const circular = reference.circular !== false;
   if (!refSeq) throw new Error('The reference has no sequence.');
@@ -693,7 +730,19 @@ async function align(reference, reads, opts = {}) {
      * joins them, which is exactly what folding is for.
      */
     const scattered = readRunCount(pairs[i].readRow) > 2;
-    if (!wraps && !dangles && !scattered) continue;
+    /*
+     * And a fourth, which is not about the origin at all: the joint alignment
+     * simply put the read in the wrong place. MAFFT aligns every read at once,
+     * and a short read among long ones is placed by the company it keeps -- a
+     * 20-mer that lands exactly right on its own came back split across two
+     * places with fourteen substitutions once four other reads were aligned
+     * with it. A read whose placement accounts for less than nine tenths of its
+     * own bases gets the same second, pairwise look.
+     */
+    const explains = (stats) => stats.compared - stats.substitutions;
+    const asIs = countDifferences(pairs[i].referenceRow, pairs[i].readRow, { wraps });
+    const poor = explains(asIs) < 0.9 * prepared[i].sequence.length;
+    if (!wraps && !dangles && !scattered && !poor) continue;
     /*
      * Only a read that fits within one turn. Folding maps every read base to a
      * reference position, so a read longer than the reference would have two
@@ -713,7 +762,14 @@ async function align(reference, reads, opts = {}) {
     if (!fold.covered.length) continue;
 
     const candidate = Object.assign(fold, {
-      readRow: toSharedColumns(fold.placed, sharedReferenceRow)
+      readRow: toSharedColumns(fold.placed, sharedReferenceRow),
+      /*
+       * MAFFT may turn the read round here even when the joint alignment did
+       * not, if anchoring could not orient it. The fold's bases and its
+       * readIndex are then those of the reverse complement, and the track has to
+       * say so, or its trace and annotations are drawn the wrong way round.
+       */
+      flipped: pair.flipped
     });
 
     /*
@@ -724,15 +780,17 @@ async function align(reference, reads, opts = {}) {
      * far worse than the shredded one that quietly pretends the bases are
      * scattered about. What matters is how much of the read the reference
      * accounts for, so that is what is compared. Ties go to the fold, which is
-     * the one that knows what it covered.
+     * the one that knows what it covered -- but only for a read that crosses
+     * the origin or was shredded. One looked at again merely for placing badly
+     * has to be strictly better placed: folding drops a read's insertions, so
+     * on a tie a clone with a real insertion would lose it from view.
      */
-    const explains = (stats) => stats.compared - stats.substitutions;
-    const asIs = countDifferences(pairs[i].referenceRow, pairs[i].readRow, { wraps });
     const asFolded = countDifferences(sharedReferenceRow, candidate.readRow, {
       covered: fold.covered,
       deleted: fold.deleted
     });
-    if (explains(asFolded) >= explains(asIs)) folded[i] = candidate;
+    const gain = explains(asFolded) - explains(asIs);
+    if (gain > 0 || (gain === 0 && (wraps || dangles || scattered))) folded[i] = candidate;
   }
 
   /*
@@ -759,6 +817,7 @@ async function align(reference, reads, opts = {}) {
 
   return {
     reference,
+    molecule: 'dna',
     /*
      * The MSA exactly as MAFFT produced it, reference first. The viewer wants
      * this: every row shares one column space, which is what lets it stack the
@@ -773,9 +832,11 @@ async function align(reference, reads, opts = {}) {
     },
     tracks: prepared.map((p, i) => {
       const pair = pairs[i];
-      // MAFFT may have flipped a read anchoring could not orient.
-      const strand = pair.flipped ? -p.strand : p.strand;
+      // MAFFT may have flipped a read anchoring could not orient -- in the
+      // joint alignment, or in the pairwise one if the read was folded.
       const fold = folded[i];
+      const flipped = fold ? fold.flipped : pair.flipped;
+      const strand = flipped ? -p.strand : p.strand;
       const readRow = fold ? fold.readRow : pair.readRow;
       const referenceRow = fold ? msaReference : pair.referenceRow;
       return {
@@ -791,8 +852,13 @@ async function align(reference, reads, opts = {}) {
          * rotating first would put the trace out of step with its own letters.
          */
         rotation: fold ? 0 : p.rotation,
-        flippedByMafft: pair.flipped,
-        sequence: fold ? p.oriented : p.sequence,
+        flippedByMafft: flipped,
+        // The bases in the order the row holds them: a read MAFFT turned round
+        // is its reverse complement there, and has to be here too, or the
+        // letters drawn would not be the ones aligned.
+        sequence: fold
+          ? (fold.flipped ? revComp(p.oriented) : p.oriented)
+          : (pair.flipped ? revComp(p.sequence) : p.sequence),
         referenceRow,
         readRow,
         /*
@@ -818,8 +884,72 @@ async function align(reference, reads, opts = {}) {
   };
 }
 
+/**
+ * Align proteins against a protein reference.
+ *
+ * Everything above that is not a plain MAFFT call exists because of DNA: which
+ * strand a read came off, where on a circular plasmid it starts, and how to
+ * fold a read that runs past the origin back onto the one turn. None of it has
+ * a protein equivalent -- a protein has one direction and two ends -- and some
+ * of it is actively wrong here: reverse-complementing a protein turns it into a
+ * reversed string of plausible-looking residues and Ns, and folding would move
+ * a C-terminal tail onto the N-terminus. So a protein is one MAFFT call, carved
+ * into pairs exactly as the reads are, and counted the same way.
+ *
+ * The tracks keep the shape the DNA ones have -- forward, unrotated, unfolded --
+ * so the panel, the viewer and the saved file need no protein case of their own
+ * to read them.
+ */
+async function alignProtein(reference, reads, opts = {}) {
+  const refSeq = String(reference.sequence || '').toUpperCase();
+  if (!refSeq) throw new Error('The reference has no sequence.');
+  if (!reads.length) return { reference, molecule: 'protein', tracks: [] };
+
+  const prepared = reads.map((read, i) => ({
+    input: read,
+    key: `read${i}`,
+    sequence: String(read.sequence || '').toUpperCase()
+  }));
+
+  const aligned = await runMafft(
+    [{ name: 'reference', sequence: refSeq },
+      ...prepared.map((p) => ({ name: p.key, sequence: p.sequence }))],
+    Object.assign({}, opts, { molecule: 'protein' })
+  );
+  const pairs = splitPairs(aligned);
+
+  return {
+    reference,
+    molecule: 'protein',
+    msa: {
+      reference: aligned[0].sequence,
+      rows: prepared.map((p, i) => ({ name: p.input.name, sequence: aligned[i + 1].sequence }))
+    },
+    tracks: prepared.map((p, i) => ({
+      name: p.input.name,
+      strand: 1,
+      // Nothing to anchor, and nothing found missing: true is what keeps every
+      // reader of this flag from taking the read for a different sequence.
+      anchored: true,
+      offset: null,
+      seeds: 0,
+      rotation: 0,
+      flippedByMafft: false,
+      sequence: p.sequence,
+      referenceRow: pairs[i].referenceRow,
+      readRow: pairs[i].readRow,
+      covered: null,
+      crossesOrigin: false,
+      columnOrderSequence: null,
+      readIndex: null,
+      deleted: null,
+      ...countDifferences(pairs[i].referenceRow, pairs[i].readRow)
+    }))
+  };
+}
+
 module.exports = {
-  align, anchor, rotateString, rotationFor, splitPairs, countDifferences,
+  align, alignProtein, mafftArgsFor, anchor, rotateString, rotationFor, splitPairs, countDifferences,
   mutatedCodons, codonPositions, overhangsEnd, foldOntoReference, toSharedColumns,
   runMafft, parseFasta, toFasta, MISSING_MAFFT, DEFAULT_K
 };

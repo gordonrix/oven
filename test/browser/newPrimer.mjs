@@ -40,7 +40,18 @@ const dragOver = async (page, fromX, toX) => {
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + fromX, y);
   await page.mouse.down();
-  await page.mouse.move(box.x + toX, y, { steps: 12 });
+  /*
+   * At a hand's pace. Open Vector Editor treats a release less than 200 ms
+   * after the drag began as a click (editorClicked), so a wobble while
+   * clicking never becomes a selection. Twelve synthetic moves with nothing
+   * between them finish in a few milliseconds and are, correctly, a click.
+   * This used to pass anyway only because every move cost ~150 ms of cut-site
+   * recutting -- the lag bundle patch 3g removed.
+   */
+  for (let i = 1; i <= 12; i++) {
+    await page.mouse.move(box.x + fromX + ((toX - fromX) * i) / 12, y);
+    await page.waitForTimeout(30);
+  }
   await page.mouse.up();
   await page.waitForTimeout(900);
   return true;

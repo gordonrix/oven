@@ -98,7 +98,46 @@ function smoothChromatogram(chrom) {
 
 /* ---------------------------------------------------------------- parsing -- */
 
-const SEQUENCE_EXTENSIONS = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'dna'];
+const SEQUENCE_EXTENSIONS = ['ab1', 'gb', 'gbk', 'fa', 'fasta', 'faa', 'dna'];
+
+/*
+ * The formats a protein can arrive in. Not .dna -- SnapGene files say what they
+ * are, and guessing over the top of that could only get it wrong -- and not .ab1,
+ * which is a trace and never anything but DNA.
+ */
+const MAY_BE_PROTEIN = /\.(fa|fasta|faa|gb|gbk)$/i;
+
+/**
+ * Options for the sequence parser, shared by the editor and the aligner.
+ *
+ * Without a protein guess the parser treats everything as DNA, and does it
+ * destructively: residues that are not also nucleotide letters -- E F I L P Q
+ * among them, a third of a typical protein -- are deleted from the sequence and
+ * the warning saying so is never read. The file looked open and was not the
+ * file. With the guess on, a protein comes back as a protein with every residue.
+ *
+ * Both callers use this one function so they can never disagree about what the
+ * same file is: the reference an alignment is measured against comes from the
+ * editor's parse, and the reads from the aligner's.
+ *
+ * `loose` counts ambiguity codes as DNA, which is what keeps a read that is
+ * one-tenth N from being taken for a protein. `molecule` is for when the caller
+ * already knows -- a sequence typed into the panel, validated as one or the
+ * other before it gets here.
+ *
+ * @param {string} fileName
+ * @param {'dna'|'protein'} [molecule]
+ */
+function parseOptions(fileName, molecule) {
+  const opts = { fileName, acceptParts: true };
+  if (MAY_BE_PROTEIN.test(String(fileName || ''))) {
+    opts.guessIfProtein = true;
+    opts.guessIfProteinOptions = { loose: true };
+  }
+  if (molecule === 'protein') opts.isProtein = true;
+  else if (molecule === 'dna') opts.isProtein = false;
+  return opts;
+}
 
 function isSupported(name) {
   const ext = path.extname(String(name || '')).replace('.', '').toLowerCase();
@@ -112,22 +151,32 @@ function isSupported(name) {
  * taking [0] would silently drop every read after the first.
  *
  * @param {Buffer|string} content raw bytes, or text for a text format
- * @returns {Promise<Array<{name, sequence, sequenceData, chromatogramData}>>}
+ * @param {{molecule?: 'dna'|'protein'}} [opts] force the molecule type rather than guess it
+ * @returns {Promise<Array<{name, molecule, sequence, circular, sequenceData, chromatogramData}>>}
  */
-async function parseFile(content, fileName) {
-  const parsed = await anyToJson(content, { fileName, acceptParts: true });
+async function parseFile(content, fileName, { molecule } = {}) {
+  const parsed = await anyToJson(content, parseOptions(fileName, molecule));
   const base = path.basename(String(fileName || 'sequence'), path.extname(String(fileName || '')));
 
   return (parsed || [])
     .filter((r) => r && r.parsedSequence && r.parsedSequence.sequence)
     .map((r, i, all) => {
       const seq = r.parsedSequence;
+      const protein = Boolean(seq.isProtein);
       return {
         // Only qualify with the record name when there is more than one, so a
         // single-record file keeps the filename the user recognises.
         name: all.length > 1 ? `${base} · ${seq.name || `record ${i + 1}`}` : (base || seq.name),
-        sequence: String(seq.sequence || '').toUpperCase(),
-        circular: Boolean(seq.circular),
+        /*
+         * Decided per record, so a FASTA holding a gene and its product comes
+         * back as one of each. For a protein the residues are proteinSequence;
+         * the parser keeps `sequence` equal to it, but OVE later turns
+         * `sequence` into three times as much degenerate DNA, so the residues
+         * are read from the field whose meaning never changes.
+         */
+        molecule: protein ? 'protein' : 'dna',
+        sequence: String((protein && seq.proteinSequence) || seq.sequence || '').toUpperCase(),
+        circular: protein ? false : Boolean(seq.circular),
         sequenceData: seq,
         chromatogramData: seq.chromatogramData ? smoothChromatogram(seq.chromatogramData) : null
       };
@@ -404,7 +453,7 @@ function followAlignmentAnnotations(sequenceData, { strand, readIndex, length })
 }
 
 module.exports = {
-  parseFile, isSupported, SEQUENCE_EXTENSIONS,
+  parseFile, parseOptions, isSupported, SEQUENCE_EXTENSIONS,
   followAlignmentAnnotations, ANNOTATION_KINDS,
   smoothChromatogram, resample, SMOOTH_BELOW, SMOOTH_TARGET,
   trimByQuality, qualitySpan, sliceTrack,

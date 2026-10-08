@@ -329,3 +329,61 @@ test('a query annotation does not bring its bases across', () => {
   assert.deepStrictEqual([moved.features[0].start, moved.features[0].end], [10, 27]);
   assert.strictEqual(moved.features[0].name, 'CDS (CIEFSF)');
 });
+
+/* ------------------------------------------------------------- proteins -- */
+
+// Synthetic: all twenty residues, with E F I L P Q W -- the letters that are not
+// also nucleotide codes, and so the ones a DNA parse used to delete.
+const PROTEIN = 'MKEFILPQWYHRDNSTVGACEQLPWFIKYMSTRPEELFKQIGNWDHLAVPRSEYTQCMFIKL';
+
+test('a protein FASTA keeps every residue and says it is a protein', async () => {
+  /*
+   * The bug this guards: parsed as DNA, every E F I J L O P Q X Z was deleted
+   * and the rest shifted left, with no message. The file looked open and was
+   * not the file.
+   */
+  const [track] = await parseFile(`>enzyme\n${PROTEIN}\n`, 'enzyme.fasta');
+  assert.strictEqual(track.molecule, 'protein');
+  assert.strictEqual(track.sequence, PROTEIN);
+  assert.strictEqual(track.circular, false);
+  assert.ok(track.sequenceData.isProtein);
+});
+
+test('.faa is a protein whatever its letters look like', async () => {
+  // GATTACA is all nucleotide letters; the extension is what says otherwise.
+  assert.ok(isSupported('x.faa'));
+  const [track] = await parseFile('>p\nGATTACAGATTACA\n', 'x.faa');
+  assert.strictEqual(track.molecule, 'protein');
+  assert.strictEqual(track.sequence, 'GATTACAGATTACA');
+});
+
+test('a DNA FASTA heavy in N stays DNA', async () => {
+  // A third N. Counting only G A T C U, this would be guessed as a protein and
+  // then refused against every plasmid; the loose guess counts ambiguity codes.
+  const seq = 'ACGT'.repeat(35) + 'N'.repeat(60);
+  const [track] = await parseFile(`>read\n${seq}\n`, 'read.fasta');
+  assert.strictEqual(track.molecule, 'dna');
+  assert.strictEqual(track.sequence, seq);
+});
+
+test('each record of a FASTA is classified on its own', async () => {
+  const gene = 'ATGGCTAGCAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGATGG';
+  const tracks = await parseFile(`>gene\n${gene}\n>product\n${PROTEIN}\n`, 'pair.fasta');
+  assert.deepStrictEqual(tracks.map((t) => t.molecule), ['dna', 'protein']);
+  assert.strictEqual(tracks[1].sequence, PROTEIN);
+});
+
+test('a caller that knows the molecule is not second-guessed', async () => {
+  const [track] = await parseFile(`>p\n${PROTEIN}\n`, 'typed.fasta', { molecule: 'protein' });
+  assert.strictEqual(track.molecule, 'protein');
+  assert.strictEqual(track.sequence, PROTEIN);
+});
+
+test('the protein guess is never applied to a trace or a SnapGene file', () => {
+  const { parseOptions } = require('../../src/alignTracks');
+  assert.ok(parseOptions('x.fasta').guessIfProtein);
+  assert.ok(parseOptions('x.gbk').guessIfProtein);
+  assert.ok(!parseOptions('x.ab1').guessIfProtein);
+  assert.ok(!parseOptions('x.dna').guessIfProtein);
+  assert.deepStrictEqual(parseOptions('x.fasta').guessIfProteinOptions, { loose: true });
+});

@@ -4,6 +4,100 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.60.0
+
+**Proteins align to proteins.** Open a protein FASTA, press Align, and add other proteins.
+They are aligned by MAFFT as proteins (`--amino`), drawn as residues with every difference
+marked in red, and a protein that differs says how identical it is — `98.3% identical` —
+instead of a bare *mismatch*. A partial match needs 24 residues, the same odds as the 50
+bases asked of DNA. Saved protein alignments reopen as proteins.
+
+**A protein FASTA no longer loses residues when it is opened.** It was read as DNA, and
+every residue that is not also a nucleotide letter — E, F, I, L, P, Q and the rest, about a
+third of a typical protein — was deleted, the remainder shifted left, and nothing was said.
+The file looked open and was not the file. The parser's own protein detection was simply
+never switched on. It now is, in the editor and the aligner alike, so a protein opens in Open
+Vector Editor's protein view with every residue. Saving writes the residues back.
+
+`.faa` opens in OVEN and is accepted by the aligner.
+
+DNA reads and protein references (and the other way round) cannot be aligned to each other.
+A read of the wrong kind stays in the list with a note saying so and is left out, and changing
+the reference re-checks every read.
+
+A protein's editor leaves out the DNA-only tools: primers, the cart, cut sites, codon edits,
+Sequence Search, and the melting temperature in the status bar. Their menu entries and hotkeys
+go with them.
+
+One behaviour change: a sequence typed into the alignment panel with no reference chosen is
+now classified by its letters, as the same text in a file would be. `ACGTXXACGT` used to be
+refused as "not DNA"; it is now taken as a protein.
+
+**Selecting no longer lags while a long search is open.** With a 2 kb search on an 18 kb
+plasmid, each mouse move while selecting made Open Vector Editor recut every restriction site
+in the plasmid. Two of its own components took turns evicting each other from a one-result
+cache. A drag took 12 seconds; it now takes as long as with no search at all.
+
+**A short read lands where it belongs, whatever it is aligned with.** A 20-mer with two
+differences from the plasmid landed in the right place when aligned alone, and was split
+across two places with fourteen substitutions once longer reads were aligned beside it.
+MAFFT aligns every read together, and a short one is placed by the company it keeps. Short
+reads are now oriented before MAFFT sees them, with seeds half their length rather than a
+fixed twenty bases. A read whose placement accounts for under nine tenths of its own bases
+gets a second, pairwise look, kept only if strictly better, so a clone's real insertion is
+never traded away. And a read MAFFT turns round in that second look is now recorded as
+turned, so its trace and letters are drawn the right way round.
+
+**Alignment settings in the panel.** **Settings**, beside Align and Save, opens a small form:
+the MAFFT strategy (Auto, Accurate L-INS-i, Fast FFT-NS-1, or your own arguments), the gap
+opening and extension penalties, and the trace trim quality. It edits the existing
+`oven.mafftArgs` and `oven.alignTrimQuality` rather than keeping its own copy, so the
+settings file, the Settings UI and the panel always agree. Two things changed so the settings
+mean what they say. Changing the trim quality now re-trims reads already in the panel, where
+before it reached only reads added afterwards. And a saved alignment records the MAFFT
+arguments it was made with, rather than whatever the setting says when Save is pressed. They
+are written on a `#=GF MAFFT` line of their own, in full: the strategy chosen plus the flags
+OVEN adds. Before, they were squeezed into the `OVEN` line, with their spaces turned into
+underscores (`--localpair_--maxiterate_1000`). Files written that way still read back, with
+their spaces restored.
+
+**Unsaved edits are VS Code's business now.** Editing a plasmid and closing it, or quitting,
+lost the edits without a word. To VS Code the OVEN editor was read-only: editing and saving
+both happened inside it, and VS Code was never told anything had changed. Now an edit puts
+the dirty dot on the tab, and closing or quitting asks whether to save, like any other file.
+Saves go through VS Code, so Save All includes OVEN files. Revert File reloads from disk, and
+hot exit keeps unsaved changes across a restart. Save As writes whichever format the new name
+asks for. OVE's own File → Save and Cmd+S still work and go the same way. The "Saved: …"
+notification is gone; the dot leaving the tab says so, as it does for every other file.
+
+**Align uses the plasmid as last saved.** Edit a plasmid, save it, press Align, and the
+alignment used the version from when the file was opened. The new sequence was used only
+after closing and reopening the file, and an alignment panel already open for that plasmid
+kept the old one even then. Saving now reads the file back for Align. A panel offered the
+same plasmid again compares the content as well as the path. A changed sequence drops the
+stale alignment and asks for Align again; changed annotations are just redrawn. Pressing
+Align with unsaved edits still aligns against the saved file, as it always has, but the
+panel now says so.
+
+**Paste a table of sequences.** The single name-and-sequence row under the drop zone is now
+a small table. Paste a block copied from a spreadsheet and it fills a row per sequence. The
+sequence column is found whichever side it is on, a header row is skipped, and a row number
+or length column is not taken for a name. FASTA works too, as does one sequence per line, and
+one sequence wrapped over several lines stays one sequence. **Add** takes them all at once.
+Rows that cannot be added stay in the table, each with its reason, while the rest go in.
+Typing one at a time works as before.
+
+**Pasted sequences survive saving.** A sequence typed or pasted into an alignment has no
+file to be re-read from, and the saved alignment did not carry its bases either. Reopened, it
+was rebuilt from its row, and any bases the alignment had folded away came back as `N`s.
+Pressing Align then aligned the `N`s: one 120-base read returned with nearly eighteen
+thousand gaps and dragged the reads beside it out of place. The file now carries such a read
+itself. An alignment saved by 1.59 still reopens, without inventing bases, and says which
+reads lost any.
+
+Two patches to the bundled Open Vector Editor: the cut-site cache above, and its alignment
+track labels, which said `bps` for every track, proteins included.
+
 ## 1.59.0
 
 **Alignments can be saved, and reopen as themselves.** Until now an alignment lived only in

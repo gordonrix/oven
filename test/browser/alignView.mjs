@@ -753,13 +753,14 @@ export default async function run(page) {
     [...document.querySelectorAll('.ovealign-read')].map((n) => n.innerText.split('\n')[0].trim()));
 
   await openAdd();
+  // The table starts as one empty row: a name box and a sequence box.
   out.pasteRow = await page.evaluate(() =>
-    [...document.querySelectorAll('.ovealign-pasteseq input')].map((i) => i.placeholder));
+    [...document.querySelectorAll('.ovealign-pasterow')[0].querySelectorAll('input')].map((i) => i.placeholder));
   if (out.pasteRow.length !== 2) {
     fail.push(`expected a name box and a sequence box, got ${JSON.stringify(out.pasteRow)}`);
   }
 
-  await page.locator('.ovealign-pastebases').fill('acgt acgt 12 GGCC');
+  await page.locator('.ovealign-pastebases').first().fill('acgt acgt 12 GGCC');
   await page.locator('.ovealign-pasteadd').click();
   await page.waitForTimeout(600);
   await openAdd();
@@ -769,8 +770,9 @@ export default async function run(page) {
   }
 
   // Enter submits, so the name box can be skipped without reaching for Add.
-  await page.locator('.ovealign-pastename').fill('my oligo');
-  await page.locator('.ovealign-pastebases').fill('ACGTACGT');
+  // The first row: typing into it grows the table a row, so name it.
+  await page.locator('.ovealign-pastename').first().fill('my oligo');
+  await page.locator('.ovealign-pastebases').first().fill('ACGTACGT');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(600);
   await openAdd();

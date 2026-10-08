@@ -64,10 +64,104 @@ class DNAViewerProvider {
     this.cartPanel = cartPanel;
     this.alignPanel = alignPanel;
     this.seqSearchPanel = seqSearchPanel;
+    /*
+     * What makes this an editable custom editor rather than a read-only one,
+     * as far as VS Code is concerned: having this event at all.
+     *
+     * Before, editing and saving happened entirely inside the webview -- OVE
+     * kept its own track of unsaved changes and its own Save wrote the file --
+     * so VS Code never knew a document had changed. No dirty dot on the tab, no
+     * "Do you want to save?" on closing it or quitting, and Save All passed it
+     * by. Firing this on the first edit after each save is what tells VS Code;
+     * saving then goes through VS Code, and is what clears it.
+     */
+    this._changes = new vscode.EventEmitter();
+    this.onDidChangeCustomDocument = this._changes.event;
   }
 
-  async openCustomDocument(uri) {
-    return { uri, dispose: () => {} };
+  /**
+   * One per open file, holding what VS Code's save needs that only the editor
+   * has: the sequence as last edited, and how to write it.
+   *
+   * `backupId` is set when VS Code reopens a file whose unsaved changes it kept
+   * across a restart (hot exit); the editor then loads the backup, not the
+   * file, and the document starts out with changes to save.
+   */
+  async openCustomDocument(uri, openContext) {
+    const backupId = (openContext && openContext.backupId) || null;
+    return {
+      uri,
+      backupId,
+      latest: null,
+      dirty: Boolean(backupId),
+      toFileBytes: null,
+      reload: null,
+      post: () => {},
+      dispose: () => {}
+    };
+  }
+
+  /* --------------------------------------------- saving, through VS Code -- */
+
+  /** Write the document's current sequence to `target`, in the format its name says. */
+  async writeDocument(document, target) {
+    if (!document.latest || !document.toFileBytes) return;
+    const ext = path.extname(target.fsPath.toLowerCase());
+    const bytes = document.toFileBytes(document.latest, ext);
+    if (!bytes) throw new Error(`OVEN cannot write ${ext || 'this'} files.`);
+    await vscode.workspace.fs.writeFile(target, bytes);
+    document.dirty = false;
+    /*
+     * Read the file back, so Align measures against what was just saved. Its
+     * reference is the file as parsed, never the editor's state -- an unsaved
+     * edit must not quietly become the reference -- and before this the parse
+     * was the one made when the file was opened, so a saved change reached
+     * the alignment only after closing and reopening the file. Read back
+     * rather than copied from the editor, because the editor's copy is the
+     * display form: joins split for drawing, a protein back-translated.
+     */
+    if (target.fsPath === document.uri.fsPath && document.reload) await document.reload();
+    // So OVE's own File > Save greys out, as it does after its own saves. The
+    // editor may have moved on since; then it is still, correctly, unsaved.
+    document.post({ type: 'doc/saved', id: document.latest.stateTrackingId });
+  }
+
+  async saveCustomDocument(document) {
+    await this.writeDocument(document, document.uri);
+  }
+
+  async saveCustomDocumentAs(document, destination) {
+    await this.writeDocument(document, destination);
+  }
+
+  /** File > Revert: back to what is on disk, in the editor as well. */
+  async revertCustomDocument(document) {
+    if (!document.reload) return;
+    const parsed = await document.reload();
+    document.latest = null;
+    document.dirty = false;
+    document.post({ type: 'doc/revert', data: parsed });
+  }
+
+  /**
+   * Keep unsaved changes across a restart.
+   *
+   * With VS Code's hot exit on -- the default -- quitting does not ask about
+   * unsaved files; it keeps them and puts them back next time. This is the
+   * keeping. The backup is the file as it would be saved, so reopening it is
+   * just reading a file.
+   */
+  async backupCustomDocument(document, context) {
+    const bytes = document.latest && document.toFileBytes
+      ? document.toFileBytes(document.latest)
+      : await vscode.workspace.fs.readFile(document.uri);
+    if (bytes) await vscode.workspace.fs.writeFile(context.destination, bytes);
+    return {
+      id: context.destination.toString(),
+      delete: async () => {
+        try { await vscode.workspace.fs.delete(context.destination); } catch { /* already gone */ }
+      }
+    };
   }
 
   mediaUri(webview, name) {
@@ -99,62 +193,98 @@ class DNAViewerProvider {
     let parsed;
     let snapgeneRawBlocks = null; // preserved so a .dna roundtrip stays lossless
 
-    if (ext === '.gb' || ext === '.gbk') {
-      const doc = await vscode.workspace.openTextDocument(document.uri);
-      parsed = genbankToJson(doc.getText())[0].parsedSequence;
-    } else if (ext === '.fa' || ext === '.fasta') {
-      const doc = await vscode.workspace.openTextDocument(document.uri);
-      parsed = fastaToJson(doc.getText())[0].parsedSequence;
-    } else if (ext === '.ab1') {
-      /*
-       * A trace file, opened to be looked at rather than edited.
-       *
-       * The reader is the aligner's, so a trace opens here exactly as it would
-       * as an alignment track -- same quality-smoothed, per-base chromatogram.
-       * It is required here rather than at the top of the file: everything in
-       * this tree ends up importing alignTracks, and a top-level require pulls
-       * the parser bundle into every test that loads this module.
-       *
-       * chromatogramData rides on sequenceData, which is where the editor looks
-       * for it and what it keeps in step when the sequence is edited.
-       */
-      const { parseFile } = require('./alignTracks');
-      const buffer = await vscode.workspace.fs.readFile(document.uri);
-      const tracks = await parseFile(Buffer.from(buffer), path.basename(document.uri.fsPath));
-      if (!tracks.length) throw new Error('No sequence found in this trace file.');
-      parsed = Object.assign({}, tracks[0].sequenceData, {
-        name: tracks[0].name,
-        sequence: tracks[0].sequence,
-        circular: false,
-        chromatogramData: tracks[0].chromatogramData || undefined
-      });
-    } else if (ext === '.dna') {
-      const buffer = await vscode.workspace.fs.readFile(document.uri);
-      const out = await snapgeneToJson(buffer, { fileName: sourceName });
-      parsed = out[0].parsedSequence;
-      snapgeneRawBlocks = parsed._snapgeneRawBlocks || null;
-      delete parsed._snapgeneRawBlocks; // large binary blobs must not cross into the webview
-    }
+    /*
+     * Parsed with the aligner's options, which switch on the parser's protein
+     * guess. Without it a protein FASTA lost every residue that is not also a
+     * nucleotide letter -- a third of it -- and opened looking whole. Required
+     * here rather than at the top for the reason given under .ab1 below.
+     */
+    const parseOptionsFor = () =>
+      require('./alignTracks').parseOptions(path.basename(document.uri.fsPath));
 
     /*
-     * An origin-spanning join() arrives described twice -- as a wrapped
-     * start/end and as a locations array holding the same two halves -- and
-     * OVE draws both, so the feature appears doubled and offset in every row.
-     * Drop the redundant half before it reaches the editor. Only saved back to
-     * disk through jsonToGenbank, which re-derives the join from start/end.
+     * Read from disk, not from a TextDocument: VS Code keeps those cached, and
+     * reverting has to see the file as it is now. A file reopened after a
+     * restart with unsaved changes reads its backup instead -- same format,
+     * written by backupCustomDocument.
      */
-    if (parsed) shared.dropRedundantWrapLocations(parsed);
+    const readText = async (uri) => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+    const load = async (source) => {
+      let parsed = null;
+      let snapgeneRawBlocks = null;
+      if (ext === '.gb' || ext === '.gbk') {
+        parsed = genbankToJson(await readText(source), parseOptionsFor())[0].parsedSequence;
+      } else if (ext === '.fa' || ext === '.fasta' || ext === '.faa') {
+        parsed = fastaToJson(await readText(source), parseOptionsFor())[0].parsedSequence;
+      } else if (ext === '.ab1') {
+        /*
+         * A trace file, opened to be looked at rather than edited.
+         *
+         * The reader is the aligner's, so a trace opens here exactly as it would
+         * as an alignment track -- same quality-smoothed, per-base chromatogram.
+         * It is required here rather than at the top of the file: everything in
+         * this tree ends up importing alignTracks, and a top-level require pulls
+         * the parser bundle into every test that loads this module.
+         *
+         * chromatogramData rides on sequenceData, which is where the editor looks
+         * for it and what it keeps in step when the sequence is edited.
+         */
+        const { parseFile } = require('./alignTracks');
+        const buffer = await vscode.workspace.fs.readFile(source);
+        const tracks = await parseFile(Buffer.from(buffer), path.basename(document.uri.fsPath));
+        if (!tracks.length) throw new Error('No sequence found in this trace file.');
+        parsed = Object.assign({}, tracks[0].sequenceData, {
+          name: tracks[0].name,
+          sequence: tracks[0].sequence,
+          circular: false,
+          chromatogramData: tracks[0].chromatogramData || undefined
+        });
+      } else if (ext === '.dna') {
+        const buffer = await vscode.workspace.fs.readFile(source);
+        const out = await snapgeneToJson(buffer, { fileName: sourceName });
+        parsed = out[0].parsedSequence;
+        snapgeneRawBlocks = parsed._snapgeneRawBlocks || null;
+        delete parsed._snapgeneRawBlocks; // large binary blobs must not cross into the webview
+      }
 
-    function toFileBytes(newJsonData) {
+      /*
+       * An origin-spanning join() arrives described twice -- as a wrapped
+       * start/end and as a locations array holding the same two halves -- and
+       * OVE draws both, so the feature appears doubled and offset in every row.
+       * Drop the redundant half before it reaches the editor. Only saved back to
+       * disk through jsonToGenbank, which re-derives the join from start/end.
+       */
+      if (parsed) shared.dropRedundantWrapLocations(parsed);
+      return { parsed, snapgeneRawBlocks };
+    };
+
+    const source = document.backupId ? vscode.Uri.parse(document.backupId) : document.uri;
+    ({ parsed, snapgeneRawBlocks } = await load(source));
+    // Restored with unsaved changes: those are what a save must write.
+    if (document.backupId) document.latest = parsed;
+
+    // OVE switches into its own protein mode from isProtein; the page around
+    // it has to know as well, to leave out the tools that only mean anything
+    // for DNA.
+    const protein = Boolean(parsed && parsed.isProtein);
+
+    function toFileBytes(newJsonData, targetExt = ext) {
       // Undo the display-only strip above, so what lands on disk is spelled
       // exactly the way the parser found it -- join(4113..4130,1..17), not the
       // non-standard "4113..17" the writer falls back to without locations.
       shared.restoreWrapLocations(newJsonData);
+      // Save As may change the format; the original's SnapGene blocks only
+      // belong in a file of the same kind.
+      const ext = targetExt;
       if (ext === '.dna') {
         return jsonToSnapgene(Object.assign({}, newJsonData, { _snapgeneRawBlocks: snapgeneRawBlocks }));
       }
       if (ext === '.gb' || ext === '.gbk') return Buffer.from(jsonToGenbank(newJsonData));
-      if (ext === '.fa' || ext === '.fasta') return Buffer.from(jsonToFasta(newJsonData));
+      // jsonToFasta writes proteinSequence for a protein, so the residues go
+      // back to disk rather than the degenerate DNA OVE holds alongside them.
+      if (ext === '.fa' || ext === '.fasta' || ext === '.faa') {
+        return Buffer.from(jsonToFasta(newJsonData));
+      }
       // .ab1 falls through deliberately: no writer exists, and the editor is
       // read-only for one, so nothing should be asking.
       return null;
@@ -186,13 +316,56 @@ class DNAViewerProvider {
      */
     const collapsePanels = () => webview.postMessage({ type: 'panels/collapse' });
 
+    /*
+     * What VS Code's save, revert and backup need from this editor. A copy is
+     * written rather than the edited sequence itself, because writing restores
+     * the join locations the editor was shown without, in place.
+     */
+    document.toFileBytes = (data, targetExt) => toFileBytes(JSON.parse(JSON.stringify(data)), targetExt);
+    document.reload = async () => {
+      const fresh = await load(document.uri);
+      parsed = fresh.parsed;
+      snapgeneRawBlocks = fresh.snapgeneRawBlocks;
+      return fresh.parsed;
+    };
+    // Same caveat as the cart: a message to a hidden webview can be dropped,
+    // so the last one waits until the tab is shown again.
+    let pendingDocMessage = null;
+    document.post = (msg) => {
+      if (!webviewPanel.visible) { pendingDocMessage = msg; return; }
+      pendingDocMessage = null;
+      webview.postMessage(msg);
+    };
+
+    /** The editor has unsaved changes: say so to VS Code, once per save. */
+    const markChanged = (data) => {
+      document.latest = data;
+      if (document.dirty) return;
+      document.dirty = true;
+      this._changes.fire({ document });
+    };
+
     webview.onDidReceiveMessage(async (message) => {
       if (!message) return;
 
+      // Every edit, from media/docSync.js.
+      if (message.type === 'doc/changed') {
+        markChanged(message.data);
+        return;
+      }
+
+      /*
+       * OVE's own File > Save and its mod+s. Saving goes through VS Code, so
+       * the tab's dirty mark clears and VS Code's own save prompts stay right.
+       * Cmd+S is seen by VS Code as well, which saves first; this then finds
+       * nothing new to write and leaves it alone rather than saving twice.
+       */
       if (message.type === 'save') {
+        if (!document.dirty && document.latest &&
+            message.data && message.data.stateTrackingId === document.latest.stateTrackingId) return;
+        markChanged(message.data);
         try {
-          await vscode.workspace.fs.writeFile(document.uri, toFileBytes(message.data));
-          vscode.window.showInformationMessage(`Saved: ${path.basename(document.uri.fsPath)}`);
+          await vscode.workspace.save(document.uri);
         } catch (e) {
           vscode.window.showErrorMessage(`Save failed: ${e.message}`);
         }
@@ -236,10 +409,17 @@ class DNAViewerProvider {
         // The plasmid on screen becomes the reference. Its sequence comes from
         // our own parse rather than the editor's state, so an unsaved base edit
         // cannot silently become the thing everything is measured against.
+        //
+        // A protein's residues are proteinSequence. The editor's own state
+        // holds them as three times as much degenerate DNA, which is another
+        // reason never to read the reference from there.
         this.alignPanel.show({
+          // Said, so the panel can say the edits are not in the alignment.
+          unsavedEdits: Boolean(document.dirty),
           name: (parsed && parsed.name) || sourceName,
-          sequence: (parsed && parsed.sequence) || '',
-          circular: Boolean(parsed && parsed.circular),
+          sequence: (protein ? parsed.proteinSequence || parsed.sequence : parsed && parsed.sequence) || '',
+          circular: protein ? false : Boolean(parsed && parsed.circular),
+          molecule: protein ? 'protein' : 'dna',
           sequenceData: parsed,
           path: document.uri.fsPath
         });
@@ -324,6 +504,7 @@ class DNAViewerProvider {
     const sub = this.cart.onDidChange(() => pushCartState());
     const visSub = webviewPanel.onDidChangeViewState(() => {
       if (webviewPanel.visible && pendingCartPush) pushCartState();
+      if (webviewPanel.visible && pendingDocMessage) document.post(pendingDocMessage);
     });
     webviewPanel.onDidDispose(() => {
       sub.dispose();
@@ -342,6 +523,7 @@ class DNAViewerProvider {
       searchUri: this.mediaUri(webview, 'primerSearch.js'),
       strandUri: this.mediaUri(webview, 'strandBar.js'),
       toolBtnsUri: this.mediaUri(webview, 'toolButtons.js'),
+      docSyncUri: this.mediaUri(webview, 'docSync.js'),
       cutSitesUri: this.mediaUri(webview, 'cutSites.js'),
       codonUsageUri: this.mediaUri(webview, 'codonUsage.js'),
       codonEditUri: this.mediaUri(webview, 'codonEdit.js'),
@@ -354,7 +536,10 @@ class DNAViewerProvider {
       alignHotkey: config.alignHotkey(),
       cartHotkey: config.cartHotkey(),
       rowViewCssUri: this.mediaUri(webview, 'rowView.css'),
-      cutSiteFilter: this.context.globalState.get(CUT_SITES_KEY, null),
+      // A protein has no cut sites; OVE hides the panel, and the filter saved
+      // for DNA has nothing to apply to.
+      cutSiteFilter: protein ? null : this.context.globalState.get(CUT_SITES_KEY, null),
+      protein,
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
       viewType: DNAViewerProvider.takeViewType(document.uri.fsPath),
       // Which map the editor opens on: a linear sequence drawn as a circle with

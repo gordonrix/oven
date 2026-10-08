@@ -57,3 +57,36 @@ test('a saved alignment opens in OVEN rather than as text', () => {
   // offers the file to elsewhere.
   assert.ok(alignment.selector.every((s) => !s.binary));
 });
+
+test('a protein FASTA opens in OVEN, as text', () => {
+  const faa = selectors().find((s) => s.filenamePattern === '*.faa');
+  assert.ok(faa, '*.faa is not claimed');
+  assert.ok(!faa.binary);
+});
+
+test('every list of readable extensions agrees', () => {
+  /*
+   * Four lists of the same thing: what the aligner parses, the two in the panel
+   * client (what a drop accepts, and what a dragged path may be), and the
+   * Explorer's Add to Alignment. One left behind means a file that can be added
+   * one way and is refused another.
+   */
+  const fs = require('fs');
+  const path = require('path');
+  const { SEQUENCE_EXTENSIONS } = require('../../src/alignTracks');
+  const client = fs.readFileSync(path.join(__dirname, '../../media/alignView.js'), 'utf8');
+  const listIn = (name) => {
+    const m = new RegExp(`const ${name} = \\[([^\\]]*)\\]`).exec(client);
+    assert.ok(m, `${name} not found in alignView.js`);
+    return m[1].split(',').map((x) => x.trim().replace(/'/g, '')).sort();
+  };
+  const menu = pkg.contributes.menus['explorer/context']
+    .find((m) => m.command === 'oven.addToAlignment').when;
+  const fromMenu = /\(([^)]*)\)\$/.exec(menu)[1].split('|').sort();
+
+  const expected = [...SEQUENCE_EXTENSIONS].sort();
+  assert.deepStrictEqual(listIn('ACCEPT'), expected);
+  assert.deepStrictEqual(listIn('READ_EXTENSIONS'), expected);
+  assert.deepStrictEqual(fromMenu, expected);
+  assert.ok(expected.includes('faa'));
+});
