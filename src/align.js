@@ -267,6 +267,142 @@ function runMafft(records, opts = {}) {
 
 /* ------------------------------------------------------- MSA -> pairwise -- */
 
+/* ---------------------------------------------- stray ends as insertions -- */
+
+/* A gap in the read at least this long separates two blocks of it. */
+const BLOCK_BREAK = 10;
+/*
+ * How much a block has to match to be more than chance: its matches, less two
+ * for every mismatch, at least this. Identity alone will not do -- MAFFT
+ * searches the whole reference to park a novel end, and short stretches of
+ * chance resemblance at 70-80% are easy to find: a random 29-mer came back as
+ * blocks of 9 in 11 and 10 in 14. Twelve exact bases is about one in sixteen
+ * million, far rarer than anything a plasmid offers by chance, while a real
+ * 15-base match after a genuine deletion still clears it.
+ */
+const STRAY_SCORE = 12;
+
+/** The read's blocks: runs of its bases, split wherever it skips BLOCK_BREAK or more reference. */
+function readBlocks(refRow, readRow) {
+  const blocks = [];
+  let cur = null;
+  let skipped = 0;
+  for (let c = 0; c < refRow.length; c++) {
+    if (readRow[c] === '-') {
+      if (refRow[c] !== '-') skipped++;
+      continue;
+    }
+    if (!cur || skipped >= BLOCK_BREAK) {
+      cur = { from: c, to: c, bases: 0, compared: 0, same: 0, gapBefore: cur ? skipped : 0 };
+      blocks.push(cur);
+    }
+    skipped = 0;
+    cur.to = c;
+    cur.bases++;
+    if (refRow[c] !== '-') {
+      cur.compared++;
+      if (refRow[c].toUpperCase() === readRow[c].toUpperCase()) cur.same++;
+    }
+  }
+  return blocks;
+}
+
+/**
+ * Show a read's novel end as an insertion, not as a stray match far away.
+ *
+ * MAFFT aligns a read end to end, so an end that is not in the reference at
+ * all -- a primer's 5' tail, the insert in a clone, a read running into a
+ * vector the map does not have -- still has to go somewhere. It goes wherever
+ * it half-matches, across a long gap: a 64-base read whose first 35 bases
+ * matched exactly had its other 29 put 82 bp further on, at 48% identity. No
+ * MAFFT strategy does better, because paying for an insertion to gain a few
+ * matches is never worth it to an aligner.
+ *
+ * So afterwards: a first or last block of the read that sits across a gap
+ * longer than itself, matching no better than chance (STRAY_SCORE), is taken back and laid
+ * down as an insertion beside the block it belongs with -- new columns, gapped
+ * in every other row. A real deletion keeps its far block, because that block
+ * matches.
+ *
+ * @param {Array<{name: string, sequence: string}>} aligned reference first
+ * @returns {Array<{name: string, sequence: string}>} the same rows, tidied
+ */
+function tidyStrayEnds(aligned) {
+  let rows = aligned.map((r) => ({ name: r.name, chars: r.sequence.split('') }));
+
+  /** Insert columns at `at`: the read's bases there, a gap in every other row. */
+  const insertColumns = (i, at, bases) => {
+    rows = rows.map((r, k) => {
+      const insert = k === i ? bases : bases.map(() => '-');
+      return { name: r.name, chars: [...r.chars.slice(0, at), ...insert, ...r.chars.slice(at)] };
+    });
+  };
+
+  for (let i = 1; i < rows.length; i++) {
+    for (const end of ['last', 'first']) {
+      // Peel stray blocks off this end until the end block is a real match:
+      // MAFFT can scatter one novel end across several places, and each is
+      // moved in beside its neighbour, so they gather back in read order.
+      for (let guard = 0; guard < 50; guard++) {
+        const ref = rows[0].chars;
+        const read = rows[i].chars;
+        const blocks = readBlocks(ref.join(''), read.join(''));
+        if (blocks.length < 2) break;
+        const stray = end === 'last' ? blocks[blocks.length - 1] : blocks[0];
+        const anchor = end === 'last' ? blocks[blocks.length - 2] : blocks[1];
+        const gap = end === 'last' ? stray.gapBefore : anchor.gapBefore;
+        const score = stray.same - 2 * (stray.compared - stray.same);
+        if (gap <= stray.bases || score >= STRAY_SCORE) break;
+
+        // Take the stray bases out, in read order.
+        const bases = [];
+        for (let c = stray.from; c <= stray.to; c++) {
+          if (read[c] !== '-') { bases.push(read[c]); read[c] = '-'; }
+        }
+
+        /*
+         * Bases that go on matching the reference straight on from the anchor
+         * are placed there, not inserted -- MAFFT sometimes leaves the last base
+         * of the matching part among the strays.
+         */
+        const placeNext = (from, step) => {
+          for (let c = from; c >= 0 && c < ref.length; c += step) {
+            if (ref[c] === '-') continue;
+            return read[c] === '-' ? c : -1;
+          }
+          return -1;
+        };
+        if (end === 'last') {
+          let c = placeNext(anchor.to + 1, 1);
+          while (bases.length && c >= 0 && ref[c].toUpperCase() === bases[0].toUpperCase()) {
+            read[c] = bases.shift();
+            c = placeNext(c + 1, 1);
+          }
+          if (!bases.length) continue;
+          // After the last base the read has, matched or newly placed.
+          let at = anchor.to + 1;
+          for (let c2 = anchor.to + 1; c2 < read.length && c2 <= stray.from; c2++) if (read[c2] !== '-') at = c2 + 1;
+          insertColumns(i, at, bases);
+        } else {
+          let c = placeNext(anchor.from - 1, -1);
+          while (bases.length && c >= 0 && ref[c].toUpperCase() === bases[bases.length - 1].toUpperCase()) {
+            read[c] = bases.pop();
+            c = placeNext(c - 1, -1);
+          }
+          if (!bases.length) continue;
+          // Before the first base the read has, matched or newly placed.
+          let at = anchor.from;
+          for (let c2 = anchor.from - 1; c2 >= stray.to && c2 >= 0; c2--) if (read[c2] !== '-') at = c2;
+          insertColumns(i, at, bases);
+        }
+      }
+    }
+  }
+  // Columns the stray bases left behind may now be gaps in every row.
+  const keep = rows[0].chars.map((_, c) => rows.some((r) => r.chars[c] !== '-'));
+  return rows.map((r) => ({ name: r.name, sequence: r.chars.filter((_, c) => keep[c]).join('') }));
+}
+
 /**
  * Carve an MSA into one [reference, read] pair per read.
  *
@@ -352,6 +488,13 @@ function coverageGapRun(referenceRow, readRow, from, to) {
 function overhangsEnd(referenceRow, readRow) {
   const last = readRow.length - 1 - String(readRow).split('').reverse().join('').search(/[^-]/);
   if (last < 0) return 0;
+  /*
+   * Past the end of the reference, not merely in a gap in it: bases the read
+   * has and the reference lacks, partway along, are an insertion -- which is
+   * how a novel end is laid down (tidyStrayEnds) -- and folding one across
+   * the origin would make a crossing out of a clone with an insert.
+   */
+  if (/[^-]/.test(String(referenceRow).slice(last + 1))) return 0;
   let run = 0;
   for (let i = last; i >= 0 && referenceRow[i] === '-'; i--) run++;
   return run;
@@ -456,6 +599,15 @@ function foldOntoReference(doubledRefRow, readRow, refLength) {
   }
 
   return { placed, covered, deleted, insertions, sequence: bases.join(''), readIndex };
+}
+
+/**
+ * How far round the reference a folded read goes: its covered pieces plus the
+ * deletions between them, as foldOntoReference worked them out.
+ */
+function foldTraversal(fold, refLength) {
+  const span = ([from, to]) => (to >= from ? to - from + 1 : refLength - from + to + 1);
+  return [...fold.covered, ...(fold.deleted || [])].reduce((sum, range) => sum + span(range), 0);
 }
 
 /**
@@ -685,11 +837,11 @@ async function align(reference, reads, opts = {}) {
     };
   });
 
-  const aligned = await runMafft(
+  const aligned = tidyStrayEnds(await runMafft(
     [{ name: 'reference', sequence: refSeq },
       ...prepared.map((p) => ({ name: p.key, sequence: p.sequence }))],
     opts
-  );
+  ));
 
   const pairs = splitPairs(aligned);
 
@@ -750,16 +902,32 @@ async function align(reference, reads, opts = {}) {
      * A read that long is not a read crossing the origin anyway.
      */
     if (prepared[i].sequence.length > refSeq.length) continue;
-    const twice = await runMafft(
+    // Tidied the same way as the joint alignment, or a novel end parked on a
+    // chance match there would count as "explaining" more of the read and
+    // win the comparison below.
+    const twice = tidyStrayEnds(await runMafft(
       [{ name: 'reference', sequence: refSeq + refSeq },
         { name: prepared[i].key, sequence: prepared[i].oriented }],
       opts
-    );
+    ));
     const pair = splitPairs(twice)[0];
     const fold = foldOntoReference(pair.referenceRow, pair.readRow, refSeq.length);
     // Only keep it if it actually placed the read; a read that genuinely
     // belongs nowhere should stay as MAFFT left it rather than be forced on.
     if (!fold.covered.length) continue;
+    /*
+     * And only if a single read could have produced it. A read is one stretch
+     * of one molecule, so walking its pieces in read order -- each piece, and
+     * each deletion between them -- can go round the plasmid at most once. A
+     * fold that needs more is not a read with deletions; it is a read whose own
+     * sequence is not in the reference, stitched together from short chance
+     * matches. One 64-base read matching for its first 35 bases came back as
+     * three pieces 1.6 kb apart, joined by "deletions" of 2.5 and 2.0 kb, the
+     * second running back over the very stretch that matched -- so the part
+     * that did match was drawn as deleted. A real deletion, even a large one
+     * across the origin, stays well inside one turn.
+     */
+    if (foldTraversal(fold, refSeq.length) > refSeq.length) continue;
 
     const candidate = Object.assign(fold, {
       readRow: toSharedColumns(fold.placed, sharedReferenceRow),
@@ -885,6 +1053,71 @@ async function align(reference, reads, opts = {}) {
 }
 
 /**
+ * Put one read back into the shared column space from its own pairwise
+ * alignment with the reference.
+ *
+ * Unlike toSharedColumns, which a fold uses and which drops insertions, this
+ * keeps them: the read's inserted residues go into the insertion columns
+ * already between those two reference positions, and new columns -- gapped in
+ * every other row -- are added if it needs more. Every other row keeps its
+ * characters in the same order. The read's old placement is discarded, and
+ * columns it alone occupied are dropped.
+ *
+ * @param {Array<{name: string, sequence: string}>} rows reference first
+ * @param {number} k  the read's row
+ * @param {string} pairRef  the reference row of the read's pairwise alignment
+ * @param {string} pairRead the read row of it
+ */
+function mergeIntoShared(rows, k, pairRef, pairRead) {
+  const ref = rows[0].sequence;
+  // Columns of each reference position in the shared rows, and the insertion
+  // columns in each slot between them (slot j sits after reference position j;
+  // slot -1 is before the first).
+  const refCols = [];
+  for (let c = 0; c < ref.length; c++) if (ref[c] !== '-') refCols.push(c);
+  const L = refCols.length;
+  const sharedSlot = (j) => {
+    const from = j < 0 ? 0 : refCols[j] + 1;
+    const to = j + 1 < L ? refCols[j + 1] : ref.length;
+    const cols = [];
+    for (let c = from; c < to; c++) cols.push(c);
+    return cols;
+  };
+  // The read in the pairwise alignment: what sits on each reference position,
+  // and what it inserts in each slot.
+  const readAt = new Array(L).fill('-');
+  const inserted = new Map();
+  let at = -1;
+  for (let c = 0; c < pairRef.length; c++) {
+    if (pairRef[c] !== '-') { at++; readAt[at] = pairRead[c]; continue; }
+    if (pairRead[c] === '-') continue;
+    if (!inserted.has(at)) inserted.set(at, []);
+    inserted.get(at).push(pairRead[c]);
+  }
+
+  const out = rows.map(() => []);
+  const emitSlot = (j) => {
+    const cols = sharedSlot(j);
+    const mine = inserted.get(j) || [];
+    const n = Math.max(cols.length, mine.length);
+    for (let t = 0; t < n; t++) {
+      rows.forEach((r, i) => {
+        if (i === k) out[i].push(t < mine.length ? mine[t] : '-');
+        else out[i].push(t < cols.length ? r.sequence[cols[t]] : '-');
+      });
+    }
+  };
+  emitSlot(-1);
+  for (let j = 0; j < L; j++) {
+    rows.forEach((r, i) => out[i].push(i === k ? readAt[j] : r.sequence[refCols[j]]));
+    emitSlot(j);
+  }
+  // The read's old insertion columns may now be gaps in every row.
+  const keep = out[0].map((_, c) => out.some((row) => row[c] !== '-'));
+  return rows.map((r, i) => ({ name: r.name, sequence: out[i].filter((_, c) => keep[c]).join('') }));
+}
+
+/**
  * Align proteins against a protein reference.
  *
  * Everything above that is not a plain MAFFT call exists because of DNA: which
@@ -911,11 +1144,49 @@ async function alignProtein(reference, reads, opts = {}) {
     sequence: String(read.sequence || '').toUpperCase()
   }));
 
-  const aligned = await runMafft(
+  const proteinOpts = Object.assign({}, opts, { molecule: 'protein' });
+  let aligned = await runMafft(
     [{ name: 'reference', sequence: refSeq },
       ...prepared.map((p) => ({ name: p.key, sequence: p.sequence }))],
-    Object.assign({}, opts, { molecule: 'protein' })
+    proteinOpts
   );
+
+  /*
+   * A second look for any read the joint alignment placed badly.
+   *
+   * MAFFT aligns everything at once, and aligns similar reads to each other
+   * before the reference, so reads that resemble one another are stacked into
+   * the same columns and placed on the reference together. Two variants of a
+   * reference's first domain, aligned alongside four of its second, were
+   * carried into the second domain with the rest: 44 of 59 residues identical
+   * there, against 54 of 58 in the first domain, where each lands aligned on
+   * its own. Closer variants fare worse: a read can be split between the two
+   * domains, half in each, matching nearly everywhere and gapped by the whole
+   * of the other domain in its middle.
+   *
+   * So a placement is scored by the residues it accounts for less every gapped
+   * column -- a read cut in two is badly placed however well each half
+   * matches -- and a read scoring under nine tenths of its length is aligned
+   * to the reference alone, and moved if that scores strictly better.
+   */
+  const quality = (refRow, readRow) => {
+    const d = countDifferences(refRow, readRow);
+    return d.compared - d.substitutions - d.gaps;
+  };
+  for (let i = 0; i < prepared.length; i++) {
+    const length = prepared[i].sequence.length;
+    const joint = splitPairs(aligned)[i];
+    const asIs = quality(joint.referenceRow, joint.readRow);
+    if (asIs >= 0.9 * length) continue;
+    const solo = await runMafft(
+      [{ name: 'reference', sequence: refSeq }, { name: prepared[i].key, sequence: prepared[i].sequence }],
+      proteinOpts
+    );
+    const pair = splitPairs(solo)[0];
+    if (quality(pair.referenceRow, pair.readRow) > asIs) {
+      aligned = mergeIntoShared(aligned, i + 1, solo[0].sequence, solo[1].sequence);
+    }
+  }
   const pairs = splitPairs(aligned);
 
   return {
@@ -950,6 +1221,7 @@ async function alignProtein(reference, reads, opts = {}) {
 
 module.exports = {
   align, alignProtein, mafftArgsFor, anchor, rotateString, rotationFor, splitPairs, countDifferences,
-  mutatedCodons, codonPositions, overhangsEnd, foldOntoReference, toSharedColumns,
+  mutatedCodons, codonPositions, overhangsEnd, foldOntoReference, foldTraversal, toSharedColumns,
+  tidyStrayEnds, readBlocks, mergeIntoShared,
   runMafft, parseFasta, toFasta, MISSING_MAFFT, DEFAULT_K
 };

@@ -22,6 +22,7 @@ const Module = require('module');
 const fires = [];
 const saves = [];
 const aligned = [];   // what each Align handed the alignment panel
+const globalStore = new Map();   // the extension's globalState
 let provider = null;
 
 const realLoad = Module._load;
@@ -70,7 +71,13 @@ async function openEditor({ backupId } = {}) {
   aligned.length = 0;
 
   provider = new DNAViewerProvider(
-    { extensionPath: path.join(__dirname, '..', '..'), globalState: { get: (_k, d) => d, update: async () => {} } },
+    {
+      extensionPath: path.join(__dirname, '..', '..'),
+      globalState: {
+        get: (k, d) => (globalStore.has(k) ? globalStore.get(k) : d),
+        update: async (k, v) => { globalStore.set(k, v); }
+      }
+    },
     { items: () => [], keys: () => [], onDidChange: () => ({ dispose() {} }) },
     { show() {} }, { show: (ref) => aligned.push(ref) }, { show() {} });
 
@@ -214,4 +221,16 @@ test('with unsaved edits, Align uses the file as saved, and says so', async () =
   const ref = aligned.pop();
   assert.strictEqual(String(ref.sequence).toUpperCase(), original);
   assert.strictEqual(ref.unsavedEdits, true);
+});
+
+/* ---------------------------------------------------- remembered view -- */
+
+test('view settings reported by an editor are stored, and only the remembered ones', async () => {
+  globalStore.clear();
+  const { send } = await openEditor();
+  await send({ type: 'viewprefs/save', prefs: { aminoAcidNumbers: true, features: false, labels: { cutsites: false } } });
+  await send({ type: 'viewprefs/save', prefs: { orfs: true, labels: { parts: false } } });
+  assert.deepStrictEqual(globalStore.get('oven.viewPrefs'), {
+    aminoAcidNumbers: true, orfs: true, labels: { cutsites: false, parts: false }
+  }, 'merged across reports, labels included, and features -- per file -- never stored');
 });

@@ -105186,6 +105186,12 @@ ${latestSubscriptionCallbackError.current.stack}
   );
   const updateDnaOrAA = createMetaAction("updateDnaOrAA");
   const updateMatchNumber = createMetaAction("updateMatchNumber");
+  /*
+   * PATCH (oven): how many mismatches a Find hit may have. Exported with the
+   * rest of this module, which is all it takes to become an editor action the
+   * find bar receives as a prop.
+   */
+  const updateFindMismatches = createMetaAction("updateFindMismatches");
   const findTool = createMergedDefaultStateReducer(
     {
       [toggleFindTool]: (state2) => {
@@ -105226,6 +105232,12 @@ ${latestSubscriptionCallbackError.current.stack}
         return __spreadProps(__spreadValues({}, state2), {
           matchNumber: payload
         });
+      },
+      [updateFindMismatches]: (state2, payload) => {
+        return __spreadProps(__spreadValues({}, state2), {
+          matchNumber: 0,
+          mismatches: payload
+        });
       }
     },
     {
@@ -105235,7 +105247,8 @@ ${latestSubscriptionCallbackError.current.stack}
       dnaOrAA: "DNA",
       ambiguousOrLiteral: "LITERAL",
       highlightAll: false,
-      matchNumber: 0
+      matchNumber: 0,
+      mismatches: 0
     }
   );
   const findTool$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -105247,7 +105260,8 @@ ${latestSubscriptionCallbackError.current.stack}
     updateAmbiguousOrLiteral,
     updateDnaOrAA,
     updateMatchNumber,
-    updateSearchText
+    updateSearchText,
+    updateFindMismatches
   }, Symbol.toStringTag, { value: "Module" }));
   const openToolbarItemUpdate = createMetaAction("openToolbarItemUpdate");
   const toolBar = createMergedDefaultStateReducer(
@@ -120387,6 +120401,52 @@ ${latestSubscriptionCallbackError.current.stack}
       ];
     }
     const ranges = [];
+    /*
+     * PATCH (oven): Find with mismatches.
+     *
+     * OVE's search is a regex, which can say "exactly this" or "any of these
+     * letters here" but not "this, give or take two". So when mismatches are
+     * allowed the same strings are scanned position by position instead --
+     * the same doubled sequence for a circular one, the same three translated
+     * frames for an amino-acid search -- counting letters that do not match
+     * and giving up on a position as soon as there are too many. Every range
+     * found is mapped exactly as a regex match would be, so strands, frames,
+     * the origin and the match list downstream all behave as they always do.
+     * Literal and Ambiguous mean what they mean for the regex: in Ambiguous, a
+     * query letter matches any of the letters its code stands for.
+     */
+    const ovenMismatches = Math.max(0, Math.floor(Number(options.mismatches) || 0));
+    if (ovenMismatches > 0) {
+      const protein = isProteinSearch || isProteinSequence;
+      const query = String(searchString).toUpperCase();
+      const allowed = [...query].map((ch) => {
+        if (!isAmbiguous) return /* @__PURE__ */ new Set([ch]);
+        if (protein && ch === "*") return /* @__PURE__ */ new Set(["*", "."]);
+        const value = protein ? extended_protein_values[ch] : ambiguous_dna_values$1[ch];
+        // A code with no expansion -- or DNA's "." -- matches anything.
+        if (!value || value === ".") return null;
+        return new Set(value.replace(/\\/g, "").split(""));
+      });
+      const n2 = allowed.length;
+      sequencesToCheck.forEach(({ seqToCheck, offset: offset2 }) => {
+        const subject = String(seqToCheck).toUpperCase();
+        for (let i2 = 0; i2 + n2 <= subject.length; i2++) {
+          let misses = 0;
+          for (let j2 = 0; j2 < n2 && misses <= ovenMismatches; j2++) {
+            const set = allowed[j2];
+            if (set && !set.has(subject[i2 + j2])) misses++;
+          }
+          if (misses > ovenMismatches) continue;
+          const range3 = { start: i2, end: i2 + n2 - 1 };
+          if (isProteinSearch) {
+            range3.start = range3.start * 3 + offset2;
+            range3.end = range3.end * 3 + 2 + offset2;
+          }
+          ranges.push(modulateRangeBySequenceLength(range3, sequence2.length));
+        }
+      });
+      return uniqBy(ranges, (e2) => e2.start + "-" + e2.end);
+    }
     sequencesToCheck.forEach(({ seqToCheck, offset: offset2 }) => {
       const reg = new RegExp(searchStringToUse, "ig");
       let match2;
@@ -133893,7 +133953,7 @@ ${seq.sequence}
   }
   __name(translationsRawSelector, "translationsRawSelector");
   const translationsRawSelector$1 = createSelector(sequenceDataSelector, translationsRawSelector);
-  function searchLayersSelector(sequence2, isCircular, isOpen2, searchString, ambiguousOrLiteral, dnaOrAA, isProtein2, proteinSequence) {
+  function searchLayersSelector(sequence2, isCircular, isOpen2, searchString, ambiguousOrLiteral, dnaOrAA, isProtein2, proteinSequence, mismatches) {
     if (!searchString || !isOpen2) {
       return [];
     }
@@ -133907,7 +133967,9 @@ ${seq.sequence}
           isProteinSequence: true,
           isAmbiguous: ambiguousOrLiteral === "AMBIGUOUS",
           // isProteinSearch: dnaOrAA !== "DNA",
-          searchReverseStrand: false
+          searchReverseStrand: false,
+          // PATCH (oven): see Find with mismatches.
+          mismatches
         }
       ).sort(({ start: start2 }, { start: start22 }) => {
         return start2 - start22;
@@ -133925,7 +133987,9 @@ ${seq.sequence}
       isCircular,
       isAmbiguous: ambiguousOrLiteral === "AMBIGUOUS",
       isProteinSearch: dnaOrAA !== "DNA",
-      searchReverseStrand: true
+      searchReverseStrand: true,
+      // PATCH (oven): see Find with mismatches.
+      mismatches
     }).sort(({ start: start2 }, { start: start22 }) => {
       return start2 - start22;
     });
@@ -133945,6 +134009,8 @@ ${seq.sequence}
     (state2) => state2.findTool && state2.findTool.dnaOrAA,
     (state2) => state2.sequenceData.isProtein,
     (state2) => state2.sequenceData.proteinSequence,
+    // PATCH (oven): see Find with mismatches.
+    (state2) => state2.findTool && state2.findTool.mismatches,
     searchLayersSelector
   );
   const translationSearchMatchesSelector = createSelector(
@@ -150854,7 +150920,15 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     isDisabled: (props) => (
       /* (props.readOnly && readOnlyDisabledTooltip) ||  */
       props.sequenceLength === 0 || noSelection(props)
-    )
+    ),
+    /*
+     * PATCH (oven): New Translation on mod+l, New Reverse Translation on
+     * mod+shift+l. mod+l was New Part's, which OVEN hides (see newPart).
+     * Declared on the command, as newFeature's is, so the menus and View Editor
+     * Hotkeys show it too.
+     */
+    hotkey: isReverse ? "mod+shift+l" : "mod+l",
+    hotkeyProps: { preventDefault: true }
   }), "getNewTranslationHandler");
   const fileCommandDefs = __spreadValues(__spreadProps(__spreadValues({
     newSequence: {
@@ -151719,10 +151793,15 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
     },
     newPart: {
       handler: (props) => props.handleNewPart(),
-      isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.parts,
-      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
-      hotkey: "mod+l",
-      hotkeyProps: { preventDefault: true }
+      /*
+       * PATCH (oven): New Part is hidden everywhere it is offered -- the Create
+       * menu, the right-click menus -- and its mod+l goes to New Translation.
+       * A part is a TeselaGen assembly building block, saved to GenBank as a
+       * feature with /pragma="Teselagen_Part"; next to New Feature it mostly
+       * invites the wrong choice. Parts already in a file still show and save.
+       */
+      isHidden: () => true,
+      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
     },
     newPrimer: {
       /*
@@ -151743,7 +151822,7 @@ Part of ${annotation.translationType} Translation from BPs ${annotation.start + 
       isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.primers,
       isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
       /*
-       * newFeature is mod+k and newPart is mod+l; newPrimer had nothing. Read
+       * newFeature is mod+k and newPart was mod+l; newPrimer had nothing. Read
        * from a global rather than hard-coded so oven.newPrimerHotkey can set it
        * -- these defs are built when the bundle evaluates, so the value has to
        * be in place before this script tag runs. Declaring it here is also what
@@ -176002,6 +176081,7 @@ ${bases}\r
         updateAmbiguousOrLiteral: updateAmbiguousOrLiteral2,
         updateDnaOrAA: updateDnaOrAA2,
         updateMatchNumber: _updateMatchNumber,
+        updateFindMismatches: updateFindMismatches2,
         selectionLayerUpdate: selectionLayerUpdate2,
         annotationSearchMatches,
         findTool: findTool2 = {}
@@ -176013,6 +176093,7 @@ ${bases}\r
         ambiguousOrLiteral,
         matchesTotal = 0,
         matchNumber = 0,
+        mismatches = 0,
         isInline
       } = findTool2;
       const updateMatchNumber2 = /* @__PURE__ */ __name((...args) => {
@@ -176025,19 +176106,60 @@ ${bases}\r
           });
         }
       }, "updateMatchNumber");
-      const findOptionsEls = [
-        /* @__PURE__ */ React$2.createElement(
-          TgHTMLSelect,
+      /*
+       * PATCH (oven): DNA or amino acids, and how many mismatches, always in
+       * view on the find bar.
+       *
+       * DNA versus AA lived in a dropdown inside the wrench menu, so switching
+       * took two clicks and a menu every time; it is now a pair of buttons, one
+       * click either way. The mismatches box beside it is new: 0 is OVE's own
+       * exact search, anything more is "Find with mismatches", above. Keys
+       * typed in the box stay in it, so a digit never reaches an editor hotkey.
+       */
+      const ovenFindControls = /* @__PURE__ */ React$2.createElement(
+        "span",
+        { className: "oven-find-controls", style: { display: "inline-flex", alignItems: "center", marginRight: 4 } },
+        opts.map(({ label: label2, value: value2 }) => /* @__PURE__ */ React$2.createElement(
+          Button,
           {
-            key: "dnaoraa",
-            options: opts,
-            name: "dnaOrAA",
-            value: dnaOrAA,
-            onChange: (e2) => {
-              updateDnaOrAA2(e2.target.value);
+            key: value2,
+            small: true,
+            minimal: dnaOrAA !== value2,
+            active: dnaOrAA === value2,
+            "data-test": "ovenFindMode-" + value2,
+            className: "oven-find-mode",
+            title: value2 === "DNA" ? "Search the bases" : "Search the translation",
+            onClick: () => {
+              if (dnaOrAA !== value2) updateDnaOrAA2(value2);
             }
-          }
-        ),
+          },
+          value2 === "DNA" ? "DNA" : "AA"
+        )),
+        /* @__PURE__ */ React$2.createElement(
+          "label",
+          {
+            className: "oven-find-mismatches",
+            title: "Mismatches a hit may have. 0 finds exact matches only.",
+            style: { display: "inline-flex", alignItems: "center", marginLeft: 6, fontSize: 11, color: "#5c7080" }
+          },
+          "Mismatches",
+          /* @__PURE__ */ React$2.createElement("input", {
+            type: "number",
+            min: 0,
+            max: 99,
+            step: 1,
+            value: mismatches,
+            "data-test": "ovenFindMismatches",
+            style: { width: 40, height: 22, marginLeft: 4, fontSize: 12, padding: "0 2px" },
+            onChange: (e2) => {
+              const n2 = Math.max(0, Math.min(99, parseInt(e2.target.value, 10) || 0));
+              updateFindMismatches2 && updateFindMismatches2(n2);
+            },
+            onKeyDown: (e2) => e2.stopPropagation()
+          })
+        )
+      );
+      const findOptionsEls = [
         /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" }, key: "ambiguousorliteral" }, /* @__PURE__ */ React$2.createElement(
           TgHTMLSelect,
           {
@@ -176082,7 +176204,7 @@ ${bases}\r
         ]
       ];
       const InputToUse = !isInline ? TextArea : InputGroup;
-      const rightEl = /* @__PURE__ */ React$2.createElement("span", null, isInline && /* @__PURE__ */ React$2.createElement(
+      const rightEl = /* @__PURE__ */ React$2.createElement("span", { style: { display: "inline-flex", alignItems: "center" } }, ovenFindControls, isInline && /* @__PURE__ */ React$2.createElement(
         Popover,
         {
           autoFocus: false,
@@ -176146,7 +176268,9 @@ ${bases}\r
         {
           style: isInline ? {
             display: "flex",
-            minWidth: 300
+            // PATCH (oven): room for the DNA/AA buttons and the mismatches box
+            // without squeezing the search text to a dozen letters.
+            minWidth: 480
           } : {
             position: "fixed",
             top: 0,
@@ -176174,9 +176298,15 @@ ${bases}\r
               InputToUse,
               {
                 autoFocus: true,
-                style: __spreadValues({
+                style: __spreadValues(__spreadValues({
                   resize: "vertical"
-                }, !isInline && { width: 350, minHeight: 70 }),
+                }, !isInline && { width: 350, minHeight: 70 }), isInline && {
+                  // PATCH (oven): the DNA/AA buttons and the mismatches box sit
+                  // inside the box's right end, so it is widened to keep about
+                  // 240px -- a primer's worth -- of search text in view.
+                  // (__spreadValues takes two arguments, hence the nesting.)
+                  width: 620
+                }),
                 className: "tg-find-tool-input",
                 inputRef: (n2) => {
                   if (n2)

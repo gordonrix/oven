@@ -582,3 +582,149 @@ test('a read MAFFT turns round is drawn with the bases it was aligned as', needs
   assert.strictEqual(ungap(t.crossesOrigin ? t.readRow : msa.rows[0].sequence).length, shown.length);
   if (!t.crossesOrigin) assert.strictEqual(ungap(msa.rows[0].sequence), shown);
 });
+
+/* ------------------------------------------- novel ends, impossible folds -- */
+
+const { foldTraversal } = require('../../src/align');
+const NREF = makeSeq(4000, 20261008);
+const novel = (n, seed) => makeSeq(n, seed);
+
+/** Where a read's bases went: reference runs, and how many were inserted. */
+function placement(refRow, row) {
+  let at = -1, inserted = 0;
+  const runs = [];
+  for (let c = 0; c < refRow.length; c++) {
+    if (refRow[c] !== '-') at++;
+    if (row[c] === '-') continue;
+    if (refRow[c] === '-') { inserted++; continue; }
+    const last = runs[runs.length - 1];
+    if (last && at === last[1] + 1) last[1] = at; else runs.push([at, at]);
+  }
+  return { runs, inserted };
+}
+
+test('a fold that goes round the plasmid more than once is impossible', () => {
+  // The GR6 clones: a 2,132 bp deletion across the origin -- one read, once round.
+  assert.strictEqual(foldTraversal({ covered: [[1496, 2212], [3025, 3493]], deleted: [[3494, 1495]] }, 4130), 3318);
+  // Three chance matches stitched together: past one turn, so not a read.
+  assert.ok(foldTraversal({
+    covered: [[1157, 1175], [2780, 2814], [3207, 3216]], deleted: [[2815, 1156], [1176, 3206]]
+  }, 4160) > 4160);
+});
+
+test('a read with a novel end shows it as an insertion beside the part that matches', needsMafft, async () => {
+  /*
+   * The bug: an insert with 29 bases the map does not have came back as its
+   * matching 35 plus the other 29 strewn 82 bp further on at chance identity
+   * -- and, worse, folded into three pieces whose "deletions" ran back over
+   * the part that matched, so even that was drawn red.
+   */
+  const read = NREF.slice(1000, 1035) + novel(29, 99);
+  const { tracks, msa } = await align({ name: 'ref', sequence: NREF, circular: true }, [{ name: 'insert', sequence: read }]);
+  const where = placement(msa.reference, msa.rows[0].sequence);
+  assert.strictEqual(tracks[0].crossesOrigin, false);
+  assert.deepStrictEqual(where.runs, [[1000, 1034]], 'matched once, where it belongs');
+  assert.strictEqual(where.inserted, 29, 'and the novel bases inserted beside it');
+  assert.strictEqual(ungap(msa.rows[0].sequence), read, 'every base still there, in order');
+  assert.strictEqual(tracks[0].substitutions, 0);
+});
+
+test("a primer's 5' tail shows as an insertion before where it anneals", needsMafft, async () => {
+  const primer = novel(18, 7) + NREF.slice(2000, 2024);
+  const { msa } = await align({ name: 'ref', sequence: NREF, circular: true }, [{ name: 'primer', sequence: primer }]);
+  const where = placement(msa.reference, msa.rows[0].sequence);
+  /*
+   * One placement, where it anneals, and the tail inserted beside it -- not
+   * strewn 400 bp away. A tail base or two may sit just upstream, where a base
+   * of it happens to equal the reference: as good an alignment base for base,
+   * and nothing an aligner could tell apart.
+   */
+  assert.strictEqual(where.runs.length, 1, `one placement, got ${JSON.stringify(where.runs)}`);
+  const [from, to] = where.runs[0];
+  assert.ok(from <= 2000 && from >= 1996 && to === 2023, `anneals at 2000-2023, got ${from}-${to}`);
+  assert.strictEqual(where.inserted + (to - from + 1), primer.length);
+  assert.ok(where.inserted >= 14);
+});
+
+test('a real deletion keeps its far block, because that block matches', needsMafft, async () => {
+  const clone = NREF.slice(500, 900) + NREF.slice(1200, 1600);   // 300 bp deleted
+  const { tracks, msa } = await align({ name: 'ref', sequence: NREF, circular: true }, [{ name: 'clone', sequence: clone }]);
+  const where = placement(msa.reference, msa.rows[0].sequence);
+  assert.deepStrictEqual(where.runs, [[500, 899], [1200, 1599]]);
+  assert.strictEqual(where.inserted, 0);
+  assert.strictEqual(tracks[0].gaps, 300);
+});
+
+test('pieces that would need more than one turn are not stitched into a fold', needsMafft, async () => {
+  /*
+   * Three pieces, each long enough to be no accident, in an order no single
+   * read could have: 1000 on to 500 is round past the origin, and on again to
+   * 1500 goes past the first piece a second time. Folding would draw it as two
+   * deletions overlapping the very stretch that matched.
+   */
+  const chimera = NREF.slice(1000, 1035) + NREF.slice(500, 530) + NREF.slice(1500, 1530);
+  const { tracks } = await align({ name: 'ref', sequence: NREF, circular: true }, [{ name: 'chimera', sequence: chimera }]);
+  assert.strictEqual(tracks[0].crossesOrigin, false);
+});
+
+/* ------------------------------------- protein reads, placed one by one -- */
+
+const { mergeIntoShared } = require('../../src/align');
+
+test('a read moved into the shared columns keeps its insertions and leaves the rest alone', () => {
+  // Reference ACDEF; another read already has an insertion (X) after C.
+  const rows = [
+    { name: 'reference', sequence: 'AC-DEF' },
+    { name: 'other', sequence: 'ACXDEF' },
+    { name: 'moved', sequence: '---DEF' }
+  ];
+  // The moved read, aligned on its own: AC, then two inserted (YZ), then DE.
+  const merged = mergeIntoShared(rows, 2, 'AC--DEF', 'ACYZDE-');
+  const width = merged[0].sequence.length;
+  assert.ok(merged.every((r) => r.sequence.length === width), 'every row the same width');
+  assert.strictEqual(ungap(merged[0].sequence), 'ACDEF');
+  assert.strictEqual(ungap(merged[1].sequence), 'ACXDEF', 'the other read is untouched');
+  assert.strictEqual(ungap(merged[2].sequence), 'ACYZDE', 'the moved read, insertions included');
+  // The two inserted residues share the slot after C with the other read's X.
+  const slot = merged.map((r) => r.sequence.slice(2, 4));
+  assert.deepStrictEqual(slot, ['--', 'X-', 'YZ']);
+});
+
+/** Two related domains with a linker between, and variants of each. */
+function twoDomains(differences) {
+  const A = makeProtein(58, 11);
+  const B = [...Array(differences).keys()].reduce((x, i) => {
+    const at = Math.floor((i * 58) / differences) + 1;
+    return x.slice(0, at) + (x[at] === 'A' ? 'G' : 'A') + x.slice(at + 1);
+  }, A);
+  const swap2 = (s, a, b) => [a, b].reduce((x, at) => x.slice(0, at) + (x[at] === 'A' ? 'G' : 'A') + x.slice(at + 1), s);
+  return {
+    reference: { name: 'library', sequence: A + makeProtein(21, 12) + B, molecule: 'protein' },
+    reads: [
+      { name: 'A1', sequence: swap2(A, 5, 20) }, { name: 'A2', sequence: swap2(A, 33, 44) },
+      { name: 'B1', sequence: swap2(B, 7, 15) }, { name: 'B2', sequence: swap2(B, 25, 31) },
+      { name: 'B3', sequence: swap2(B, 40, 50) }, { name: 'B4', sequence: swap2(B, 9, 53) }
+    ]
+  };
+}
+
+for (const differences of [12, 20]) {
+  test(`variants of two related domains each land on their own (${differences} of 58 differ)`, needsMafft, async () => {
+    /*
+     * The bug: aligned together, MAFFT stacks reads that resemble each other
+     * into the same columns, so variants of one domain were carried onto the
+     * other -- or, with closer domains, cut in two across both. Each read must
+     * land where it lands aligned on its own.
+     */
+    const { reference, reads } = twoDomains(differences);
+    const { tracks, msa } = await align(reference, reads);
+    tracks.forEach((t, i) => {
+      const [from, to] = span(msa.reference, msa.rows[i].sequence);
+      const want = reads[i].name.startsWith('A') ? [0, 57] : [79, 136];
+      assert.deepStrictEqual([from, to], want, `${reads[i].name} landed at ${from}-${to}`);
+      assert.strictEqual(t.gaps, 0, `${reads[i].name} should not be cut in two`);
+      assert.strictEqual(t.substitutions, 2);
+      assert.strictEqual(ungap(msa.rows[i].sequence), reads[i].sequence, 'every residue kept');
+    });
+  });
+}

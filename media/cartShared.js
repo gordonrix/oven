@@ -169,6 +169,48 @@
     return dna / s.length > 0.9 ? 'dna' : 'protein';
   }
 
+  /* ---------------------------------------------------- remembered view -- */
+
+  /*
+   * The View menu settings kept from one file to the next.
+   *
+   * How things are drawn, never what is shown: these read the same in any
+   * plasmid, so a choice made in one is the one wanted in the next. Features,
+   * parts, primers, cut sites and a file's own translations are left out on
+   * purpose -- hidden in one file to see past them, they must not open hidden
+   * in the next, where they would look as if they were not there. Labels are a
+   * separate part of OVE's state, so they have their own list.
+   *
+   * Here rather than in viewPrefs.js because the host checks what it stores
+   * against the same list the editor reports from.
+   */
+  const VIEW_PREFS = {
+    visibility: [
+      'aminoAcidNumbers', 'axis', 'axisNumbers',
+      'orfs', 'orfTranslations', 'cdsFeatureTranslations',
+      'reverseSequence', 'fivePrimeThreePrimeHints', 'dnaColors'
+    ],
+    labels: ['features', 'parts', 'primers', 'cutsites']
+  };
+
+  /**
+   * Only the remembered settings, and only true or false: what the host
+   * stores and what it applies. Labels go under `labels`.
+   */
+  function pickViewPrefs(prefs) {
+    const out = {};
+    const src = prefs || {};
+    for (const key of VIEW_PREFS.visibility) {
+      if (typeof src[key] === 'boolean') out[key] = src[key];
+    }
+    const labels = {};
+    for (const key of VIEW_PREFS.labels) {
+      if (src.labels && typeof src.labels[key] === 'boolean') labels[key] = src.labels[key];
+    }
+    if (Object.keys(labels).length) out.labels = labels;
+    return out;
+  }
+
   /* ------------------------------------------------ pasted sequence tables -- */
 
   /* Every letter a sequence can hold -- residues include all the IUPAC bases. */
@@ -471,6 +513,7 @@
     revComp, deriveBases, wrapsOrigin, normalizeSeqKey, nebTm, gcFraction,
     locationsRestateOrigin, dropRedundantWrapLocations, restoreWrapLocations,
     alignmentVerdict, MIN_COVERED_BP, MIN_COVERED_AA, identityLabel,
-    guessMolecule, PROTEIN_LETTERS, DNA_LETTERS, parseSequenceTable
+    guessMolecule, PROTEIN_LETTERS, DNA_LETTERS, parseSequenceTable,
+    VIEW_PREFS, pickViewPrefs
   };
 });

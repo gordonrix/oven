@@ -15,12 +15,21 @@ const Module = require('module');
  */
 const settings = {};
 const written = [];
+/* What the stubbed confirmation dialog answers. */
+let dialogAnswer;
+const dialogs = [];
 
 const realLoad = Module._load;
 Module._load = function (request, ...rest) {
   if (request === 'vscode') {
     return {
-      window: {}, commands: {}, Uri: {},
+      window: {
+        showWarningMessage: async (message, options, ...items) => {
+          dialogs.push({ message, options, items });
+          return dialogAnswer;
+        }
+      },
+      commands: {}, Uri: {},
       workspace: {
         onDidChangeConfiguration: () => ({ dispose() {} }),
         getConfiguration: () => ({
@@ -494,4 +503,40 @@ test('the same file, unchanged, leaves the view alone', () => {
   const before = panel.alignment;
   panel.setReference(plasmid(seq));
   assert.strictEqual(panel.alignment, before);
+});
+
+/* ---------------------------------------------------------- remove all -- */
+
+test('Remove all clears every sequence and the alignment, once confirmed', async () => {
+  const panel = freshPanel();
+  panel.setReference({ name: 'plasmid', sequence: 'ACGT'.repeat(50), molecule: 'dna' });
+  panel.reads = [{ id: 1, name: 'a' }, { id: 2, name: 'b' }, { id: 3, name: 'c' }];
+  panel.result = { msa: {}, tracks: [] };
+  panel.alignment = { tracks: [] };
+  dialogs.length = 0;
+  dialogAnswer = 'Remove all';
+  await panel.removeAll();
+  assert.strictEqual(panel.reads.length, 0);
+  assert.strictEqual(panel.alignment, null);
+  assert.strictEqual(panel.result, null);
+  assert.match(dialogs[0].message, /Remove all 3 sequences/);
+  assert.strictEqual(dialogs[0].options.modal, true);
+  assert.match(dialogs[0].options.detail, /alignment on screen/);
+});
+
+test('declining Remove all leaves everything as it was', async () => {
+  const panel = freshPanel();
+  panel.reads = [{ id: 1, name: 'a' }, { id: 2, name: 'b' }];
+  panel.alignment = { tracks: [] };
+  dialogAnswer = undefined;                   // closed the dialog
+  await panel.removeAll();
+  assert.strictEqual(panel.reads.length, 2);
+  assert.ok(panel.alignment);
+});
+
+test('Remove all with nothing to remove asks nothing', async () => {
+  const panel = freshPanel();
+  dialogs.length = 0;
+  await panel.removeAll();
+  assert.strictEqual(dialogs.length, 0);
 });

@@ -324,6 +324,14 @@
               send();
               return;
             }
+            if (m.type === 'align/removeAll') {
+              // The real host asks first; the stub takes the answer as yes.
+              state = Object.assign({}, state, {
+                reads: [], alignment: null, canSave: false, status: 'All sequences removed.'
+              });
+              send();
+              return;
+            }
             if (m.type === 'align/remove') {
               state = Object.assign({}, state, {
                 reads: state.reads.filter((r) => r.id !== m.id),
@@ -442,6 +450,7 @@
     <script src="index.umd.js"></script>
     <script src="cartShared.js"></script>
     <script src="alignView.js"></script>
+    <script src="textUndo.js"></script>
     <script>
       // alignView.js renders synchronously on load and asks for state, which
       // the stub answers immediately.

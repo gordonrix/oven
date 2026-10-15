@@ -22,6 +22,12 @@ const SEARCH_SHOWN_KEY = 'oven.searchColumns';
  * as the cart.
  */
 const CUT_SITES_KEY = 'oven.cutSiteFilter';
+/*
+ * View menu settings kept from one file to the next (media/viewPrefs.js), in
+ * globalState for the same reason as the cut-site filter. Only those listed in
+ * CartShared.VIEW_PREFS are ever stored.
+ */
+const VIEW_PREFS_KEY = 'oven.viewPrefs';
 
 /**
  * Ask for an inventory file and store it in user settings.
@@ -466,6 +472,15 @@ class DNAViewerProvider {
         return;
       }
 
+      if (message.type === 'viewprefs/save') {
+        const stored = shared.pickViewPrefs(this.context.globalState.get(VIEW_PREFS_KEY, {}));
+        const incoming = shared.pickViewPrefs(message.prefs);
+        const merged = Object.assign({}, stored, incoming,
+          { labels: Object.assign({}, stored.labels, incoming.labels) });
+        await this.context.globalState.update(VIEW_PREFS_KEY, merged);
+        return;
+      }
+
       if (message.type === 'cutsites/save') {
         await this.context.globalState.update(CUT_SITES_KEY, message.filter || null);
         return;
@@ -524,6 +539,8 @@ class DNAViewerProvider {
       strandUri: this.mediaUri(webview, 'strandBar.js'),
       toolBtnsUri: this.mediaUri(webview, 'toolButtons.js'),
       docSyncUri: this.mediaUri(webview, 'docSync.js'),
+      textUndoUri: this.mediaUri(webview, 'textUndo.js'),
+      viewPrefsUri: this.mediaUri(webview, 'viewPrefs.js'),
       cutSitesUri: this.mediaUri(webview, 'cutSites.js'),
       codonUsageUri: this.mediaUri(webview, 'codonUsage.js'),
       codonEditUri: this.mediaUri(webview, 'codonEdit.js'),
@@ -539,6 +556,7 @@ class DNAViewerProvider {
       // A protein has no cut sites; OVE hides the panel, and the filter saved
       // for DNA has nothing to apply to.
       cutSiteFilter: protein ? null : this.context.globalState.get(CUT_SITES_KEY, null),
+      viewPrefs: protein ? null : shared.pickViewPrefs(this.context.globalState.get(VIEW_PREFS_KEY, null)),
       protein,
       sequenceJson: JSON.stringify(parsed || { sequence: '' }),
       viewType: DNAViewerProvider.takeViewType(document.uri.fsPath),

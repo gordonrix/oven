@@ -104,6 +104,58 @@ export default async function run(page) {
   out.rowsAfterOneLine = (await rows(page)).length;
   if (out.rowsAfterOneLine !== 2) fail.push('a one-line paste should not be split into rows');
 
+  /* --- a single column fills only its own column ----------------------- */
+
+  // Clear the table: remove every filled row.
+  while (await page.locator('.ovealign-pasterow .ovealign-x').count()) {
+    await page.locator('.ovealign-pasterow .ovealign-x').first().click();
+    await page.waitForTimeout(100);
+  }
+
+  // Sequences first, as a column copied from a spreadsheet with its header.
+  await pasteText(page, '.ovealign-pasterow input.ovealign-pastebases',
+    'Sequence\nTAATACGACTCACTATAGGG\nATTTAGGTGACACTATAGAA\nGCTAGTTATTGCTCAGCGG');
+  await page.waitForTimeout(300);
+  out.afterSeqColumn = (await rows(page)).filter(([n, q]) => n || q);
+  if (out.afterSeqColumn.length !== 3) fail.push(`a sequence column should fill three rows: ${JSON.stringify(out.afterSeqColumn)}`);
+  if (out.afterSeqColumn.some(([n]) => n)) fail.push('a sequence column should leave the names empty');
+
+  // Then the names, into the name column: the sequences stay.
+  await pasteText(page, '.ovealign-pasterow input.ovealign-pastename', 'Name\nT7\nSP6\nT7 term');
+  await page.waitForTimeout(300);
+  out.afterNameColumn = (await rows(page)).filter(([n, q]) => n || q);
+  const want = [['T7', 'TAATACGACTCACTATAGGG'], ['SP6', 'ATTTAGGTGACACTATAGAA'], ['T7 term', 'GCTAGTTATTGCTCAGCGG']];
+  if (JSON.stringify(out.afterNameColumn) !== JSON.stringify(want)) {
+    fail.push(`names then sequences should pair up: ${JSON.stringify(out.afterNameColumn)}`);
+  }
+
+  // Pasted from a row partway down, it fills from there.
+  await pasteText(page, '.ovealign-pasterow:nth-child(2) input.ovealign-pastename', 'second\nthird');
+  await page.waitForTimeout(300);
+  out.fromRowTwo = (await rows(page)).map(([n]) => n).slice(0, 3);
+  if (JSON.stringify(out.fromRowTwo) !== JSON.stringify(['T7', 'second', 'third'])) {
+    fail.push(`a column pasted from row two should start there: ${JSON.stringify(out.fromRowTwo)}`);
+  }
+
+  // One sequence that spans lines is still one sequence.
+  const wrapped = 'ACGT'.repeat(40);
+  await pasteText(page, '.ovealign-pasterow:last-child input.ovealign-pastebases',
+    `${wrapped.slice(0, 60)}\n${wrapped.slice(60, 120)}\n${wrapped.slice(120)}`);
+  await page.waitForTimeout(300);
+  out.wrappedRows = (await rows(page)).filter(([n, q]) => n || q).length;
+  if (out.wrappedRows !== 4) fail.push(`a wrapped sequence should add one row, got ${out.wrappedRows - 3}`);
+
+  /* --- Remove all clears the sequences in one go ----------------------- */
+
+  out.chipsBeforeRemoveAll = await page.locator('.ovealign-read').count();
+  await page.locator('.ovealign-removeall').click();
+  await page.waitForTimeout(400);
+  const asked = (await posted(page)).filter((m) => m.type === 'align/removeAll');
+  if (!asked.length) fail.push('Remove all did not reach the host');
+  out.chipsAfterRemoveAll = await page.locator('.ovealign-read').count();
+  if (out.chipsBeforeRemoveAll < 2) fail.push('the test needs several sequences to remove');
+  if (out.chipsAfterRemoveAll !== 0) fail.push(`${out.chipsAfterRemoveAll} sequences left after Remove all`);
+
   out.failures = fail;
   out.ok = fail.length === 0;
   return out;

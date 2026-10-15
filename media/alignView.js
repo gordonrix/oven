@@ -555,25 +555,58 @@
     renderSetup();
   }
 
-  /** Put pasted text into the table, starting at the row it was pasted into. */
-  function pasteIntoTable(event, rowIndex) {
+  /**
+   * Put pasted text into the table, starting at the row it was pasted into.
+   *
+   * Like a spreadsheet: a block with both columns -- tab- or comma-separated,
+   * FASTA, "name sequence" lines -- fills both, from this row down. A single
+   * column fills only the column it was pasted into, and leaves the other as
+   * it was, so names and sequences can be pasted in separately, in either
+   * order. Into the sequence column, one sequence that happens to span lines
+   * (a numbered GenBank block, a wrapped FASTA body) stays one sequence.
+   */
+  function pasteIntoTable(event, rowIndex, col) {
     const text = event.clipboardData && event.clipboardData.getData('text/plain');
     // One line with no tab is an ordinary paste into the box.
     if (!text || !/[\t\n]/.test(text.trim())) return;
-    const parsed = window.CartShared.parseSequenceTable(text);
-    if (!parsed.length) return;
-    event.preventDefault();
-    if (parsed.length === 1 && !parsed[0].name) {
-      // One sequence that happened to span lines: it fills this row's box.
-      pasteRows[rowIndex].sequence = parsed[0].sequence;
-      pasteRows[rowIndex].error = null;
+
+    const lines = text.replace(/\r\n?/g, '\n').split('\n').filter((l) => l.trim());
+    const twoColumns = /[\t]/.test(text) || lines[0].trim().startsWith('>') ||
+      (lines.length > 0 && lines.every((l) => l.includes(',')));
+
+    let values = null;      // a single column, for `col`
+    let rows = null;        // both columns
+    if (col === 'name' && !twoColumns) {
+      values = lines.map((l) => l.trim());
     } else {
-      // Over the rows from here down, as a spreadsheet would.
-      pasteRows.splice(rowIndex, parsed.length, ...parsed.map((r) => ({ name: r.name, sequence: r.sequence })));
+      const parsed = window.CartShared.parseSequenceTable(text);
+      if (!parsed.length) return;
+      if (parsed.some((r) => r.name)) rows = parsed;
+      else values = parsed.map((r) => r.sequence);
+      // A column of sequences pasted into the name column is still sequences.
+      if (values && col === 'name') col = 'sequence';
+    }
+    // A column copied with its header: the header is not a row.
+    if (values && values.length > 1 &&
+        /^(names?|ids?|labels?|primers?|oligos?|seq|sequences?|bases|dna|protein)$/i.test(values[0].trim())) {
+      values = values.slice(1);
+    }
+    event.preventDefault();
+
+    const n = rows ? rows.length : values.length;
+    for (let k = 0; k < n; k++) {
+      const at = rowIndex + k;
+      if (!pasteRows[at]) pasteRows[at] = { name: '', sequence: '' };
+      if (rows) {
+        pasteRows[at].name = rows[k].name;
+        pasteRows[at].sequence = rows[k].sequence;
+      } else {
+        pasteRows[at][col] = values[k];
+      }
+      pasteRows[at].error = null;
     }
     ensureTrailingRow();
-    const last = rowIndex + Math.max(parsed.length, 1) - 1;
-    pasteFocus = { row: last, col: 'sequence', start: 0, end: 0 };
+    pasteFocus = { row: rowIndex + n - 1, col: rows ? 'sequence' : col, start: 0, end: 0 };
     renderSetup();
   }
 
@@ -617,7 +650,7 @@
         input.addEventListener('focus', () => {
           pasteFocus = { row: i, col, start: input.selectionStart, end: input.selectionEnd };
         });
-        input.addEventListener('paste', (e) => pasteIntoTable(e, i));
+        input.addEventListener('paste', (e) => pasteIntoTable(e, i, col));
         // Enter from any box adds the lot, since the name is optional.
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') { e.preventDefault(); submitPasteTable(); }
@@ -644,7 +677,7 @@
     label();
     foot.appendChild(addButton);
     foot.appendChild(el('span', 'ovealign-drophint',
-      'Paste rows from a spreadsheet (a name and a sequence column), FASTA, or one sequence per line'));
+      'Paste rows from a spreadsheet or FASTA, or a column of names or sequences into its own column'));
     table.appendChild(foot);
     return table;
   }
@@ -724,6 +757,11 @@
       toggle.title = readsOpen ? 'Hide the sequence list' : 'Show the sequence list';
       toggle.addEventListener('click', () => { readsOpen = !readsOpen; renderSetup(); });
       bar.appendChild(toggle);
+      // Clears the lot; the host asks first, since the alignment goes too.
+      const clear = el('button', 'ovealign-link ovealign-removeall', 'Remove all');
+      clear.title = 'Remove every sequence from this alignment';
+      clear.addEventListener('click', () => post('align/removeAll'));
+      bar.appendChild(clear);
       setup.appendChild(bar);
 
       if (readsOpen) {

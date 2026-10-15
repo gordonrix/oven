@@ -177,7 +177,14 @@ const BASE_STYLE = `
  * Create menu or silently unlocks base editing.
  */
 function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditing,
-  autoAddCreatedPrimers, showSelectionStats, withCart, cutSiteFilter, showChromatogram }) {
+  autoAddCreatedPrimers, showSelectionStats, withCart, cutSiteFilter, showChromatogram, viewPrefs }) {
+  /*
+   * View settings remembered from other files (media/viewPrefs.js), and a
+   * trace's chromatogram, which a trace file is opened to look at. One object,
+   * because the payload can carry only one annotationVisibility.
+   */
+  const { labels, ...remembered } = viewPrefs || {};
+  const visibility = Object.assign({}, remembered, showChromatogram ? { chromatogram: true } : {});
   return `
       /*
        * "Melting Temp of Selection" has no ...ByDefault prop -- unlike GC
@@ -252,9 +259,10 @@ function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditi
       editor.updateEditor({
         sequenceData: ${sequenceJson},
         panelsShown: ${panelsShown(viewType, circular)},
-        readOnly: ${Boolean(readOnly)},${showChromatogram ? `
-        // A trace file is opened to look at the trace, so it starts shown.
-        annotationVisibility: { chromatogram: true },` : ''}${cutSiteFilter ? `
+        readOnly: ${Boolean(readOnly)},${Object.keys(visibility).length ? `
+        // Remembered view settings, and a trace file's chromatogram shown.
+        annotationVisibility: ${JSON.stringify(visibility)},` : ''}${labels && Object.keys(labels).length ? `
+        annotationLabelVisibility: ${JSON.stringify(labels)},` : ''}${cutSiteFilter ? `
         // Restored from globalState. Applied here rather than after mounting so
         // the filter is right on the first render instead of flickering through
         // OVE's "Single cutters" default.
@@ -265,11 +273,11 @@ function bootScript({ sequenceJson, viewType, circular, readOnly, disableBpEditi
 /** HTML for a file-backed custom editor tab. */
 function buildEditorHtml(opts) {
   const { styleUri, scriptUri, cartCssUri, searchCssUri, strandCssUri, sharedUri, panelLayoutUri, pickerUri,
-    searchUri, strandUri, toolBtnsUri, docSyncUri, cutSitesUri, codonUsageUri, codonEditUri,
+    searchUri, strandUri, toolBtnsUri, docSyncUri, textUndoUri, viewPrefsUri, cutSitesUri, codonUsageUri, codonEditUri,
     aminoAcidUri, aminoAcidCssUri, rowViewCssUri, newPrimerUri, newPrimerCssUri,
     sequenceJson, viewType, circular, readOnly, showChromatogram,
     disableBpEditing, autoAddCreatedPrimers, showSelectionStats,
-    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey, protein } = opts;
+    cutSiteFilter, newPrimerHotkey, searchPrimersHotkey, alignHotkey, cartHotkey, protein, viewPrefs } = opts;
 
   /*
    * A protein gets the editor and Align, and none of the tools that only mean
@@ -285,7 +293,7 @@ function buildEditorHtml(opts) {
     ? [pickerUri, searchUri].map(script).join('\n    ')
     : '';
   const dnaToolScripts = dna
-    ? [cutSitesUri, codonUsageUri, codonEditUri, aminoAcidUri, newPrimerUri].map(script).join('\n    ')
+    ? [cutSitesUri, codonUsageUri, codonEditUri, aminoAcidUri, newPrimerUri, viewPrefsUri].map(script).join('\n    ')
     : '';
 
   return `<!DOCTYPE html>
@@ -342,6 +350,7 @@ function buildEditorHtml(opts) {
     <script src="${strandUri}"></script>
     <script src="${toolBtnsUri}"></script>
     <script src="${docSyncUri}"></script>
+    <script src="${textUndoUri}"></script>
     ${dnaToolScripts}
     <script>
 ${bootScript({
@@ -350,7 +359,8 @@ ${bootScript({
     showSelectionStats: dna && showSelectionStats,
     withCart: dna,
     cutSiteFilter: dna ? cutSiteFilter : null,
-    showChromatogram
+    showChromatogram,
+    viewPrefs: dna ? viewPrefs : null
   })}${dna ? `
       window.OveCart.init(vscode, editor);
       window.OveSearch.init(vscode, editor);` : ''}
@@ -359,7 +369,9 @@ ${bootScript({
       window.OveDocSync.init(vscode, editor);${dna ? `
       window.OveCutSites.init(vscode, editor, ${JSON.stringify(cutSiteFilter || null)});
       window.OveAminoAcid.init(vscode, editor);
-      window.OveNewPrimer.init(editor);` : ''}
+      window.OveNewPrimer.init(editor);
+      // Remembers View settings like Amino Acid Numbers for the next file.
+      window.OveViewPrefs.init(vscode, editor);` : ''}
       vscode.postMessage({ type: "editor/ready" });
 
       /*

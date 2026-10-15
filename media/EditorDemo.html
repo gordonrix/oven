@@ -229,7 +229,11 @@
             .map((p) => ({ name: p.name, start: p.start, end: p.end, forward: p.forward, bases: p.bases })),
           // Features too, so a test can see whether a copy carried them.
           features: Object.values(editor.getState().sequenceData.features || {})
-            .map((f) => ({ name: f.name, start: f.start, end: f.end }))
+            .map((f) => ({ name: f.name, start: f.start, end: f.end })),
+          // And translations, for the New Translation hotkeys.
+          translations: Object.values(editor.getState().sequenceData.translations || {})
+            .filter((t) => !t.isOrf)
+            .map((t) => ({ start: t.start, end: t.end, forward: t.forward }))
         });
       };
       publish();
@@ -242,6 +246,8 @@
     </script>
     <script src="toolButtons.js"></script>
     <script src="docSync.js"></script>
+    <script src="textUndo.js"></script>
+    <script src="viewPrefs.js"></script>
     <script src="cutSites.js"></script>
     <script src="cartShared.js"></script>
     <script src="codonUsage.js"></script>
@@ -252,6 +258,7 @@
       window.OveDocSync.init(acquireVsCodeApi(), editor);
       // Mirrors editorHtml.js: none of these mean anything for a protein.
       if (!window.__PROTEIN) {
+        window.OveViewPrefs.init(acquireVsCodeApi(), editor);
         window.OveCutSites.init(acquireVsCodeApi(), editor, null);
         window.OveAminoAcid.init(acquireVsCodeApi(), editor);
         window.OveNewPrimer.init(editor);

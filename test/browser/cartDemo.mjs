@@ -51,9 +51,11 @@ export default async function run(page) {
   out.createSubmenu = (await menus(page)).slice(-1)[0];
   await dismiss(page);
 
-  for (const want of ['New Feature', 'New Part', 'New Primer']) {
+  for (const want of ['New Feature', 'New Translation', 'New Primer']) {
     if (!out.createSubmenu.includes(want)) fail.push(`Create submenu missing "${want}"`);
   }
+  // Hidden on purpose: see patches/README.md, 3i.
+  if (out.createSubmenu.includes('New Part')) fail.push('Create submenu should not offer "New Part"');
 
   // --- disableBpEditing must have removed the destructive commands ---------
   out.cutHidden = !out.editMenu.includes('Cut');

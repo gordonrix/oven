@@ -2,7 +2,7 @@
   "name": "oven",
   "displayName": "OVEN \u2014 Open Vector Editor with New Features",
   "description": "View, design, and align plasmid sequences.",
-  "version": "1.60.0",
+  "version": "1.60.1",
   "publisher": "gordonrix",
   "license": "GPL-3.0",
   "icon": "images/icon.png",
@@ -335,6 +335,7 @@
     "test": "node --test 'test/unit/*.test.js'",
     "test:vscode": "vscode-test",
     "package": "vsce package --no-dependencies",
+    "screenshots": "node scripts/screenshots/run.mjs",
     "patches": "node scripts/patches.js",
     "prepackage": "node scripts/patches.js check && rm -f *.vsix"
   },
@@ -347,7 +348,8 @@
     "@vscode/vsce": "^3.2.1",
     "depcheck": "^1.4.7",
     "eslint": "^9.21.0",
-    "globals": "^15.14.0"
+    "globals": "^15.14.0",
+    "playwright-core": "^1.64.0"
   },
   "bugs": {
     "url": "https://github.com/gordonrix/oven/issues"

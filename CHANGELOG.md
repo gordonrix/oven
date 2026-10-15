@@ -4,6 +4,84 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.60.1
+
+**A read with sequence the map does not have is shown as an insertion.** A 64-base read
+carried the 30-base insert from its map plus 24 extra bases. It came back folded into three
+pieces 1.6 kb apart, and the whole read and its verdict were red, the matching part included.
+Two things were wrong.
+
+Folding stitched short chance matches into "deletions" that went round the plasmid more than
+once, the second running back over the stretch that matched, so that stretch was drawn as
+deleted. A fold is now refused unless a single read could have produced it: its pieces and
+deletions together must stay within one turn. A real deletion, even across the origin, does.
+
+Under the fold was MAFFT's own answer, which was no better. A read end that is not in the
+reference, such as a clone's insert or a primer's 5′ tail, still has to go somewhere, so MAFFT
+parks it wherever it half-matches across a long gap. No MAFFT strategy does otherwise. Such an
+end is now laid down as an insertion beside the part that matches, when it is no better than
+chance. A block of a read keeps its place only if it matches more than chance would explain
+(matches less two per mismatch, at least 12), which a real deletion's far block does. Here the
+read now matches 35 bases at its insert and shows the other 29 inserted after them.
+
+**View settings stay as you left them.** Open Vector Editor keeps View menu choices only for
+the file they were made in. Every file opened, and every tab VS Code put back after a restart,
+started again from its defaults, so Amino Acid Numbers, off by default, was off again
+everywhere. The settings for how a sequence is drawn are now remembered from one file to the
+next, the way the cut-site filter already is, and applied before the first render: Amino Acid
+Numbers, Axis, Axis Numbers, ORFs, ORF Translations, CDS Feature Translations, Reverse
+Sequence, 5′ 3′ Hints, DNA Colors, and labels for features, parts, primers and cut sites. What
+a file holds stays per file — features, parts, primers, cut sites and its own translations —
+so hiding one to see past it never makes it look absent in the next file. Proteins are left
+out, since their view numbers residues itself.
+
+**Find with mismatches.** The Find bar (Cmd+F) has a **Mismatches** box, 0 by default.
+Above 0 a hit may differ from the search in up to that many letters: on both strands, across
+the origin, in the translation when searching amino acids, and with Ambiguous codes still
+counting as matches. At 0 Find is exactly what it was.
+
+**DNA and AA in one click.** Searching the bases or the translation is two buttons on the Find
+bar, always in view, instead of a dropdown in the wrench menu. The search box is wider so the
+new controls do not crowd the text.
+
+**Protein reads land on the right domain.** Two variants of a reference's first domain,
+aligned alongside four of its second, were all placed on the second domain, 44 of 59
+residues identical where they matched 54 of 58 on the first. MAFFT aligns everything at once,
+and aligns similar reads to each other before the reference, so look-alike reads are stacked
+and placed together; with closer domains a read could even be cut in two across both. Proteins
+now get the second look DNA already had. A read is scored by the residues it accounts for,
+less every gapped column, so a read cut in two scores badly however well each half matches.
+Any read scoring under nine tenths of its length is aligned to the reference on its own, and
+moved if that scores strictly better, insertions and all.
+
+**Cmd+Z works in text boxes.** A sequence pasted into Find could not be undone. VS Code takes
+Cmd+Z away from a webview before the browser sees it and gives it to the tab's document, so
+the text box never heard of it. In the Find bar, the alignment's paste table and the settings
+form, Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (and Ctrl+Y) now undo and redo the typing there. Outside
+a text box Cmd+Z is left as it was, and undoes edits to the sequence.
+
+**New Part is gone, and translations have shortcuts.** Create no longer offers New Part,
+which made a TeselaGen assembly part rather than a feature. Parts already in a file still show
+and save. Its `⌘L` now makes a **New Translation** of the selection, and `⌘⇧L` a **New
+Reverse Translation**.
+
+**`npm run screenshots` retakes the README's pictures**, full-screen and without anything
+appearing on screen: VS Code's own server runs the packaged checkout with a throwaway profile
+and generated files, and headless Chrome draws it. The README gains pictures of Sequence
+Search and protein alignment, and the old ones are retaken on synthetic data.
+
+**Remove all.** A link beside the list of sequences clears every one at once, instead of a
+click on each little ×. It asks first, in VS Code's own dialog, since the alignment on
+screen goes with them.
+
+**Paste a column of names or of sequences on its own.** In the alignment panel's table, a
+single column pasted into the Sequence column used to go in with blank names over whatever
+names were there, and a column of names pasted into the Name column went into the Sequence
+column instead. Now a single column fills just the column it was pasted into, from that row
+down, and leaves the other alone, so the two can be pasted separately in either order. A
+header copied with the column ("Name", "Sequence") is dropped. Blocks with both columns, and
+one sequence wrapped over several lines, behave as before.
+
 ## 1.60.0
 
 **Proteins align to proteins.** Open a protein FASTA, press Align, and add other proteins.

@@ -39,6 +39,11 @@ code --install-extension oven-*.vsix --force
 ```
 
 `npm run package` refuses to build if the vendored bundle has drifted from `patches/`.
+
+`npm run screenshots` retakes the pictures in this README, full-screen for the display it
+runs on. Nothing opens on screen: VS Code's own server runs this checkout, packaged, with a
+throwaway profile and generated files, and headless Chrome draws it. Pass scene names to
+retake only some; the options are at the top of `scripts/screenshots/run.mjs`.
 </details>
 
 ## What this fork adds
@@ -63,11 +68,13 @@ Added here:
 - **Keyboard shortcuts** for primer search, new primer and the copy variants — see
   [Keyboard shortcuts](#keyboard-shortcuts)
 - **Melting temperature and GC** for the current selection, in the status bar
-- **File → Save** and `Cmd/Ctrl+S`, greying out when nothing has changed
+- **Saving works as it does for any file** — `Cmd/Ctrl+S`, the unsaved dot on the tab, the
+  prompt on closing, Save All and hot exit
 - **DNA base editing enabled**, and the **Create** menu populated — upstream left OVE's
   `readOnly` default in place, which hid every item in it
 - **Sequences open split**, sequence on the left and the circular map in a tab on the right
-- **Persistent UI state** — cut-site filter, search columns and widths, codon-table organism
+- **Persistent UI state** — View settings, cut-site filter, search columns and widths,
+  codon-table organism
 
 Plus fixes to Open Vector Editor itself: origin-spanning features corrupting on save, three
 `.ab1` parser bugs, chromatogram scaling, and short annotation labels never being drawn.
@@ -80,7 +87,7 @@ upstream are in [`upstream/`](upstream/).
 
 Collect primers across plasmid files into one list you can paste into an oligo order.
 
-![The primer cart beside a plasmid, holding two newly drawn primers with their length, Tm,
+![The primer cart beside a plasmid, holding the plasmid's two primers with their length, Tm,
 strand and binding site, above buttons to copy them as TSV or export
 CSV](images/Screenshot_primer-cart.png)
 
@@ -153,6 +160,10 @@ Other settings: `oven.searchMinAnneal` (default 15), `oven.searchFullLengthOnly`
 Click **Sequence Search** to find a nucleotide or amino acid sequence across folders of maps
 — the reverse of primer search, which works on the one plasmid you have open.
 
+![Sequence Search with a folder of maps added, a 36-base query searched fuzzily at 90%
+identity, and four hits listed with their position, identity and
+strand](images/Screenshot_sequence-search.png)
+
 Add folders with **Browse…**, or drop them on the panel holding **⇧ Shift**. Files are
 refused; this takes folders. Each gets a chip with a tickbox for searching subfolders, and
 the list is remembered between sessions.
@@ -192,9 +203,9 @@ Click **Align** in an open plasmid to check clones against it. It aligns against
 last saved: save your edits first, or the panel will remind you they are not included. `.ab1`, `.gb`, `.gbk` and
 `.fasta` reads are all accepted; a multi-record FASTA becomes one track per record.
 
-![Three Sanger reads aligned to a plasmid, each with its chromatogram, labelled match or
-mismatch, with a single disagreeing base highlighted in
-red](images/Screenshot_alignment.png)
+![Three Sanger reads aligned to a plasmid, each with its chromatogram, labelled partial
+match or mismatch, with the one disagreeing base highlighted in red and the amino acid it
+now encodes drawn above it](images/Screenshot_alignment.png)
 
 Five ways to add reads (`.faa` counts too, for proteins):
 
@@ -207,8 +218,10 @@ Five ways to add reads (`.faa` counts too, for proteins):
 - **Type or paste sequences** into the table under the drop zone: a name (optional;
   unnamed ones become `sequence1`, `sequence2`…) and the bases. Paste a block of rows
   copied from Excel or Google Sheets and it fills the table, a row per sequence; the
-  sequence column is found whichever side it is on, and a header row is skipped. FASTA, or
-  one sequence per line, works too. **Add** takes them all at once. Any row that cannot be
+  sequence column is found whichever side it is on, and a header row is skipped. FASTA works
+  too. A single column pasted into the **Name** or **Sequence** column fills just that column,
+  from the row you pasted into, so names and sequences can be pasted separately in either
+  order. **Add** takes them all at once. Any row that cannot be
   added stays in the table with the reason, and the rest go in. Whitespace and digits are
   ignored, so a numbered block pastes straight in
 
@@ -225,7 +238,8 @@ Each read gets a verdict:
 | **partial match** (gold) | perfect over the window it covers, but only part of the reference |
 | **mismatch** (red) | something differs |
 
-Hover a read for its counts, identity, strand and rotation.
+Hover a read for its counts, identity, strand and rotation. **Remove all**, beside the list of
+sequences, clears them in one go, after asking, since the alignment goes with them.
 
 **A read from a `.gb` or `.gbk` file brings its own annotations**, drawn on its own track and
 put through the same flip and reorder as its sequence. **Query Annotations** in the eye menu
@@ -253,8 +267,14 @@ with.
 
 Open a protein FASTA (`.fa`, `.fasta` or `.faa`) and it opens as a protein: Open Vector
 Editor's protein view, with residues, numbering and a length in AAs. Press **Align** and add
-other proteins the same ways as reads. Whether a file holds DNA or protein is read from its
-letters, so a protein saved as `.fasta` is recognised; `.faa` is always a protein.
+other proteins the same ways as reads.
+
+![Four variants of a protein aligned to it: one labelled partial match, three labelled with
+how identical they are, with a six-residue gap and the substitutions marked in
+red](images/Screenshot_protein-alignment.png)
+
+Whether a file holds DNA or protein is read from its letters, so a protein saved as `.fasta`
+is recognised; `.faa` is always a protein.
 
 Proteins align to proteins only. A DNA read added against a protein reference stays in the
 list with a red note saying so and is left out of the alignment, and the same goes the other
@@ -367,7 +387,16 @@ open a sequence; toggling them yourself in the **View** menu always wins.
 - **Copy carries annotations.** Copy a stretch of sequence and paste it into another plasmid
   and its features, parts and primers come with it. **Edit → Copy Options** chooses whether
   partial ones are included. Pasting into anything else still gives plain bases
-- **Filter Cut Sites** is remembered between files, rather than resetting each time
+- **Filter Cut Sites**, and the **View** settings for how a sequence is drawn, are remembered
+  between files rather than resetting each time: Amino Acid Numbers, Axis and Axis Numbers,
+  ORFs and ORF Translations, CDS Feature Translations, Reverse Sequence, 5′ 3′ Hints, DNA
+  Colors, and which kinds of labels are shown. What a file holds (features, parts,
+  primers, cut sites, its own translations) is still shown or hidden per file, so hiding
+  one in one plasmid never makes it look absent in the next
+- **Find** (`cmd/ctrl+F`) takes a number of **Mismatches**, 0 by default, so a primer with a
+  base or two wrong still finds its site. **DNA** and **AA** sit beside it, one click either
+  way, to search the bases or the translation. Cmd/Ctrl+Z undoes what was typed or pasted
+  into it, as in any text box
 - Search hits are marked with a dark grey bar showing which strand they matched
 - **OVEN: Open Demo Editor** opens an empty editor to try things in, backed by no file
 
@@ -382,6 +411,8 @@ Editor's own.
 | `⌘⌥L` | `Ctrl+Alt+L` | **Align** |
 | `⌘⌥K` | `Ctrl+Alt+K` | **Primer Cart** |
 | `⌘⇧K` | `Ctrl+Shift+K` | **New Primer** |
+| `⌘L` | `Ctrl+L` | **New Translation** of the selection |
+| `⌘⇧L` | `Ctrl+Shift+L` | **New Reverse Translation** of the selection |
 | `⌘⇧R` | `Ctrl+Shift+R` | Copy Reverse Complement |
 | `⌘⌥A` | `Ctrl+Alt+A` | Copy AA Sequence |
 | `⌘⌥E` | `Ctrl+Alt+E` | Copy Reverse Complement AA Sequence |

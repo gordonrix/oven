@@ -358,6 +358,55 @@ drags at a hand's pace.
 
 ---
 
+## 3h. Find: mismatches, and DNA/AA in one click (`findSequenceMatchesTopStrand`, `findTool`, `FindBar`)
+
+**Symptom.** There was no way to search with mismatches: OVE's Find is a regular expression,
+exact or with IUPAC codes, never "this, give or take two". And switching between searching
+the bases and the translation meant opening the wrench menu and picking from a dropdown, two
+clicks each way.
+
+**Fix.**
+- **State.** The `findTool` reducer gains `mismatches` (default 0) and an
+  `updateFindMismatches` action. It is exported with the module's other actions, which is
+  all it takes for the find bar to receive it as a prop.
+- **Search.** `findSequenceMatchesTopStrand` takes an option `mismatches`. Above 0 it scans
+  position by position instead of running the regex, counting letters that do not match and
+  giving up on a position as soon as there are too many. It scans exactly what the regex
+  would have scanned: the doubled sequence for a circular one, the three translated frames
+  for an amino-acid search. Every range is mapped exactly as a regex hit would be, so the
+  reverse strand, the origin, frames and de-duplication downstream are unchanged. Literal and
+  Ambiguous keep their meaning: in Ambiguous, a query letter matches any letter its code
+  stands for, from OVE's own tables. `searchLayersSelector` takes `mismatches` from the state
+  and passes it through.
+- **Find bar.** DNA and AA are two buttons in the always-visible row, and the dropdown is
+  gone from the wrench menu. A **Mismatches** box sits beside them; keys typed in it stay in
+  it. The inline search box is widened to 620px, because the new controls sit inside its
+  right end and would otherwise squeeze the search text down to about 15 letters.
+  `__spreadValues` takes exactly two arguments, so the style objects are nested.
+
+`test/browser/findMismatches.mjs` covers it, on DNA and, through
+`findMismatchesProtein.mjs`, on a protein. With 0 to 3 mismatches the bar's hit count must
+equal a brute-force count over the demo's own sequence, both strands and across the origin.
+One click must switch DNA ⇄ AA, and the dropdown must be gone from the menu. Unpatched it
+fails with `expected DNA and AA buttons on the bar`.
+
+## 3i. New Part hidden; its shortcut goes to New Translation (`newPart`, `getNewTranslationHandler`)
+
+**Symptom.** Create offered New Part beside New Feature, on `mod+l`. A part is a TeselaGen
+assembly building block, written to GenBank as a feature with `/pragma="Teselagen_Part"`. For
+anyone not using TeselaGen's assembly tools it is the wrong choice, and it sat next to the
+right one. New Translation and New Reverse Translation had no shortcut.
+
+**Fix.** `newPart.isHidden` is always true. Every menu that lists it, the Create menu and the
+right-click menus, filters on `isHidden`, so one change removes it from all of them. Its
+hotkey is dropped. `getNewTranslationHandler` gains `hotkey`: `mod+l` forward and
+`mod+shift+l` reverse. Declared on the command, as `newFeature`'s is, it also shows beside
+the menu entries and in View Editor Hotkeys. Parts already in a file still draw and save.
+
+`test/browser/translationHotkeys.mjs` covers it. No New Part in the Create menu or on a
+right-click, both shortcuts shown, and `Cmd+L` and `Cmd+Shift+L` each add one translation of
+the selection in the right direction.
+
 ## Deliberately NOT patched
 
 **The chromatogram quality-score bars.** They filled the whole track, because the histogram

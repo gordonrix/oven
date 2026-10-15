@@ -79,7 +79,106 @@
        };
        const properties2 = [
          "icon",
-@@ -126594,23 +126659,45 @@
+@@ -105121,6 +105186,12 @@
+   );
+   const updateDnaOrAA = createMetaAction("updateDnaOrAA");
+   const updateMatchNumber = createMetaAction("updateMatchNumber");
++  /*
++   * PATCH (oven): how many mismatches a Find hit may have. Exported with the
++   * rest of this module, which is all it takes to become an editor action the
++   * find bar receives as a prop.
++   */
++  const updateFindMismatches = createMetaAction("updateFindMismatches");
+   const findTool = createMergedDefaultStateReducer(
+     {
+       [toggleFindTool]: (state2) => {
+@@ -105161,6 +105232,12 @@
+         return __spreadProps(__spreadValues({}, state2), {
+           matchNumber: payload
+         });
++      },
++      [updateFindMismatches]: (state2, payload) => {
++        return __spreadProps(__spreadValues({}, state2), {
++          matchNumber: 0,
++          mismatches: payload
++        });
+       }
+     },
+     {
+@@ -105170,7 +105247,8 @@
+       dnaOrAA: "DNA",
+       ambiguousOrLiteral: "LITERAL",
+       highlightAll: false,
+-      matchNumber: 0
++      matchNumber: 0,
++      mismatches: 0
+     }
+   );
+   const findTool$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+@@ -105182,7 +105260,8 @@
+     updateAmbiguousOrLiteral,
+     updateDnaOrAA,
+     updateMatchNumber,
+-    updateSearchText
++    updateSearchText,
++    updateFindMismatches
+   }, Symbol.toStringTag, { value: "Module" }));
+   const openToolbarItemUpdate = createMetaAction("openToolbarItemUpdate");
+   const toolBar = createMergedDefaultStateReducer(
+@@ -120322,6 +120401,52 @@
+       ];
+     }
+     const ranges = [];
++    /*
++     * PATCH (oven): Find with mismatches.
++     *
++     * OVE's search is a regex, which can say "exactly this" or "any of these
++     * letters here" but not "this, give or take two". So when mismatches are
++     * allowed the same strings are scanned position by position instead --
++     * the same doubled sequence for a circular one, the same three translated
++     * frames for an amino-acid search -- counting letters that do not match
++     * and giving up on a position as soon as there are too many. Every range
++     * found is mapped exactly as a regex match would be, so strands, frames,
++     * the origin and the match list downstream all behave as they always do.
++     * Literal and Ambiguous mean what they mean for the regex: in Ambiguous, a
++     * query letter matches any of the letters its code stands for.
++     */
++    const ovenMismatches = Math.max(0, Math.floor(Number(options.mismatches) || 0));
++    if (ovenMismatches > 0) {
++      const protein = isProteinSearch || isProteinSequence;
++      const query = String(searchString).toUpperCase();
++      const allowed = [...query].map((ch) => {
++        if (!isAmbiguous) return /* @__PURE__ */ new Set([ch]);
++        if (protein && ch === "*") return /* @__PURE__ */ new Set(["*", "."]);
++        const value = protein ? extended_protein_values[ch] : ambiguous_dna_values$1[ch];
++        // A code with no expansion -- or DNA's "." -- matches anything.
++        if (!value || value === ".") return null;
++        return new Set(value.replace(/\\/g, "").split(""));
++      });
++      const n2 = allowed.length;
++      sequencesToCheck.forEach(({ seqToCheck, offset: offset2 }) => {
++        const subject = String(seqToCheck).toUpperCase();
++        for (let i2 = 0; i2 + n2 <= subject.length; i2++) {
++          let misses = 0;
++          for (let j2 = 0; j2 < n2 && misses <= ovenMismatches; j2++) {
++            const set = allowed[j2];
++            if (set && !set.has(subject[i2 + j2])) misses++;
++          }
++          if (misses > ovenMismatches) continue;
++          const range3 = { start: i2, end: i2 + n2 - 1 };
++          if (isProteinSearch) {
++            range3.start = range3.start * 3 + offset2;
++            range3.end = range3.end * 3 + 2 + offset2;
++          }
++          ranges.push(modulateRangeBySequenceLength(range3, sequence2.length));
++        }
++      });
++      return uniqBy(ranges, (e2) => e2.start + "-" + e2.end);
++    }
+     sequencesToCheck.forEach(({ seqToCheck, offset: offset2 }) => {
+       const reg = new RegExp(searchStringToUse, "ig");
+       let match2;
+@@ -126594,23 +126719,45 @@
      colorDataC: { tagName: "DATA", tagNum: 12, typeToReturn: "getShort" }
    };
    const correctionAmount = 3;
@@ -138,7 +237,7 @@
        const tracesForType = {
          aTrace: [],
          tTrace: [],
-@@ -126624,18 +126711,13 @@
+@@ -126624,18 +126771,13 @@
          "gTrace",
          "cTrace"
          // eslint-disable-next-line no-loop-func
@@ -162,7 +261,7 @@
      }
      return __spreadValues({
        baseTraces
-@@ -131624,7 +131706,17 @@
+@@ -131624,7 +131766,17 @@
      cdsFeatureTranslations: false,
      cutsites: false,
      primers: false,
@@ -181,7 +280,7 @@
    };
    const defaultVisibilities = {
      alignmentAnnotationVisibility: alignmentAnnotationSettings,
-@@ -131673,7 +131765,8 @@
+@@ -131673,7 +131825,8 @@
        });
        const matchHighlightRanges = getRangeMatchesBetweenTemplateAndNonTemplate(
          alignmentTracks[0].alignmentData.sequence,
@@ -191,7 +290,7 @@
        );
        const mismatches = matchHighlightRanges.filter(({ isMatch }) => !isMatch);
        return __spreadProps(__spreadValues({}, track), {
-@@ -131805,9 +131898,40 @@
+@@ -131805,9 +131958,40 @@
      }
      return state2;
    }, "alignments");
@@ -233,7 +332,7 @@
      const nonTempSeqWithoutLeadingDashes = nonTempSeq.replace(/^-+/g, "");
      const nonTempSeqWithoutTrailingDashes = nonTempSeq.replace(/-+$/g, "");
      const startIndex = seqLength - nonTempSeqWithoutLeadingDashes.length;
-@@ -133462,12 +133586,61 @@
+@@ -133462,12 +133646,61 @@
      };
    }
    __name(cutsitesSelector, "cutsitesSelector");
@@ -296,7 +395,47 @@
    );
    function divideBy3(num, shouldDivideBy3) {
      return shouldDivideBy3 ? Math.floor(num / 3) : num;
-@@ -135309,31 +135482,24 @@
+@@ -133720,7 +133953,7 @@
+   }
+   __name(translationsRawSelector, "translationsRawSelector");
+   const translationsRawSelector$1 = createSelector(sequenceDataSelector, translationsRawSelector);
+-  function searchLayersSelector(sequence2, isCircular, isOpen2, searchString, ambiguousOrLiteral, dnaOrAA, isProtein2, proteinSequence) {
++  function searchLayersSelector(sequence2, isCircular, isOpen2, searchString, ambiguousOrLiteral, dnaOrAA, isProtein2, proteinSequence, mismatches) {
+     if (!searchString || !isOpen2) {
+       return [];
+     }
+@@ -133734,7 +133967,9 @@
+           isProteinSequence: true,
+           isAmbiguous: ambiguousOrLiteral === "AMBIGUOUS",
+           // isProteinSearch: dnaOrAA !== "DNA",
+-          searchReverseStrand: false
++          searchReverseStrand: false,
++          // PATCH (oven): see Find with mismatches.
++          mismatches
+         }
+       ).sort(({ start: start2 }, { start: start22 }) => {
+         return start2 - start22;
+@@ -133752,7 +133987,9 @@
+       isCircular,
+       isAmbiguous: ambiguousOrLiteral === "AMBIGUOUS",
+       isProteinSearch: dnaOrAA !== "DNA",
+-      searchReverseStrand: true
++      searchReverseStrand: true,
++      // PATCH (oven): see Find with mismatches.
++      mismatches
+     }).sort(({ start: start2 }, { start: start22 }) => {
+       return start2 - start22;
+     });
+@@ -133772,6 +134009,8 @@
+     (state2) => state2.findTool && state2.findTool.dnaOrAA,
+     (state2) => state2.sequenceData.isProtein,
+     (state2) => state2.sequenceData.proteinSequence,
++    // PATCH (oven): see Find with mismatches.
++    (state2) => state2.findTool && state2.findTool.mismatches,
+     searchLayersSelector
+   );
+   const translationSearchMatchesSelector = createSelector(
+@@ -135309,31 +135548,24 @@
        mapDispatchToActions,
        (mapProps2, dispatchProps, ownProps) => {
          const toSpread = {};
@@ -344,7 +483,7 @@
          }
          return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, ownProps), mapProps2), dispatchProps), toSpread);
        }
-@@ -135590,7 +135756,16 @@
+@@ -135590,7 +135822,16 @@
        readOnly: readOnly2 || editorState.readOnly,
        meta,
        annotationToAdd
@@ -362,7 +501,7 @@
        selectedCutsites,
        sequenceLength,
        allCutsites,
-@@ -136098,14 +136273,30 @@
+@@ -136098,14 +136339,30 @@
    const VersionHistoryView$1 = withEditorProps(VersionHistoryView);
    function HorizontalPanelDragHandle({ onDrag }) {
      const xStart = reactExports.useRef(0);
@@ -395,7 +534,7 @@
      });
      return /* @__PURE__ */ React$2.createElement(
        "div",
-@@ -144260,6 +144451,10 @@
+@@ -144260,6 +144517,10 @@
        row.sequence = sequenceData2.noSequence ? {
          length: row.end + 1 - row.start
        } : sequenceData2.sequence.slice(row.start, row.end + 1);
@@ -406,7 +545,7 @@
        rows[rowNumber] = row;
      }
      return rows;
-@@ -145305,10 +145500,24 @@
+@@ -145305,10 +145566,24 @@
          )
        );
        if (showAxisNumbers) {
@@ -435,7 +574,7 @@
          const positionLength = position2.toString().length * 4;
          const textInner = divideBy3(position2 + (isProtein2 ? 1 : 0), isProtein2);
          let x2 = xCenter;
-@@ -146231,6 +146440,26 @@
+@@ -146231,6 +146506,26 @@
      }
      charWN = arrowPointiness * charWN;
      const widthMinusOne = width - charWN;
@@ -462,7 +601,7 @@
      let path2;
      let hasAPoint = false;
      const endLine = annotation.overlapsSelf ? `L 0,${height2 / 2}
-@@ -146263,10 +146492,10 @@
+@@ -146263,10 +146558,10 @@
        hasAPoint = true;
        path2 = `
          ${startLines}
@@ -476,7 +615,7 @@
          ${bottomLine}
          ${endLine}
          z`;
-@@ -146274,10 +146503,10 @@
+@@ -146274,10 +146569,10 @@
        hasAPoint = true;
        path2 = `
        ${startLines}
@@ -490,7 +629,7 @@
        ${bottomLine}
        Q ${pointiness},${height2 / 2} ${0},${0}
        z`;
-@@ -146289,7 +146518,19 @@
+@@ -146289,7 +146584,19 @@
          const fractionToDisplay = width / (name2.length * ANNOTATION_LABEL_FONT_WIDTH);
          const numLetters = Math.floor(fractionToDisplay * name2.length);
          nameToDisplay = name2.slice(0, numLetters);
@@ -511,7 +650,7 @@
            if (nameToDisplay.length !== name2.length) {
              nameToDisplay += "..";
            }
-@@ -146418,6 +146659,45 @@
+@@ -146418,6 +146725,45 @@
    }
    __name(getYOffset, "getYOffset");
    const { ambiguous_dna_values } = bioData;
@@ -557,7 +696,7 @@
    function getStructuredBases({
      annotationRange,
      forward,
-@@ -146443,10 +146723,15 @@
+@@ -146443,10 +146789,15 @@
          }
        }
      }
@@ -576,7 +715,7 @@
      };
      const r2 = {
        aRange,
-@@ -146477,7 +146762,18 @@
+@@ -146477,7 +146828,18 @@
      );
      r2.basesNoInsertsWithMetaData = basesForRange.split("").map((b3, i2) => {
        var _a2, _b2;
@@ -596,7 +735,7 @@
        let seqForBase = fullSequence && fullSequence[indexOfBase] || "";
        if (!forward) {
          seqForBase = getComplementSequenceString(seqForBase);
-@@ -146563,9 +146859,18 @@
+@@ -146563,9 +146925,18 @@
            iTree.insert(xStart, xEnd, __spreadProps(__spreadValues({}, annotationRange), {
              yOffset
            }));
@@ -616,7 +755,7 @@
            );
            const insertStart = (indexToUse - (forward ? aRange.start : aRange.end)) * (!forward && primerBindsOn === "5prime" ? -1 : 1);
            basesToShow.insertPaths += getInsertPath({
-@@ -146597,7 +146902,21 @@
+@@ -146597,7 +146968,21 @@
                  transform: forward ? "" : `translate(${aRangeLen * charWidth2},-5) scale(-1,-1) `,
                  key: n2,
                  x: forward ? (xStart - 1) * charWidth2 + fudge : xStart * charWidth2 - fudge / 2,
@@ -639,7 +778,7 @@
                },
                i2.bases.split("").map((b3, i22) => /* @__PURE__ */ React$2.createElement(
                  "tspan",
-@@ -146613,7 +146932,7 @@
+@@ -146613,7 +146998,7 @@
            );
          }
        });
@@ -648,7 +787,7 @@
        basesToShow.baseEl = /* @__PURE__ */ React$2.createElement(React$2.Fragment, null, /* @__PURE__ */ React$2.createElement(
          "text",
          __spreadProps(__spreadValues({}, {
-@@ -146807,7 +147126,18 @@
+@@ -146807,7 +147192,18 @@
                  annotation,
                  annotation.forward
                )
@@ -668,7 +807,7 @@
                height: annotationRange.containsLocations && !disregardLocations ? anotationHeightNoSpace / 8 : anotationHeightNoSpace,
                hideName: type2 === "primer" && annotation.bases || annotationRange.containsLocations && !disregardLocations,
                name: annotation.name
-@@ -147871,6 +148201,125 @@
+@@ -147871,6 +148267,125 @@
      component: ShowChromQualScoresMenu(),
      shouldDismissPopover: false
    };
@@ -794,7 +933,7 @@
    function Chromatogram(props) {
      const { isRowView, chromatogramData, row, getGaps, charWidth: charWidth2 } = props;
      const [showChromQualScores] = useShowChromQualScores();
-@@ -147881,24 +148330,43 @@
+@@ -147881,24 +148396,43 @@
      if (props.setScalePct)
        setScalePct = props.setScalePct;
      const canvasRef = reactExports.useRef();
@@ -851,7 +990,7 @@
        setHasDrawnOnce(true);
      }, [
        setHasDrawnOnce,
-@@ -147911,7 +148379,8 @@
+@@ -147911,7 +148445,8 @@
        isRowView,
        scalePct,
        getGaps,
@@ -861,7 +1000,7 @@
      ]);
      const marginLeft2 = gapsBeforeRow * charWidth2;
      if (chromatogramData.basePos && !chromatogramData.baseTraces) {
-@@ -147981,14 +148450,61 @@
+@@ -147981,14 +148516,61 @@
              position: "relative",
              left: 0,
              // left: posOfSeqRead,
@@ -925,7 +1064,7 @@
    function drawTrace({
      traceData,
      charWidth: charWidth2,
-@@ -147999,7 +148515,11 @@
+@@ -147999,7 +148581,11 @@
      gapsBeforeRow,
      showChromQualScores,
      // isRowView,
@@ -938,7 +1077,7 @@
    }) {
      const colors = {
        adenine: "green",
-@@ -148013,7 +148533,31 @@
+@@ -148013,7 +148599,31 @@
      const maxHeight = peakCanvas.height;
      const seqLengthWithGaps = endBp - startBp + 1 + getGaps(endBp).gapsBefore - gapsBeforeRow;
      const maxWidth = seqLengthWithGaps * charWidth2;
@@ -971,7 +1110,7 @@
      const scaledHeight = maxHeight - bottomBuffer;
      this.drawPeaks = function(traceType, lineColor) {
        ctx.beginPath();
-@@ -148022,6 +148566,8 @@
+@@ -148022,6 +148632,8 @@
          const gapsBefore = getGaps(baseIndex - 1).gapsBefore || 0;
          const gapsAt = getGaps(baseIndex).gapsBefore;
          const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;
@@ -980,7 +1119,7 @@
          const hasGaps = gapsBefore !== gapsAt;
          const traceLength = traceForIndex.length;
          const tracePointSpacing = charWidth2 / traceLength;
-@@ -148047,6 +148593,8 @@
+@@ -148047,6 +148659,8 @@
        for (let baseIndex = startBp; baseIndex <= endBp; baseIndex++) {
          const gapsAt = getGaps(baseIndex).gapsBefore;
          const startXPosition = (baseIndex + gapsAt - startBp - gapsBeforeRow) * charWidth2;
@@ -989,7 +1128,7 @@
          ctx.rect(
            startXPosition,
            scaledHeight - traceData.qualNums[baseIndex] * scalePctQual,
-@@ -148076,7 +148624,11 @@
+@@ -148076,7 +148690,11 @@
      translations: { spaceBetweenAnnotations: 2, marginTop: 5, height: 17 },
      chromatogram: { height: 134 },
      parts: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
@@ -1002,7 +1141,7 @@
      features: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
      warnings: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
      assemblyPieces: { spaceBetweenAnnotations: 2, marginTop: 5, height: 15 },
-@@ -148442,7 +148994,9 @@
+@@ -148442,7 +149060,9 @@
        readOnly: readOnly2,
        sequenceLength,
        isRowView,
@@ -1013,7 +1152,24 @@
      };
      const drawLabels = /* @__PURE__ */ __name((type2, noDraw, _a2 = {}) => {
        var _b2 = _a2, { filterOpts } = _b2, extraProps = __objRest(_b2, ["filterOpts"]);
-@@ -150557,6 +151111,71 @@
+@@ -150300,7 +150920,15 @@
+     isDisabled: (props) => (
+       /* (props.readOnly && readOnlyDisabledTooltip) ||  */
+       props.sequenceLength === 0 || noSelection(props)
+-    )
++    ),
++    /*
++     * PATCH (oven): New Translation on mod+l, New Reverse Translation on
++     * mod+shift+l. mod+l was New Part's, which OVEN hides (see newPart).
++     * Declared on the command, as newFeature's is, so the menus and View Editor
++     * Hotkeys show it too.
++     */
++    hotkey: isReverse ? "mod+shift+l" : "mod+l",
++    hotkeyProps: { preventDefault: true }
+   }), "getNewTranslationHandler");
+   const fileCommandDefs = __spreadValues(__spreadProps(__spreadValues({
+     newSequence: {
+@@ -150557,6 +151185,71 @@
    const readOnlyDisabledTooltip = "Sorry this function is not allowed in Read-Only Mode";
    const bpEditingDisabledTooltip = "Sequence Editing Disabled";
    const noSelection = /* @__PURE__ */ __name(({ selectionLayer: selectionLayer2 = {} }) => !(selectionLayer2.start > -1 && selectionLayer2.end > -1) && "Selection Required", "noSelection");
@@ -1085,10 +1241,11 @@
    const triggerClipboardCommand = /* @__PURE__ */ __name((type2, props) => {
      const wrapper = document.querySelector(
        `.${props.editorName} .veVectorInteractionWrapper`
-@@ -150613,6 +151232,35 @@
+@@ -150612,6 +151305,35 @@
+       isDisabled: (props) => props.sequenceLength === 0,
        handler: (props) => triggerClipboardCommand("copy", props),
        hotkey: "mod+c"
-     },
++    },
 +    /*
 +     * PATCH (oven): the copy variants the right-click menu already offers,
 +     * as commands -- which is what gives them hotkeys and an entry in View
@@ -1117,12 +1274,26 @@
 +      handler: (props) => ovenCopyVariant("reverseComplementTranslation", props),
 +      hotkey: OVEN_COPY_HOTKEYS.reverseComplementTranslation,
 +      hotkeyProps: { preventDefault: true }
-+    },
+     },
      paste: {
        isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip,
-       isHidden: (props) => props.readOnly || props.disableBpEditing,
-@@ -151077,10 +151725,94 @@
-       hotkeyProps: { preventDefault: true }
+@@ -151071,15 +151793,104 @@
+     },
+     newPart: {
+       handler: (props) => props.handleNewPart(),
+-      isHidden: (props) => props.readOnly || !props.annotationsToSupport || !props.annotationsToSupport.parts,
+-      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
+-      hotkey: "mod+l",
+-      hotkeyProps: { preventDefault: true }
++      /*
++       * PATCH (oven): New Part is hidden everywhere it is offered -- the Create
++       * menu, the right-click menus -- and its mod+l goes to New Translation.
++       * A part is a TeselaGen assembly building block, saved to GenBank as a
++       * feature with /pragma="Teselagen_Part"; next to New Feature it mostly
++       * invites the wrong choice. Parts already in a file still show and save.
++       */
++      isHidden: () => true,
++      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
      },
      newPrimer: {
 -      handler: (props) => props.handleNewPrimer(),
@@ -1145,7 +1316,7 @@
 -      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0
 +      isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.sequenceLength === 0,
 +      /*
-+       * newFeature is mod+k and newPart is mod+l; newPrimer had nothing. Read
++       * newFeature is mod+k and newPart was mod+l; newPrimer had nothing. Read
 +       * from a global rather than hard-coded so oven.newPrimerHotkey can set it
 +       * -- these defs are built when the bundle evaluates, so the value has to
 +       * be in place before this script tag runs. Declaring it here is also what
@@ -1154,7 +1325,7 @@
 +       */
 +      hotkey: (typeof window !== "undefined" && window.__ovenNewPrimerHotkey) || "mod+shift+k",
 +      hotkeyProps: { preventDefault: true }
-     },
++    },
 +    /*
 +     * PATCH (oven): Search Primers as a command.
 +     *
@@ -1214,11 +1385,10 @@
 +      },
 +      hotkey: (typeof window !== "undefined" && window.__ovenSearchPrimersHotkey) || "mod+alt+f",
 +      hotkeyProps: { preventDefault: true }
-+    },
+     },
      rotateToCaretPosition: {
        isHidden: (props) => props.readOnly || isProtein(props) || props.disableBpEditing,
-       isDisabled: (props) => props.readOnly && readOnlyDisabledTooltip || props.caretPosition === -1 && "You must first place cursor" || !props.sequenceData.circular && "Disabled for Linear Sequences" || props.sequenceLength === 0,
-@@ -151354,7 +152086,14 @@
+@@ -151354,7 +152165,14 @@
      },
      simulatePCR: {
        handler: (props) => props.createNewPCR(),
@@ -1234,7 +1404,7 @@
        hotkeyProps: { preventDefault: true },
        isHidden: (props) => isProtein(props)
      },
-@@ -152668,6 +153407,33 @@
+@@ -152668,6 +153486,33 @@
              readOnly: readOnly2
            } = this.props;
            const onCut = this.props.onCut || this.props.onCopy || noop$8;
@@ -1268,7 +1438,7 @@
            const seqData = tidyUpSequenceData(
              this.sequenceDataToCopy || getSequenceDataBetweenRange(
                sequenceData2,
-@@ -152698,7 +153464,53 @@
+@@ -152698,7 +153543,53 @@
              );
            const textToCopy = (this.sequenceDataToCopy || {}).textToCopy !== void 0 ? this.sequenceDataToCopy.textToCopy : seqData.isProtein ? seqData.proteinSequence : seqData.sequence;
            seqData.textToCopy = textToCopy;
@@ -1323,7 +1493,7 @@
            if (isCut && !(readOnly2 || disableBpEditing) && !disableBpEditing) {
              this.handleDnaDelete(false);
              onCut(
-@@ -152965,6 +153777,7 @@
+@@ -152965,6 +153856,7 @@
            }, "makeTextCopyable");
            const aaCopy = {
              text: "Copy AA Sequence",
@@ -1331,7 +1501,7 @@
              className: "openVeCopyAA",
              onClick: makeTextCopyable((selectedSeqData) => __spreadProps(__spreadValues({}, selectedSeqData), {
                textToCopy: isProtein2 ? selectedSeqData.proteinSequence.toUpperCase() : getAminoAcidStringFromSequenceString(selectedSeqData.sequence)
-@@ -152987,6 +153800,8 @@
+@@ -152987,6 +153879,8 @@
                  ...isProtein2 ? [aaCopy] : [],
                  {
                    text: isProtein2 ? "Copy DNA Bps" : "Copy",
@@ -1340,7 +1510,7 @@
                    className: "openVeCopy2",
                    onClick: makeTextCopyable((s2) => __spreadProps(__spreadValues({}, s2), {
                      textToCopy: s2.sequence
-@@ -152999,6 +153814,7 @@
+@@ -152999,6 +153893,7 @@
                  },
                  {
                    text: isProtein2 ? "Copy Reverse Complement DNA Bps" : "Copy Reverse Complement",
@@ -1348,7 +1518,7 @@
                    className: "openVeCopyReverse",
                    onClick: makeTextCopyable(
                      getReverseComplementSequenceAndAnnoations
-@@ -153007,6 +153823,7 @@
+@@ -153007,6 +153902,7 @@
                  ...isProtein2 ? [] : [aaCopy],
                  {
                    text: "Copy Reverse Complement AA Sequence",
@@ -1356,7 +1526,7 @@
                    className: "openVeCopyAAReverse",
                    onClick: makeTextCopyable((selectedSeqData) => {
                      const revSeqData = getReverseComplementSequenceAndAnnoations(selectedSeqData);
-@@ -155763,23 +156580,39 @@
+@@ -155763,23 +156659,39 @@
          let bluePath = "";
          const height2 = laneHeight - laneSpacing;
          const y2 = 0;
@@ -1407,7 +1577,7 @@
            }
          });
          return /* @__PURE__ */ React$2.createElement(
-@@ -156117,7 +156950,9 @@
+@@ -156117,7 +157029,9 @@
      // alignmentAnnotationLabelVisibility = {},
      // alignmentAnnotationLabelVisibilityToggle
      annotationsWithCounts,
@@ -1418,7 +1588,7 @@
    }) {
      let annotationCountToUse = {};
      if (currentPairwiseAlignmentIndex) {
-@@ -156132,12 +156967,21 @@
+@@ -156132,12 +157046,21 @@
          className: "alignmentAnnotationVisibilityToolInner"
        },
        map$5(togglableAlignmentAnnotationSettings, (visible, annotationName) => {
@@ -1440,10 +1610,11 @@
                if (annotationName === "axis") {
                  return alignmentAnnotationVisibilityToggle({
                    axisNumbers: !visible,
-@@ -169481,6 +170325,24 @@
+@@ -169480,6 +170403,24 @@
+           "Add Joined Feature Span"
          ));
        }, "renderLocations"));
-     }
++    }
 +    componentDidUpdate(prevProps) {
 +      /*
 +       * PATCH (oven): flipping Strand re-reads the bases from the selection.
@@ -1461,11 +1632,10 @@
 +        sequence: this.props.sequenceData && this.props.sequenceData.sequence,
 +        forward: this.props.forward
 +      });
-+    }
+     }
      componentDidMount() {
        const initialNotes = this.props.initialValues && this.props.initialValues.notes || {};
-       this.notes = store$1(
-@@ -169668,7 +170530,7 @@
+@@ -169668,7 +170609,7 @@
            {
              style: { marginBottom: 10, fontSize: 12, fontStyle: "italic" }
            },
@@ -1474,7 +1644,7 @@
            " "
          ), /* @__PURE__ */ React$2.createElement(
            NumericInputField,
-@@ -169724,6 +170586,8 @@
+@@ -169724,6 +170665,8 @@
              sequenceLength,
              primerBindsOn,
              forward,
@@ -1483,7 +1653,7 @@
              linkedOligo: initialValues2.linkedOligo,
              useLinkedOligo,
              change: change2
-@@ -170224,9 +171088,14 @@
+@@ -170224,9 +171167,14 @@
    }
    __name(getTextNodeAtPosition, "getTextNodeAtPosition");
    const useTmType = /* @__PURE__ */ __name(() => {
@@ -1499,7 +1669,7 @@
      });
    }, "useTmType");
    function MeltingTemp({
-@@ -170243,7 +171112,25 @@
+@@ -170243,7 +171191,25 @@
        /* , setMonovalentCationConc */
      ] = React$2.useState(0.05);
      const [tmType, setTmType] = useTmType();
@@ -1526,7 +1696,7 @@
        monovalentCationConc,
        primerConc
      });
-@@ -170255,21 +171142,13 @@
+@@ -170255,21 +171221,13 @@
        Popover,
        {
          modifiers: popoverOverflowModifiers,
@@ -1551,7 +1721,7 @@
              ],
              onChange: (e2) => setTmType(e2.target.value),
              selectedValue: tmType
-@@ -170283,7 +171162,7 @@
+@@ -170283,7 +171241,7 @@
            }
          ), hasWarning, /* @__PURE__ */ React$2.createElement("br", null), /* @__PURE__ */ React$2.createElement("br", null), "Try using the Default Tm"))
        },
@@ -1560,7 +1730,7 @@
          Icon,
          {
            style: { marginLeft: 5, marginRight: 5 },
-@@ -170377,6 +171256,36 @@
+@@ -170377,6 +171335,36 @@
            className: classNames$1("bp3-input tg-custom-sequence-editable", {
              hasTempError
            }),
@@ -1597,7 +1767,7 @@
            onInput: emitChange,
            dangerouslySetInnerHTML: { __html: html2 }
          }
-@@ -170410,6 +171319,9 @@
+@@ -170410,6 +171398,9 @@
        bases,
        forward,
        defaultLinkedOligoMessage,
@@ -1607,7 +1777,7 @@
        change: change2
      } = props;
      let defaultValue2;
-@@ -170488,46 +171400,29 @@
+@@ -170488,46 +171479,29 @@
            defaultValue: bases != null ? bases : defaultValue2,
            name: "bases",
            label: /* @__PURE__ */ React$2.createElement("div", { className: "tg-bases-label" }, /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" } }, "Bases", " ", /* @__PURE__ */ React$2.createElement("div", { style: { fontSize: 10 } }, " ", "  (Length: ", bases ? bases.length : 0, ")")), /* @__PURE__ */ React$2.createElement("div", { style: { width: "fit-content" } }, /* @__PURE__ */ React$2.createElement(
@@ -1673,7 +1843,7 @@
              },
              "Set From Selection"
            )))
-@@ -170563,6 +171458,75 @@
+@@ -170563,6 +171537,75 @@
        RenderBases
      })
    });
@@ -1749,7 +1919,7 @@
    const InnerWrapperMeltingTemp = /* @__PURE__ */ __name((p2) => /* @__PURE__ */ React$2.createElement(
      "div",
      {
-@@ -170937,8 +171901,31 @@
+@@ -170937,8 +171980,31 @@
          verticalVisibleRange: { start: 0, end: 0 }
        })
      );
@@ -1782,7 +1952,7 @@
        const seqDataOfAllTracksToCopy = [];
        alignmentTracks.forEach((track) => {
          const seqDataToCopy = getSequenceDataBetweenRange(
-@@ -170952,17 +171939,45 @@
+@@ -170952,17 +172018,45 @@
          );
        });
        return seqDataOfAllTracksToCopy.join("");
@@ -1832,7 +2002,7 @@
              window.toastr.error("Selection Not Copied");
            } else {
              window.toastr.success("Selection Copied");
-@@ -170975,7 +171990,7 @@
+@@ -170975,7 +172069,7 @@
        return () => {
          document.removeEventListener("keydown", handleAlignmentCopy);
        };
@@ -1841,7 +2011,7 @@
      const scrollAlignmentToPercent = /* @__PURE__ */ __name((scrollPercentage) => {
        const scrollPercentageToUse = Math.min(Math.max(scrollPercentage, 0), 1);
        easyStore2.current.percentScrolled = scrollPercentageToUse;
-@@ -171371,7 +172386,16 @@
+@@ -171371,7 +172465,16 @@
                  minWidth: nameDivWidth - 3,
                  overflow: "hidden",
                  scrollbarWidth: "none",
@@ -1859,7 +2029,7 @@
                },
                "data-title": name2,
                key: i2
-@@ -171473,13 +172497,28 @@
+@@ -171473,13 +172576,28 @@
                    "data-tip": "This sequence was trimmed and resubmitted for alignment"
                  },
                  "TRIMMED"
@@ -1890,7 +2060,7 @@
                  }
                }
              )
-@@ -171512,7 +172551,10 @@
+@@ -171512,7 +172630,10 @@
                caretPosition: tempTrimmingCaret[i2] || -1,
                selectionLayer: selectionLayer22,
                isInAlignment: true,
@@ -1902,7 +2072,7 @@
                linearViewAnnotationLabelVisibilityOverrides: alignmentVisibilityToolOptions.alignmentAnnotationLabelVisibility,
                marginWith: 0,
                orfClicked: annotationClicked,
-@@ -171866,69 +172908,92 @@
+@@ -171866,69 +172987,92 @@
                      selectionLayerRightClicked: selectionLayerRightClicked ? (...args) => {
                        selectionLayerRightClicked(...args, props);
                      } : (...args) => {
@@ -2051,7 +2221,7 @@
                          ],
                          void 0,
                          event
-@@ -172352,7 +173417,9 @@
+@@ -172352,7 +173496,9 @@
            "cdsFeatureTranslations",
            "chromatogram",
            "dnaColors",
@@ -2062,7 +2232,7 @@
          ];
          const togglableAlignmentAnnotationSettings = {};
          map$5(alignmentAnnotationsToToggle, (annotation) => {
-@@ -172360,6 +173427,21 @@
+@@ -172360,6 +173506,21 @@
              togglableAlignmentAnnotationSettings[annotation] = alignmentAnnotationVisibility[annotation];
            }
          });
@@ -2084,7 +2254,7 @@
          const annotationsWithCounts = [];
          if (alignmentTracks) {
            let totalNumOfFeatures = 0;
-@@ -172433,7 +173515,9 @@
+@@ -172433,7 +173594,9 @@
                }));
              },
              togglableAlignmentAnnotationSettings,
@@ -2095,7 +2265,132 @@
            }
          });
        },
-@@ -175562,7 +176646,15 @@
+@@ -174918,6 +176081,7 @@
+         updateAmbiguousOrLiteral: updateAmbiguousOrLiteral2,
+         updateDnaOrAA: updateDnaOrAA2,
+         updateMatchNumber: _updateMatchNumber,
++        updateFindMismatches: updateFindMismatches2,
+         selectionLayerUpdate: selectionLayerUpdate2,
+         annotationSearchMatches,
+         findTool: findTool2 = {}
+@@ -174929,6 +176093,7 @@
+         ambiguousOrLiteral,
+         matchesTotal = 0,
+         matchNumber = 0,
++        mismatches = 0,
+         isInline
+       } = findTool2;
+       const updateMatchNumber2 = /* @__PURE__ */ __name((...args) => {
+@@ -174941,19 +176106,60 @@
+           });
+         }
+       }, "updateMatchNumber");
+-      const findOptionsEls = [
++      /*
++       * PATCH (oven): DNA or amino acids, and how many mismatches, always in
++       * view on the find bar.
++       *
++       * DNA versus AA lived in a dropdown inside the wrench menu, so switching
++       * took two clicks and a menu every time; it is now a pair of buttons, one
++       * click either way. The mismatches box beside it is new: 0 is OVE's own
++       * exact search, anything more is "Find with mismatches", above. Keys
++       * typed in the box stay in it, so a digit never reaches an editor hotkey.
++       */
++      const ovenFindControls = /* @__PURE__ */ React$2.createElement(
++        "span",
++        { className: "oven-find-controls", style: { display: "inline-flex", alignItems: "center", marginRight: 4 } },
++        opts.map(({ label: label2, value: value2 }) => /* @__PURE__ */ React$2.createElement(
++          Button,
++          {
++            key: value2,
++            small: true,
++            minimal: dnaOrAA !== value2,
++            active: dnaOrAA === value2,
++            "data-test": "ovenFindMode-" + value2,
++            className: "oven-find-mode",
++            title: value2 === "DNA" ? "Search the bases" : "Search the translation",
++            onClick: () => {
++              if (dnaOrAA !== value2) updateDnaOrAA2(value2);
++            }
++          },
++          value2 === "DNA" ? "DNA" : "AA"
++        )),
+         /* @__PURE__ */ React$2.createElement(
+-          TgHTMLSelect,
++          "label",
+           {
+-            key: "dnaoraa",
+-            options: opts,
+-            name: "dnaOrAA",
+-            value: dnaOrAA,
++            className: "oven-find-mismatches",
++            title: "Mismatches a hit may have. 0 finds exact matches only.",
++            style: { display: "inline-flex", alignItems: "center", marginLeft: 6, fontSize: 11, color: "#5c7080" }
++          },
++          "Mismatches",
++          /* @__PURE__ */ React$2.createElement("input", {
++            type: "number",
++            min: 0,
++            max: 99,
++            step: 1,
++            value: mismatches,
++            "data-test": "ovenFindMismatches",
++            style: { width: 40, height: 22, marginLeft: 4, fontSize: 12, padding: "0 2px" },
+             onChange: (e2) => {
+-              updateDnaOrAA2(e2.target.value);
+-            }
+-          }
+-        ),
++              const n2 = Math.max(0, Math.min(99, parseInt(e2.target.value, 10) || 0));
++              updateFindMismatches2 && updateFindMismatches2(n2);
++            },
++            onKeyDown: (e2) => e2.stopPropagation()
++          })
++        )
++      );
++      const findOptionsEls = [
+         /* @__PURE__ */ React$2.createElement("div", { style: { display: "flex" }, key: "ambiguousorliteral" }, /* @__PURE__ */ React$2.createElement(
+           TgHTMLSelect,
+           {
+@@ -174998,7 +176204,7 @@
+         ]
+       ];
+       const InputToUse = !isInline ? TextArea : InputGroup;
+-      const rightEl = /* @__PURE__ */ React$2.createElement("span", null, isInline && /* @__PURE__ */ React$2.createElement(
++      const rightEl = /* @__PURE__ */ React$2.createElement("span", { style: { display: "inline-flex", alignItems: "center" } }, ovenFindControls, isInline && /* @__PURE__ */ React$2.createElement(
+         Popover,
+         {
+           autoFocus: false,
+@@ -175062,7 +176268,9 @@
+         {
+           style: isInline ? {
+             display: "flex",
+-            minWidth: 300
++            // PATCH (oven): room for the DNA/AA buttons and the mismatches box
++            // without squeezing the search text to a dozen letters.
++            minWidth: 480
+           } : {
+             position: "fixed",
+             top: 0,
+@@ -175090,9 +176298,15 @@
+               InputToUse,
+               {
+                 autoFocus: true,
+-                style: __spreadValues({
++                style: __spreadValues(__spreadValues({
+                   resize: "vertical"
+-                }, !isInline && { width: 350, minHeight: 70 }),
++                }, !isInline && { width: 350, minHeight: 70 }), isInline && {
++                  // PATCH (oven): the DNA/AA buttons and the mismatches box sit
++                  // inside the box's right end, so it is widened to keep about
++                  // 240px -- a primer's worth -- of search text in view.
++                  // (__spreadValues takes two arguments, hence the nesting.)
++                  width: 620
++                }),
+                 className: "tg-find-tool-input",
+                 inputRef: (n2) => {
+                   if (n2)
+@@ -175562,7 +176776,15 @@
        {
          minimal: true,
          disabled: sequenceLength <= 0,
@@ -2112,7 +2407,7 @@
          style: { marginLeft: 5, color: "#48AFF0" },
          small: true
        },
-@@ -180303,6 +181395,18 @@
+@@ -180303,6 +181525,18 @@
      editor.getState = () => {
        return store.getState().VectorEditor[editorName];
      };
@@ -2131,7 +2426,7 @@
      return editor;
    }
    __name(createVectorEditor, "createVectorEditor");
-@@ -180348,6 +181452,8 @@
+@@ -180348,6 +181582,8 @@
    }
    __name(createAlignmentView, "createAlignmentView");
    window.createVectorEditor = createVectorEditor;

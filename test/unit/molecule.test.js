@@ -72,3 +72,32 @@ test('an unaligned read has no identity to label', () => {
   assert.strictEqual(identityLabel({}), '');
   assert.strictEqual(identityLabel(null), '');
 });
+
+/* ---------------------------------------------------- remembered view -- */
+
+const { pickViewPrefs, VIEW_PREFS } = require('../../media/cartShared');
+
+test('only how things are drawn is remembered, never what is shown', () => {
+  /*
+   * Features, parts, primers and cut sites hidden in one file must not open
+   * hidden in the next, where they would look absent.
+   */
+  for (const content of ['features', 'parts', 'primers', 'cutsites', 'translations', 'chromatogram', 'sequence']) {
+    assert.ok(!VIEW_PREFS.visibility.includes(content), `${content} should stay per file`);
+  }
+  const picked = pickViewPrefs({
+    aminoAcidNumbers: true, orfs: true, dnaColors: false,
+    features: false, cutsites: false,                 // per file: dropped
+    axisNumbers: 'yes',                               // not a boolean: dropped
+    labels: { cutsites: false, features: true, warnings: false }
+  });
+  assert.deepStrictEqual(picked, {
+    aminoAcidNumbers: true, orfs: true, dnaColors: false,
+    labels: { cutsites: false, features: true }
+  });
+});
+
+test('nothing remembered is nothing applied', () => {
+  assert.deepStrictEqual(pickViewPrefs(null), {});
+  assert.deepStrictEqual(pickViewPrefs({ labels: {} }), {});
+});

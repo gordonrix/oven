@@ -185,7 +185,7 @@ test('a trace file opens with its trace showing', () => {
    * with no hint that the trace is a tickbox away.
    */
   const withTrace = buildEditorHtml(Object.assign({}, OPTS, { showChromatogram: true }));
-  assert.match(withTrace, /annotationVisibility: \{ chromatogram: true \}/);
+  assert.match(withTrace, /annotationVisibility: \{"chromatogram":true\}/);
 
   // Off for everything else: a GenBank file has no trace, and the row would
   // just be empty space under every line.
@@ -248,4 +248,49 @@ test('every editor page tells VS Code about unsaved changes, protein or not', ()
     assert.match(html, /<script src="docSync\.js"><\/script>/, `docSync.js not loaded (protein: ${protein})`);
     assert.match(html, /window\.OveDocSync\.init\(vscode, editor\)/, `docSync not started (protein: ${protein})`);
   }
+});
+
+/* --------------------------------------------------- remembered view -- */
+
+test('a remembered Amino Acid Numbers setting is in the first render of a DNA file', () => {
+  /*
+   * The bug: OVE keeps View menu choices only for the editor they were made
+   * in, so numbering was off again in every file opened. Applied in the boot
+   * payload, so the first render already has it.
+   */
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, {
+    protein: false, viewPrefsUri: 'viewPrefs.js', viewPrefs: { aminoAcidNumbers: true }
+  }));
+  const boot = html.slice(html.indexOf('editor.updateEditor({'));
+  assert.match(boot, /annotationVisibility: \{"aminoAcidNumbers":true\}/);
+  assert.match(html, /<script src="viewPrefs\.js"><\/script>/);
+  assert.match(html, /window\.OveViewPrefs\.init\(vscode, editor\)/);
+});
+
+test('a trace keeps its chromatogram alongside a remembered setting', () => {
+  // One annotationVisibility in the payload, holding both.
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, {
+    protein: false, showChromatogram: true, viewPrefs: { aminoAcidNumbers: true }
+  }));
+  assert.match(html, /annotationVisibility: \{"aminoAcidNumbers":true,"chromatogram":true\}/);
+  assert.strictEqual((html.match(/annotationVisibility:/g) || []).length, 1);
+});
+
+test("a protein neither takes nor overwrites DNA's remembered settings", () => {
+  // OVE's protein view numbers residues itself and turns this off on purpose.
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, {
+    protein: true, viewPrefsUri: 'viewPrefs.js', viewPrefs: { aminoAcidNumbers: true }
+  }));
+  assert.ok(!/aminoAcidNumbers/.test(html), 'the remembered setting was applied to a protein');
+  assert.ok(!/viewPrefs\.js/.test(html), 'a protein should not report its view settings');
+});
+
+test('remembered labels go to label visibility, the rest to annotation visibility', () => {
+  const html = buildEditorHtml(Object.assign({}, PROTEIN_OPTS, {
+    protein: false, viewPrefs: { orfs: true, dnaColors: true, labels: { cutsites: false } }
+  }));
+  const boot = html.slice(html.indexOf('editor.updateEditor({'));
+  assert.match(boot, /annotationVisibility: \{"orfs":true,"dnaColors":true\}/);
+  assert.match(boot, /annotationLabelVisibility: \{"cutsites":false\}/);
+  assert.ok(!/annotationVisibility: \{[^}]*labels/.test(boot), 'labels must not leak into annotation visibility');
 });

@@ -170,6 +170,7 @@ class AlignPanel {
           case 'align/addSequences': await this.addSequences(msg.rows || []); break;
           case 'align/pickReference': await this.pickReference(); break;
           case 'align/remove': this.remove(msg.id); break;
+          case 'align/removeAll': await this.removeAll(); break;
           case 'align/run': await this.run(); break;
           case 'align/save': await this.save(); break;
           default: break;
@@ -589,6 +590,26 @@ class AlignPanel {
     if (dropped) this.note(`Added ${count}; ignored ${dropped} over the ${max}-read limit.${why}`);
     else if (count) this.note(`Added ${count} read${count === 1 ? '' : 's'}.${why || ' Press Align.'}`);
     else this.push(true);
+  }
+
+  /**
+   * Clear every sequence at once, rather than one little x at a time.
+   *
+   * Asked first, in VS Code's own dialog -- a webview cannot show one -- since
+   * it takes the alignment with it, and a set of reads dropped in from fifty
+   * files is tedious to put back.
+   */
+  async removeAll() {
+    const n = this.reads.length;
+    if (!n) return;
+    const answer = await vscode.window.showWarningMessage(
+      `Remove all ${n} sequence${n === 1 ? '' : 's'} from this alignment?`,
+      { modal: true, detail: this.result ? 'The alignment on screen goes with them.' : undefined },
+      'Remove all');
+    if (answer !== 'Remove all') return;
+    this.reads = [];
+    this.forget();
+    this.note('All sequences removed.');
   }
 
   remove(id) {
@@ -1104,6 +1125,7 @@ class AlignPanel {
     <script nonce="${nonce}" src="${uri('index.umd.js')}"></script>
     <script nonce="${nonce}" src="${uri('cartShared.js')}"></script>
     <script nonce="${nonce}" src="${uri('alignView.js')}"></script>
+    <script nonce="${nonce}" src="${uri('textUndo.js')}"></script>
   </body>
 </html>`;
   }
