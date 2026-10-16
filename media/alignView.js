@@ -510,13 +510,21 @@
     box.appendChild(el('div', 'ovealign-bannertitle', 'MAFFT is required to align'));
     box.appendChild(el('div', 'ovealign-bannertext', m.message || 'MAFFT was not found.'));
 
+    // The host says what installs MAFFT on this machine: brew and conda, apt,
+    // or on Windows a download.
+    const install = m.install || { commands: ['brew install mafft', 'conda install -c bioconda mafft'] };
     const cmds = el('div', 'ovealign-cmds');
-    cmds.appendChild(el('code', null, 'brew install mafft'));
-    cmds.appendChild(el('code', null, 'conda install -c bioconda mafft'));
+    install.commands.forEach((c) => cmds.appendChild(el('code', null, c)));
     box.appendChild(cmds);
 
     const row = el('div', 'ovealign-bannerbtns');
-    const locate = el('button', 'ovealign-btn', 'Locate MAFFT…');
+    if (install.download) {
+      const download = el('button', 'ovealign-btn', 'Download MAFFT…');
+      download.title = 'MAFFT for Windows, from its authors';
+      download.addEventListener('click', () => post('align/mafftDownload'));
+      row.appendChild(download);
+    }
+    const locate = el('button', install.download ? 'ovealign-btn secondary' : 'ovealign-btn', 'Locate MAFFT…');
     locate.title = 'Pick the mafft executable; its path is saved to settings';
     locate.addEventListener('click', () => post('align/locateMafft'));
     row.appendChild(locate);

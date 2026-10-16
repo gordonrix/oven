@@ -176,7 +176,7 @@ function rotationFor(readLength, offset, refLength) {
 
 /* ------------------------------------------------------------------ MAFFT -- */
 
-const { notFoundMessage } = require('./mafft');
+const { notFoundMessage, invocation } = require('./mafft');
 
 const MISSING_MAFFT = notFoundMessage();
 
@@ -232,12 +232,17 @@ function mafftArgsFor(opts = {}) {
  */
 function runMafft(records, opts = {}) {
   const bin = opts.mafftPath || 'mafft';
-  const args = mafftArgsFor(opts);
 
   return new Promise((resolve, reject) => {
+    let run;
+    try {
+      run = invocation(bin, mafftArgsFor(opts));
+    } catch (e) {
+      return reject(e); // a word cmd.exe would mangle, on Windows
+    }
     const child = execFile(
-      bin, args,
-      { maxBuffer: 1 << 28, timeout: opts.timeoutMs || 120000 },
+      run.file, run.args,
+      { ...run.options, maxBuffer: 1 << 28, timeout: opts.timeoutMs || 120000 },
       (err, stdout, stderr) => {
         if (err) {
           if (err.code === 'ENOENT') return reject(new Error(MISSING_MAFFT));

@@ -30,3 +30,4 @@ notes/**
 *.ai
 *.svg
 **/.DS_Store
+.github/**

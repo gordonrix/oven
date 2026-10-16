@@ -106,7 +106,7 @@ function activate(context) {
       const found = await mafft.get(config.mafftPath());
       if (found.ok) {
         vscode.window.showInformationMessage(
-          `MAFFT ${found.version} — ${found.path}` +
+          `MAFFT ${found.version} — ${mafft.describe(found.path)}` +
           (found.viaSetting ? ' (from oven.mafftPath)' : ''));
         return;
       }

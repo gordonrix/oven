@@ -274,7 +274,7 @@
         "oven.mafftPath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Full path to the `mafft` executable. Leave empty to search your `PATH`, then the usual Homebrew and conda locations (including named conda environments, which are never on VS Code's `PATH`). Run **Primer Cart: Check MAFFT Installation** to see what was found. Install MAFFT with `brew install mafft` or `conda install -c bioconda mafft`."
+          "markdownDescription": "Full path to the `mafft` executable. Leave empty to search your `PATH`, then the usual Homebrew and conda locations (including named conda environments, which are never on VS Code's `PATH`). On Windows it looks for an unzipped `mafft.bat`, then MAFFT in WSL; set this to `wsl` to use WSL's. Run **OVEN: Check MAFFT Installation** to see what was found. Install MAFFT with `brew install mafft` or `conda install -c bioconda mafft`, or on Windows from mafft.cbrc.jp."
         },
         "oven.mafftArgs": {
           "type": "string",

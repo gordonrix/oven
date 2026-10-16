@@ -60,6 +60,14 @@ the text box never heard of it. In the Find bar, the alignment's paste table and
 form, Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (and Ctrl+Y) now undo and redo the typing there. Outside
 a text box Cmd+Z is left as it was, and undoes edits to the sequence.
 
+**Alignment works on Windows.** MAFFT is the one thing OVEN does not bring, and on Windows
+it could not be found or run: neither install the panel suggested exists there, and MAFFT
+for Windows is a `mafft.bat`, which VS Code cannot start by itself. OVEN now finds MAFFT's
+all-in-one package wherever it was unzipped in your home folder, Downloads, Desktop or
+Documents, and runs it through the Windows command prompt without a window showing. MAFFT
+installed in WSL is found and used too. On Windows the panel's banner offers **Download
+MAFFT…** in place of the brew and conda lines, and on Linux it shows apt.
+
 **New Part is gone, and translations have shortcuts.** Create no longer offers New Part,
 which made a TeselaGen assembly part rather than a feature. Parts already in a file still show
 and save. Its `⌘L` now makes a **New Translation** of the selection, and `⌘⇧L` a **New

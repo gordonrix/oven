@@ -1,0 +1,51 @@
+# Alignment on Windows, against MAFFT installed the two ways a Windows user
+# would: the all-in-one zip unzipped into Downloads, and apt's MAFFT in WSL.
+# See test/windows/mafft.test.js.
+name: MAFFT on Windows
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - src/mafft.js
+      - src/align.js
+      - test/windows/**
+      - .github/workflows/windows-mafft.yml
+
+permissions:
+  contents: read
+
+jobs:
+  mafft-bat:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Unzip MAFFT for Windows into Downloads, as Extract All would
+        shell: pwsh
+        run: |
+          $dl = Join-Path $env:USERPROFILE 'Downloads'
+          New-Item -ItemType Directory -Force $dl | Out-Null
+          $zip = Join-Path $dl 'mafft-7.526-win64-signed.zip'
+          Invoke-WebRequest https://mafft.cbrc.jp/alignment/software/mafft-7.526-win64-signed.zip -OutFile $zip
+          Expand-Archive $zip -DestinationPath (Join-Path $dl 'mafft-7.526-win64-signed')
+      - run: node --test test/windows/mafft.test.js
+        env:
+          OVEN_MAFFT: bat
+
+  mafft-wsl:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: mafft
+      - run: node --test test/windows/mafft.test.js
+        env:
+          OVEN_MAFFT: wsl

@@ -323,13 +323,19 @@ Alignment needs MAFFT, installed separately:
 
 ```bash
 brew install mafft                      # macOS
-conda install -c bioconda mafft         # any platform
+sudo apt install mafft                  # Linux
+conda install -c bioconda mafft         # macOS or Linux
 ```
+
+On Windows, download MAFFT's [all-in-one package](https://mafft.cbrc.jp/alignment/software/windows_without_cygwin.html)
+and unzip it. OVEN finds it in your home folder, Downloads, Desktop or Documents, or you can
+point it at the `mafft.bat` inside. MAFFT installed in WSL (`sudo apt install mafft` in
+Ubuntu) works too, and is the faster of the two.
 
 If it is missing, the panel says so when it opens and offers a **Locate MAFFT…** button
 and **Re-check**.
 
-OVEN looks on your `PATH`, then where Homebrew and conda install — including named conda
+Elsewhere, OVEN looks on your `PATH`, then where Homebrew and conda install — including named conda
 environments, the usual reason a `mafft` that works in the terminal is invisible here. **VS
 Code reads your `PATH` at startup**, so installing MAFFT with the editor open needs a window
 reload.

@@ -56,6 +56,8 @@
        * refused against the protein reference, which must show as an error chip.
        */
       const PROTEIN = new URLSearchParams(location.search).has('protein');
+      // ?windows: the host's MAFFT hints as Windows gets them.
+      const WINDOWS = new URLSearchParams(location.search).has('windows');
       const REF = 'ACGTACGTAAGGCCTTACGTTGCATTAGCA'.repeat(WIDE ? 200 : 10);
       const CLEAN = REF;
       // A Sanger-sized window: comfortably over the 50 bp floor below which a
@@ -232,7 +234,11 @@
           defaults: { gapOpen: 1.53, gapExtend: 0 }
         },
         // Starts missing so the banner is exercised; __mafftFound flips it.
-        mafft: { ok: false, message: 'MAFFT was not found. Install it with "brew install mafft".' }
+        mafft: WINDOWS
+          ? { ok: false, message: 'MAFFT was not found. Download MAFFT for Windows.',
+              install: { commands: ['wsl sudo apt install mafft'],
+                download: 'https://mafft.cbrc.jp/alignment/software/windows_without_cygwin.html' } }
+          : { ok: false, message: 'MAFFT was not found. Install it with "brew install mafft".' }
       };
       if (PROTEIN) {
         state = Object.assign({}, state, {

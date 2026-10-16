@@ -86,8 +86,9 @@ class AlignPanel {
     const chosen = picked[0].fsPath;
     const res = await mafft.probe(chosen);
     if (!res.ok) {
-      return this.fail(`That file ${res.reason}. MAFFT is usually at ` +
-        '/opt/homebrew/bin/mafft, or <conda>/envs/<name>/bin/mafft.');
+      return this.fail(`That file ${res.reason}. ` + (process.platform === 'win32'
+        ? 'Pick mafft.bat, at the top of the unzipped mafft-win folder.'
+        : 'MAFFT is usually at /opt/homebrew/bin/mafft, or <conda>/envs/<name>/bin/mafft.'));
     }
     await vscode.workspace.getConfiguration('oven')
       .update('mafftPath', chosen, vscode.ConfigurationTarget.Global);
@@ -158,6 +159,9 @@ class AlignPanel {
             this.note(this.mafft.ok
               ? `Found MAFFT ${this.mafft.version}.`
               : 'Still cannot find MAFFT.');
+            break;
+          case 'align/mafftDownload':
+            vscode.env.openExternal(vscode.Uri.parse(mafft.WINDOWS_DOWNLOAD));
             break;
           case 'align/openSettings':
             vscode.commands.executeCommand('workbench.action.openSettings', msg.query || 'oven.mafftPath');
@@ -274,7 +278,8 @@ class AlignPanel {
           ok: this.mafft.ok,
           path: this.mafft.path || null,
           version: this.mafft.version || null,
-          message: this.mafft.message || null
+          message: this.mafft.message || null,
+          install: mafft.installHints()
         },
         status: this.status,
         error: this.error,
