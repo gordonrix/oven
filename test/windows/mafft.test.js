@@ -108,7 +108,7 @@ test('the user\'s own MAFFT arguments get through', onWindows, async () => {
 
 test('mafft.bat in a folder with spaces and parentheses', batOnly, async () => {
   // MAFFT's own page warns about parentheses; Windows adds " (1)" to a second download.
-  const dest = path.join(os.tmpdir(), 'MAFFT copy (1) & co', 'mafft-win');
+  const dest = path.join(os.tmpdir(), 'MAFFT copy (1)', 'mafft-win');
   fs.cpSync(path.dirname(found.path), dest, { recursive: true });
   try {
     const bat = path.join(dest, 'mafft.bat');
@@ -117,6 +117,22 @@ test('mafft.bat in a folder with spaces and parentheses', batOnly, async () => {
     const out = await runMafft([{ name: 'a', sequence: 'ACGTACGTAC' }, { name: 'b', sequence: 'ACGTTCGTAC' }],
       { ...SLOW, mafftPath: bat });
     assert.strictEqual(out.length, 2);
+  } finally {
+    fs.rmSync(path.dirname(dest), { recursive: true, force: true });
+  }
+});
+
+test('a folder mafft.bat cannot run from is refused, not taken for MAFFT', batOnly, async () => {
+  // mafft.bat sets its folder unquoted, so an & runs the rest of the name as a
+  // command. It still prints "Preparing environment to run MAFFT" first.
+  const dest = path.join(os.tmpdir(), 'MAFFT & co', 'mafft-win');
+  fs.cpSync(path.dirname(found.path), dest, { recursive: true });
+  try {
+    const bat = path.join(dest, 'mafft.bat');
+    const res = await probe(bat);
+    assert.strictEqual(res.ok, false);
+    assert.match(res.reason, /cannot run from/);
+    await assert.rejects(runMafft([{ name: 'a', sequence: 'ACGT' }], { mafftPath: bat }), /Move or rename/);
   } finally {
     fs.rmSync(path.dirname(dest), { recursive: true, force: true });
   }

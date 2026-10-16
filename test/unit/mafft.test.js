@@ -145,7 +145,10 @@ test('on Windows mafft.bat goes through cmd.exe, with its path quoted', () => {
 });
 
 test('on Windows a word cmd.exe would change is refused, not mangled', () => {
-  assert.throws(() => invocation('C:\\100%\\mafft.bat', ['-'], 'win32'), /% or !/);
+  assert.throws(() => invocation('C:\\100%\\mafft.bat', ['-'], 'win32'), /Move or rename/);
+  // mafft.bat itself cannot cope with these in its folder's name.
+  assert.throws(() => invocation('C:\\Tom & Jerry\\mafft.bat', ['-'], 'win32'), /Move or rename/);
+  assert.throws(() => invocation('C:\\a^b\\mafft.bat', ['-'], 'win32'), /Move or rename/);
   assert.throws(() => invocation('C:\\m\\mafft.bat', ['--op', '!x'], 'win32'), /% or !/);
   assert.throws(() => invocation('C:\\m\\mafft.bat', ['a"b'], 'win32'), /% or !/);
   // Anything else unusual is quoted rather than refused.

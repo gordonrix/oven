@@ -163,7 +163,13 @@ function invocation(binary, args, platform = process.platform) {
     // -e runs mafft itself rather than a shell, so nothing is re-read on the way.
     return { file: 'wsl.exe', args: ['-e', 'mafft', ...args], options };
   }
-  if (/\.(bat|cmd)$/i.test(binary)) {
+  if (isBat(binary)) {
+    /*
+     * mafft.bat sets its own folder unquoted, so an & there runs the rest of
+     * the name as a command and ^ escapes whatever follows it. Neither can be
+     * fixed from outside, so such a folder is refused with a clear reason.
+     */
+    if (/["%!&^\r\n]/.test(binary)) throw new Error(BAD_FOLDER);
     // cmd.exe /s strips the outer quotes and runs what is inside them as typed.
     const line = [cmdWord(binary, true), ...args.map((a) => cmdWord(a, false))].join(' ');
     return {
@@ -191,6 +197,13 @@ function cmdWord(word, quote) {
   return quote || !/^[\w.,:=+/\\-]+$/.test(word) ? `"${word}"` : word;
 }
 
+const BAD_FOLDER = 'mafft.bat cannot run from a folder whose name has " % ! & or ^ in it. ' +
+  'Move or rename its folder.';
+
+function isBat(binary) {
+  return /\.(bat|cmd)$/i.test(binary);
+}
+
 function isWsl(binary) {
   return String(binary).toLowerCase() === WSL;
 }
@@ -213,7 +226,7 @@ function probe(binary, platform = process.platform) {
     try {
       run = invocation(binary, ['--version'], platform);
     } catch {
-      return resolve({ ok: false, reason: 'has a " % or ! in its path, which Windows would change' });
+      return resolve({ ok: false, reason: 'is in a folder whose name has " % ! & or ^ in it, which mafft.bat cannot run from' });
     }
     const timeout = platform === 'win32' ? WINDOWS_VERSION_TIMEOUT_MS : VERSION_TIMEOUT_MS;
     execFile(run.file, run.args, { ...run.options, timeout }, (err, stdout, stderr) => {
@@ -231,9 +244,13 @@ function probe(binary, platform = process.platform) {
       // mafft.bat says a few things first, so look past them.
       const version = lines.find((l) => /^v?\d+\.\d+/.test(l));
       const named = lines.find((l) => /mafft/i.test(l));
-      // WSL without MAFFT names it too, in its error, so there only a clean
-      // exit with a version will do.
-      const found = isWsl(binary) && platform === 'win32' ? !err && version : version || named;
+      // A line naming MAFFT is not enough on Windows: mafft.bat names it
+      // before it has found out whether it can run, and WSL without MAFFT names
+      // it in its error. There only a version will do, and from WSL a clean exit.
+      const windows = platform === 'win32';
+      const found = windows && isWsl(binary) ? !err && version
+        : windows && isBat(binary) ? version
+          : version || named;
       if (found) return resolve({ ok: true, version: version || named });
       resolve({
         ok: false,
