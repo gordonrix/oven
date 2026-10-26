@@ -26,7 +26,8 @@ const vscode = require('vscode');
 const config = require('./config');
 const mafft = require('./mafft');
 const { align, mutatedCodons, mafftArgsFor } = require('./align');
-const { buildStockholm, readAlignment, rebuild } = require('./alignFile');
+const { buildStockholm, readAlignment, rebuild, fitsRow } = require('./alignFile');
+const { findByName, fileNamesFor, digest } = require('./findSources');
 const { guessMolecule, PROTEIN_LETTERS } = require('../media/cartShared');
 const alignSettings = require('./alignSettings');
 const {
@@ -35,6 +36,17 @@ const {
 
 /* What a saved alignment is written as. Stockholm; see alignFile.js. */
 const ALIGNMENT_EXTENSION = 'sto';
+
+/*
+ * Where to look for a read's file: below the alignment's folder, then below
+ * the one above it -- an experiment keeps its alignments/ beside the
+ * sequencing/ folder the results were unpacked into -- then the workspace.
+ * Breadth first from each, so the nearest file of the name is tried first.
+ */
+function searchRoots(dir) {
+  const folders = (vscode.workspace.workspaceFolders || []).map((f) => f.uri.fsPath);
+  return [dir, path.dirname(dir), ...folders];
+}
 
 class AlignPanel {
   constructor(context, opts) {
@@ -435,7 +447,13 @@ class AlignPanel {
     for (const f of files) {
       if (this.reads.some((r) => !r.path && r.name === f.name)) continue;
       try {
-        added.push(...await this.ingest(Buffer.from(f.base64, 'base64'), f.name, null));
+        const bytes = Buffer.from(f.base64, 'base64');
+        const entries = await this.ingest(bytes, f.name, null);
+        // No path came with it. Its name and a digest of its bytes are kept so
+        // that saving can look for the file it came from -- see locateDropped.
+        const sum = digest(bytes);
+        entries.forEach((entry) => Object.assign(entry, { fileName: f.name, digest: sum }));
+        added.push(...entries);
       } catch (e) {
         this.reads.push({ id: this.nextId++, name: f.name, error: shortError(e) });
       }
@@ -875,9 +893,83 @@ class AlignPanel {
     const target = await this.chooseTarget();
     if (!target) return;
 
+    const located = await this.locateDropped(path.dirname(target.fsPath));
     await vscode.workspace.fs.writeFile(target, Buffer.from(this.toFileText(target), 'utf8'));
     this.file = target;
-    this.note(`Saved ${path.basename(target.fsPath)}.`);
+    const pending = this.aligned.filter((r) => !r.path && r.digest).length;
+    const reads = (n) => `${n} dragged-in read${n === 1 ? '' : 's'}`;
+    this.note(`Saved ${path.basename(target.fsPath)}.` +
+      (located ? ` Found the files of ${reads(located)}, so their traces will come back on reopening.` : '') +
+      (pending ? ` ${reads(pending)} could not be found on disk and will reopen without traces.` : ''));
+  }
+
+  /**
+   * Find the files reads dragged in from Finder came from.
+   *
+   * Finder hands the webview a file's bytes and never its path, so such a read
+   * would be saved with nothing to reopen it from. Most often the file is below
+   * the folder the alignment is being saved to, where the sequencing results
+   * were unpacked, so that is searched, then the workspace. A file is taken
+   * only if its bytes are exactly the ones dropped.
+   *
+   * @returns {Promise<number>} how many reads now have a path
+   */
+  async locateDropped(dir) {
+    const lost = this.aligned.filter((r) => !r.path && r.fileName && r.digest);
+    if (!lost.length) return 0;
+    const found = await findByName(searchRoots(dir), lost.map((r) => r.fileName));
+    const sums = new Map();
+    let located = 0;
+    for (const read of lost) {
+      for (const candidate of found.get(read.fileName.toLowerCase()) || []) {
+        if (!sums.has(candidate)) {
+          try {
+            sums.set(candidate, digest(await vscode.workspace.fs.readFile(vscode.Uri.file(candidate))));
+          } catch {
+            sums.set(candidate, null);
+          }
+        }
+        if (sums.get(candidate) === read.digest) {
+          read.path = candidate;
+          located++;
+          break;
+        }
+      }
+    }
+    return located;
+  }
+
+  /**
+   * Find the files of reads an alignment was saved without.
+   *
+   * The other half of locateDropped, for alignments saved before it existed or
+   * whose files were not found then: each read with no path is looked for by
+   * name below the alignment, and a file is taken only if its sequence is
+   * exactly the saved row's. Whatever is found goes into `sources` and onto the
+   * read's entry, so saving again records where it is.
+   *
+   * @returns {Promise<number>} how many were found
+   */
+  async findUnsaved(spec, dir, sources) {
+    const molecule = spec.meta && spec.meta.alphabet === 'protein' ? 'protein' : 'dna';
+    const lost = spec.reads.map((read, i) => ({ read, i }))
+      .filter(({ read, i }) => !sources[i] && !read.path && !read.rel);
+    if (!lost.length) return 0;
+    const found = await findByName(searchRoots(dir), lost.flatMap(({ read }) => fileNamesFor(read.name)));
+    let located = 0;
+    for (const { read, i } of lost) {
+      const candidates = fileNamesFor(read.name).flatMap((n) => found.get(n.toLowerCase()) || []);
+      for (const candidate of candidates) {
+        const source = await this.loadSource({ path: candidate, record: read.record }, dir, read.trim);
+        if (fitsRow(source, read, molecule)) {
+          sources[i] = source;
+          read.path = candidate;
+          located++;
+          break;
+        }
+      }
+    }
+    return located;
   }
 
   /* -------------------------------------------------------- reopening -- */
@@ -925,6 +1017,7 @@ class AlignPanel {
     const reference = await this.loadSource(spec.reference, dir, 0);
     const reads = [];
     for (const read of spec.reads) reads.push(await this.loadSource(read, dir, read.trim));
+    const found = await this.findUnsaved(spec, dir, reads);
 
     const restored = rebuild(spec, { reference, reads });
     this.reference = withMolecule(restored.reference);
@@ -945,7 +1038,9 @@ class AlignPanel {
     const problems = restored.problems;
     if (!problems.length) {
       this.note(`${spec.reads.length} read${spec.reads.length === 1 ? '' : 's'} ` +
-        `against ${this.reference.name}.`);
+        `against ${this.reference.name}.` +
+        (found ? ` Found the file${found === 1 ? '' : 's'} of ${found} that ` +
+          `${found === 1 ? 'was' : 'were'} saved without one; save to remember where.` : ''));
       return;
     }
     /*

@@ -4,6 +4,16 @@ All notable changes to the "openvectoreditor" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 1.60.2
+
+**Reads dragged in from Finder keep their traces.** Finder gives VS Code a file's contents
+and never its path, so a read dragged or pasted in from Finder was saved with its bases and
+nothing to reopen it from, and came back without its chromatogram. Saving now looks for the
+file below the folder being saved to, the folder above it and the workspace, and takes one
+only if its bytes are exactly the ones added; an experiment's `alignments/` beside its
+`sequencing/` folder is found. Reopening does the same for alignments saved without their
+files, checking each candidate against the saved row, so those get their traces back too.
+
 ## 1.60.1
 
 **A read with sequence the map does not have is shown as an insertion.** A 64-base read

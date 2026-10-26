@@ -304,9 +304,12 @@ it suggests is dated — `2026-09-23_alignment.sto` — so a folder of them sort
 were made; reopening one and saving again suggests its own name instead.
 
 It reopens as the alignment you saved rather than a fresh one: the columns are in the file, so
-nothing is realigned and MAFFT is not needed to look at it. A sequence you typed or pasted in, or
-dropped from Finder, has no file to be re-read from, so the alignment file carries its bases
-itself. What is re-read from disk is the
+nothing is realigned and MAFFT is not needed to look at it. A sequence you typed or pasted in
+has no file to be re-read from, so the alignment file carries its bases itself. A file dragged
+or pasted in from Finder arrives without its path, so OVEN looks for it: below the folder you
+save to and the one above it, and in your workspace, taking a file only if its contents are the
+ones you added — so the traces of a sequencing order unpacked next to the alignment come back.
+Alignments saved before this find their files the same way when they are reopened. What is re-read from disk is the
 sequences themselves, which is where the features and the traces live — a file that has moved
 with the alignment, or alongside it, is found either way. If a source has been edited or is
 missing, the alignment still opens on the bases held in the file and says which tracks lost

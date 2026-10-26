@@ -388,6 +388,16 @@ function orientRead(sequence, read, molecule) {
 }
 
 /**
+ * Is this the file that row came from? Its bases, oriented and folded the way
+ * the read was, have to be the row's letters exactly -- the same test rebuild
+ * holds every source to.
+ */
+function fitsRow(source, read, molecule) {
+  if (!source || (source.molecule && source.molecule !== molecule)) return false;
+  return orientRead(source.sequence, read, molecule).columnOrder === degap(read.row);
+}
+
+/**
  * Put the read back in read order when there is nothing else to go on.
  *
  * A folded read is stored in column order, and the letters alone cannot say
@@ -559,7 +569,7 @@ function rebuild(spec, sources = {}) {
 }
 
 module.exports = {
-  FORMAT_VERSION, buildStockholm, parseStockholm, readAlignment, rebuild,
+  FORMAT_VERSION, buildStockholm, parseStockholm, readAlignment, rebuild, fitsRow,
   encodeRanges, decodeRanges, encodeRuns, decodeRuns,
   encodeFields, decodeFields, safeIds, degap, pairRows
 };
